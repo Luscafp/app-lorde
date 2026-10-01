@@ -1,0 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+@theme inline {
+  --color-bg:       #07090d;
+  --color-s1:       #0e1118;
+  --color-s2:       #131720;
+  --color-card:     #141820;
+  --color-card2:    #191e2a;
+  --color-red:      #e11d48;
+  --color-red-d:    #be123c;
+  --color-red-xl:   #9f1239;
+  --color-blue:     #2563eb;
+  --color-blue-d:   #1d4ed8;
+  --color-blue-l:   #60a5fa;
+  --color-text:     #eef0f6;
+  --color-muted:    #6b7280;
+  --color-dim:      #2d3447;
+  --color-border:   rgba(255,255,255,0.07);
+  --color-border-r: rgba(225,29,72,0.22);
+  --color-border-b: rgba(37,99,235,0.22);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: #07090d;
+  color: #eef0f6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.f-sora { font-family: 'Sora', sans-serif; }
+.f-mono { font-family: 'JetBrains Mono', monospace; }
+
+::-webkit-scrollbar { width: 0; height: 0; }
+* { scrollbar-width: none; -webkit-tap-highlight-color: transparent; }
+
+@keyframes fadeUp   { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+@keyframes fadeIn   { from{opacity:0} to{opacity:1} }
+@keyframes popIn    { from{opacity:0;transform:scale(.9)} to{opacity:1;transform:scale(1)} }
+@keyframes scanH    { from{transform:translateY(-100%)} to{transform:translateY(100vh)} }
+@keyframes shimmer  { 0%{background-position:-300px 0} 100%{background-position:300px 0} }
+@keyframes pulseRed { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+.a-up   { animation: fadeUp  .3s ease forwards; }
+.a-in   { animation: fadeIn  .22s ease forwards; }
+.a-pop  { animation: popIn   .25s ease forwards; }
+.a-pulse{ animation: pulseRed 1.6s ease-in-out infinite; }
+
+.shimmer-bg {
+  background: linear-gradient(90deg,transparent 0%,rgba(255,255,255,.04) 50%,transparent 100%);
+  background-size: 300px 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
