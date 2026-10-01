@@ -1,0 +1,10 @@
+{
+  "description": "Designed for athletic organizations, this mobile app streamlines event scheduling, training tracking, and athlete management while providing essential updates and resources.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
