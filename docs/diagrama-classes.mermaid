@@ -1,0 +1,191 @@
+classDiagram
+    direction LR
+
+    class Papel {
+        <<enumeration>>
+        ATLETA
+        DIRETOR
+        PRESIDENTE
+        VICE_PRESIDENTE
+        ADMINISTRADOR
+    }
+    note for Papel "PRESIDENTE e VICE_PRESIDENTE têm as mesmas permissões"
+
+    class TipoEvento {
+        <<enumeration>>
+        JOGO
+        TREINO
+    }
+    class StatusEvento {
+        <<enumeration>>
+        AGENDADO
+        EM_ANDAMENTO
+        FINALIZADO
+        CANCELADO
+    }
+    class Resultado {
+        <<enumeration>>
+        VITORIA
+        EMPATE
+        DERROTA
+    }
+    class StatusSolicitacao {
+        <<enumeration>>
+        PENDENTE
+        APROVADA
+        REJEITADA
+        CANCELADA
+    }
+    class StatusNoticia {
+        <<enumeration>>
+        RASCUNHO
+        PUBLICADA
+    }
+
+    class Usuario {
+        +UUID id
+        +String nome
+        +String email
+        +String senhaHash
+        +String fotoUrl
+        +Boolean emailVerificado
+        +Boolean ativo
+        +DateTime criadoEm
+        +DateTime excluidoEm
+    }
+    class Atletica {
+        +UUID id
+        +String nome
+        +String sigla
+        +String curso
+        +String logoUrl
+        +String corPrimaria
+        +String corSecundaria
+        +Boolean usaAplicativo
+    }
+    class VinculoAtletica {
+        +Papel papel
+        +Boolean ativo
+        +DateTime criadoEm
+    }
+    class PreferenciaNotificacao {
+        +Boolean pushAtivo
+        +Boolean novosEventos
+        +Boolean alteracoesEventos
+        +Boolean lembretes
+        +Int antecedenciaLembreteHoras
+        +Boolean resultados
+        +Boolean noticias
+        +Boolean solicitacoes
+        +Boolean avisos
+    }
+    class DispositivoPush {
+        +UUID id
+        +String tokenPush
+        +String plataforma
+        +DateTime ultimoUsoEm
+    }
+    class Modalidade {
+        +UUID id
+        +String nome
+        +String icone
+        +Boolean ativa
+    }
+    class Time {
+        +UUID id
+        +UUID atleticaId
+        +String nome
+        +Boolean ativo
+    }
+    class MembroTime {
+        +UUID atleticaId
+        +DateTime entradaEm
+        +DateTime saidaEm
+    }
+    class SolicitacaoEntrada {
+        +UUID id
+        +UUID atleticaId
+        +StatusSolicitacao status
+        +DateTime criadaEm
+        +DateTime avaliadaEm
+    }
+    class Evento {
+        +UUID id
+        +UUID atleticaId
+        +TipoEvento tipo
+        +DateTime inicio
+        +String local
+        +StatusEvento status
+        +Int placarTime
+        +Int placarAdversario
+        +Resultado resultado
+        +String observacoes
+    }
+    class SerieRecorrencia {
+        +UUID id
+        +UUID atleticaId
+        +Int[] diasSemana
+        +Time horario
+        +Date dataInicio
+        +Date dataFim
+    }
+    class Participacao {
+        +UUID atleticaId
+        +Boolean confirmado
+        +DateTime respondidoEm
+        +Boolean presente
+        +DateTime presencaRegistradaEm
+    }
+    class Noticia {
+        +UUID id
+        +UUID atleticaId
+        +String titulo
+        +String conteudo
+        +String imagemCapaUrl
+        +StatusNoticia status
+        +DateTime publicadaEm
+    }
+    class Tag {
+        +UUID id
+        +UUID atleticaId
+        +String nome
+    }
+    class Banner {
+        +UUID id
+        +UUID atleticaId
+        +String titulo
+        +String imagemUrl
+        +String link
+        +Int ordem
+        +Boolean ativo
+    }
+    class RegistroAuditoria {
+        +UUID id
+        +UUID atleticaId
+        +String acao
+        +String entidade
+        +UUID entidadeId
+        +Json dados
+        +DateTime criadoEm
+    }
+
+    Usuario "1" -- "0..*" VinculoAtletica : participa
+    Atletica "1" -- "0..*" VinculoAtletica : membros
+    Atletica "1" -- "0..*" Time : possui
+    Usuario "1" -- "1" PreferenciaNotificacao : possui
+    Usuario "1" -- "0..*" DispositivoPush : registra
+    Modalidade "1" -- "0..*" Time : agrupa
+    Time "0..1" -- "0..1" Usuario : capitao
+    Usuario "1" -- "0..*" MembroTime
+    Time "1" -- "0..*" MembroTime : elenco
+    Usuario "1" -- "0..*" SolicitacaoEntrada : solicita
+    Time "1" -- "0..*" SolicitacaoEntrada : recebe
+    Usuario "0..1" -- "0..*" SolicitacaoEntrada : avalia
+    Time "1" -- "0..*" Evento : time
+    Time "0..1" -- "0..*" Evento : timeAdversario
+    SerieRecorrencia "0..1" -- "1..*" Evento : gera
+    Evento "1" -- "0..*" Participacao
+    Usuario "1" -- "0..*" Participacao
+    Usuario "1" -- "0..*" Noticia : autor
+    Noticia "0..*" -- "0..*" Tag
+    Usuario "1" -- "0..*" RegistroAuditoria : executa

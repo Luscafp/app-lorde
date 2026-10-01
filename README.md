@@ -10,43 +10,48 @@ Hoje a organização da atlética é feita por grupos de WhatsApp; o objetivo do
 
 ## 📱 Sobre o projeto
 
-- **Plataforma:** Android (React Native)
-- **Atores:** Usuário Atleta e Usuário Administrador
-- **Documentação completa:** ver `/docs` (Documento de Requisitos, Diagrama de Classes, Diagrama de Casos de Uso)
+- **Plataforma:** Android (React Native + Expo)
+- **Stack:** Expo/TypeScript no app · Node.js + NestJS + Prisma na API · PostgreSQL · Cloudflare R2 (imagens) · Expo Push/FCM (notificações)
+- **Níveis de acesso:** Atleta < Diretoria < Presidência (Presidente e Vice, mesmas permissões) < Administrador
+- **Multi-atlética:** hoje só a Lorde usa o app, mas o código deve nascer preparado para outras atléticas (`atleticaId` nas tabelas, papel por atlética, nada da Lorde fixo no código) — ver seção 8.4 do documento
+- **Documentação completa:** ver `/docs` (Documento de Requisitos v1.2, diagramas de classes, casos de uso e arquitetura)
 
 ## 🎯 Funcionalidades
 
-**Autenticação**
-- Login, cadastro, alternância entre as telas e logout
+**Autenticação e conta**
+- Login, cadastro aberto, logout, recuperação de senha e exclusão de conta
 
 **Home**
-- Próximos jogos e treinos, notícias com tags, times em destaque em carrossel
+- Próximos jogos e treinos, notícias com imagem e tags, carrossel de banners
 
 **Agenda**
-- Aba Jogos (com filtro por modalidade) e aba Placar (resultados com vitória/empate/derrota)
+- Jogos e treinos (filtro por modalidade e tipo), aba Placar (vitória/empate/derrota) e confirmação de participação
 
-**Modalidades**
-- Lista de modalidades e times, elenco com capitão, horários/locais de treino, solicitação de entrada em time
+**Modalidades e times**
+- Modalidades (esporte) e times (grupo de pessoas), elenco com capitão, treinos do time, solicitação de entrada
 
 **Perfil**
-- Dados do usuário, estatísticas (jogos participados e treinos presentes), configurações, notificações e confirmação de participação em jogos/treinos
+- Dados do usuário, estatísticas baseadas em presença registrada, configurações e preferências de notificação
 
-**Administração** (apenas Administrador)
-- Gerenciar usuários, times, jogos, resultados, notícias e banners da Home; aceitar ou rejeitar solicitações de entrada em times
+**Diretoria**
+- Eventos (jogo ou treino, avulso ou recorrente), status, resultados, presenças, times/adversários, modalidades, solicitações, notícias, banners e avisos
+
+**Administração**
+- Presidência: gerenciar usuários e auditoria · Administrador: conceder cargos da diretoria e da presidência
 
 ## 📄 Documentação
 
-- Documento de Requisitos (RFs, RNFs, Regras de Negócio, Restrições)
+- Documento de Requisitos (`docs/Documento_Requisitos-Aplicativo.docx`): RFs com prioridade (MVP/R2/R3), RNFs, regras de negócio, restrições, casos de uso especificados, modelo de dados e arquitetura técnica
 - Diagrama de Classes (`docs/diagrama-classes.mermaid`)
 - Diagrama de Casos de Uso (`docs/diagrama-casos-uso.mermaid`)
+- Diagrama de Arquitetura (`docs/diagrama-arquitetura.mermaid`)
+- Protótipo de interface (`docs/Prototipo interativo app atlética`) — referência visual, defasado em relação ao documento
 
 ## 🗺️ Roadmap de desenvolvimento
 
-1. Modelagem do banco de dados a partir do Diagrama de Classes
-2. Backend com autenticação (JWT)
-3. Navegação e telas do app (Home, Agenda, Modalidades, Perfil)
-4. Painel administrativo
-5. Notificações push
+1. **MVP (R1):** monorepo, CI, banco (Prisma) a partir do Diagrama de Classes, autenticação JWT, agenda de jogos e treinos, times e solicitações, confirmação de participação, placar, notícias, usuários e cargos
+2. **R2:** notificações push, registro de presença e estatísticas, banners, tags, verificação de e-mail
+3. **R3:** avisos manuais e consulta à auditoria
 
 ## 🤝 Contribuindo
 

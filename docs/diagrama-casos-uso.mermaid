@@ -1,0 +1,40 @@
+%% Cada ator se liga ao grupo de casos de uso que executa.
+%% A generalização (herda) indica que o ator possui também todos os casos de uso do ator herdado.
+flowchart LR
+    Atleta(["👤 Atleta"])
+    Diretoria(["👤 Diretoria"])
+    Presidencia(["👤 Presidência<br/>(Presidente / Vice)"])
+    Admin(["👤 Administrador"])
+
+    Admin -. herda .-> Presidencia
+    Presidencia -. herda .-> Diretoria
+    Diretoria -. herda .-> Atleta
+
+    subgraph Conta["Conta"]
+        direction TB
+        UC06(["UC06 Cadastrar-se"]) ~~~ UC07(["UC07 Realizar Login"]) ~~~ UC08(["UC08 Realizar Logout"]) ~~~ UC09(["UC09 Recuperar Senha"]) ~~~ UC13(["UC13 Excluir Conta"])
+    end
+    subgraph Consulta["Consulta e Participação"]
+        direction TB
+        UC01(["UC01 Visualizar Home"]) ~~~ UC02(["UC02 Visualizar Agenda"]) ~~~ UC03(["UC03 Visualizar Placar"]) ~~~ UC04(["UC04 Consultar Modalidades e Times"]) ~~~ UC05(["UC05 Consultar Notícias"])
+        UC10(["UC10 Visualizar Perfil e Estatísticas"]) ~~~ UC11(["UC11 Editar Perfil e Configurações"]) ~~~ UC12(["UC12 Gerenciar Notificações"]) ~~~ UC14(["UC14 Solicitar Entrada em Time"]) ~~~ UC15(["UC15 Confirmar Participação"])
+    end
+    subgraph Gestao["Gestão da Diretoria"]
+        direction TB
+        UC16(["UC16 Gerenciar Eventos"]) ~~~ UC17(["UC17 Registrar Resultado"]) ~~~ UC18(["UC18 Registrar Presença"]) ~~~ UC19(["UC19 Gerenciar Times e Modalidades"])
+        UC20(["UC20 Gerenciar Solicitações"]) ~~~ UC21(["UC21 Gerenciar Notícias"]) ~~~ UC22(["UC22 Gerenciar Banners"]) ~~~ UC25(["UC25 Enviar Aviso"])
+    end
+    subgraph Adm["Administração"]
+        direction TB
+        UC23(["UC23 Gerenciar Usuários"])
+        UC24(["UC24 Gerenciar Cargos"])
+    end
+
+    Atleta --- Conta
+    Atleta --- Consulta
+    Diretoria --- Gestao
+    Presidencia --- UC23
+    Admin --- UC24
+
+    classDef ator fill:#003366,color:#ffffff,stroke:#003366
+    class Atleta,Diretoria,Presidencia,Admin ator

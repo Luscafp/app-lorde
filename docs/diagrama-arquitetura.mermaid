@@ -1,0 +1,32 @@
+flowchart TB
+    subgraph Celular["Dispositivo Android"]
+        App["App React Native + Expo<br/>(Expo Router, TanStack Query)"]
+    end
+
+    subgraph Nuvem["Hospedagem (Railway)"]
+        API["API REST Node.js + NestJS<br/>/api/v1 · OpenAPI"]
+        Fila["Fila e agendamentos<br/>(pg-boss)"]
+        DB[("PostgreSQL")]
+    end
+
+    R2[("Cloudflare R2<br/>imagens")]
+    Push["Expo Push Service<br/>→ Firebase Cloud Messaging"]
+    Mail["Resend<br/>(e-mail transacional)"]
+    Sentry["Sentry<br/>(erros app e API)"]
+    GH["GitHub Actions<br/>CI/CD + backup diário"]
+    EAS["EAS Build / Update"]
+
+    App -- "HTTPS + JWT" --> API
+    App -- "upload via URL pré-assinada" --> R2
+    App -- "download de imagens (cache)" --> R2
+    API --> DB
+    API --> Fila
+    Fila --> DB
+    Fila --> Push
+    Push -- "notificação" --> App
+    API --> Mail
+    App -.-> Sentry
+    API -.-> Sentry
+    GH -. "deploy" .-> API
+    GH -. "pg_dump criptografado" .-> R2
+    EAS -. "APK/AAB e OTA" .-> App
