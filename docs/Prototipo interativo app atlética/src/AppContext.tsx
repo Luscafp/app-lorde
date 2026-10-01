@@ -1,53 +1,60 @@
 import { createContext, useContext } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type {
-  Role, Screen, ToastItem, ConfirmState, Evento, Time, Modalidade, AtleticaRef,
-  Solicitacao, Noticia, Banner, Usuario, AuditLog, AuditEntity, DemoState,
+  Role, Screen, AgendaTab, Evento, Participacao, Time, MembroTime, Modalidade, Atletica,
+  Solicitacao, Noticia, Banner, Usuario, AuditLog, AuditEntity, DemoFlags,
 } from './types'
 
+type Setter<T> = Dispatch<SetStateAction<T>>
+
+// Estado compartilhado: tudo o que o painel altera aparece imediatamente nas telas do atleta e vice-versa.
 export type AppCtx = {
+  me: Usuario
   role: Role
   setScreen: (s: Screen) => void
+  agendaTab: AgendaTab
+  openAgenda: (tab: AgendaTab) => void
+  setAgendaTab: (tab: AgendaTab) => void
+  abrirEvento: (id: string | null) => void
   showToast: (message: string, type: 'success' | 'error') => void
-  showConfirm: (title: string, message: string, onConfirm: () => void) => void
+  showConfirm: (title: string, message: string, onConfirm: () => void, confirmLabel?: string) => void
+  logout: (toast?: string) => void
+  senhaCorreta: (usuarioId: string, senha: string) => boolean
+  alterarSenha: (usuarioId: string, senha: string) => void
+  demo: DemoFlags
+  setDemo: Setter<DemoFlags>
+  // Ações de gravação chamam online() antes: sem conexão, mostra "Sem conexão" e bloqueia (RNF19)
+  online: () => boolean
+  nomeUsuario: (id: string) => string
+
   eventos: Evento[]
-  setEventos: Dispatch<SetStateAction<Evento[]>>
+  setEventos: Setter<Evento[]>
+  participacoes: Participacao[]
+  setParticipacoes: Setter<Participacao[]>
   times: Time[]
-  setTimes: Dispatch<SetStateAction<Time[]>>
+  setTimes: Setter<Time[]>
+  membros: MembroTime[]
+  setMembros: Setter<MembroTime[]>
   modalidades: Modalidade[]
-  setModalidades: Dispatch<SetStateAction<Modalidade[]>>
-  atleticas: AtleticaRef[]
-  setAtleticas: Dispatch<SetStateAction<AtleticaRef[]>>
+  setModalidades: Setter<Modalidade[]>
+  atleticas: Atletica[]
+  setAtleticas: Setter<Atletica[]>
   solicitacoes: Solicitacao[]
-  setSolicitacoes: Dispatch<SetStateAction<Solicitacao[]>>
+  setSolicitacoes: Setter<Solicitacao[]>
   noticias: Noticia[]
-  setNoticias: Dispatch<SetStateAction<Noticia[]>>
+  setNoticias: Setter<Noticia[]>
   banners: Banner[]
-  setBanners: Dispatch<SetStateAction<Banner[]>>
+  setBanners: Setter<Banner[]>
   usuarios: Usuario[]
-  setUsuarios: Dispatch<SetStateAction<Usuario[]>>
+  setUsuarios: Setter<Usuario[]>
   auditoria: AuditLog[]
   audit: (entidade: AuditEntity, acao: string, alvo: string) => void
-  demoState: DemoState
 }
 
-export const AppContext = createContext<AppCtx>({
-  role: 'atleta',
-  setScreen: () => {},
-  showToast: () => {},
-  showConfirm: () => {},
-  eventos: [], setEventos: () => {},
-  times: [], setTimes: () => {},
-  modalidades: [], setModalidades: () => {},
-  atleticas: [], setAtleticas: () => {},
-  solicitacoes: [], setSolicitacoes: () => {},
-  noticias: [], setNoticias: () => {},
-  banners: [], setBanners: () => {},
-  usuarios: [], setUsuarios: () => {},
-  auditoria: [], audit: () => {},
-  demoState: 'ready',
-})
+export const AppContext = createContext<AppCtx | null>(null)
 
-export const useApp = () => useContext(AppContext)
-
-export type { ToastItem, ConfirmState }
+export function useApp(): AppCtx {
+  const ctx = useContext(AppContext)
+  if (!ctx) throw new Error('useApp fora do AppContext')
+  return ctx
+}

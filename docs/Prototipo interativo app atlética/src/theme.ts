@@ -10,7 +10,9 @@ export const C = {
   green: '#22c55e', yellow: '#eab308', orange: '#f97316',
 } as const
 
+// Atlética ativa. No app real vem do cadastro de Atletica (seção 8.4): nada da Lorde fixo no código.
 export const ATLETICA = {
+  id: 'lorde',
   nome: 'Atlética Lorde',
   sigla: 'LORDE',
   curso: 'Ciência da Computação e IA',

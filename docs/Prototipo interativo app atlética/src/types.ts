@@ -1,46 +1,53 @@
+// Papel no vínculo com a atlética (VinculoAtletica.papel). Presidente e Vice têm as mesmas permissões (RN05).
 export type Role = 'atleta' | 'diretor' | 'vice' | 'presidente' | 'admin'
 export type Tab = 'home' | 'agenda' | 'modalidades' | 'perfil'
-export type Screen = Tab | 'login' | 'painel' | 'modalidade-detail'
+export type Screen = Tab | 'painel'
+export type AgendaTab = 'eventos' | 'placar'
 
+// Catálogo global (sem atleticaId) — seção 7.2
 export type Modalidade = { id: string; nome: string; emoji: string; cor: string; ativa: boolean }
 
-export type AtleticaRef = { id: string; nome: string; curso: string }
+// Atléticas adversárias são registros de Atletica com usaAplicativo = false (RN21)
+export type Atletica = { id: string; nome: string; curso: string; usaAplicativo: boolean }
 
 export type Time = {
   id: string
   nome: string
   modalidadeId: string
   atleticaId: string
-  capitao?: string
-  atletas?: string[]
-  treino?: string
-  local?: string
-  ativo?: boolean
+  capitaoId?: string
+  ativo: boolean
 }
+
+// Elenco: vínculo do usuário com o time, separado da solicitação (seção 7.2)
+// saidaEm preenchido = passagem encerrada (o histórico do elenco é preservado)
+export type MembroTime = { timeId: string; usuarioId: string; entradaEm: string; saidaEm?: string }
 
 export type EventoStatus = 'Agendado' | 'Em andamento' | 'Finalizado' | 'Cancelado'
 export type EventoTipo = 'JOGO' | 'TREINO'
+export type Resultado = 'VITORIA' | 'EMPATE' | 'DERROTA'
 
 export type Evento = {
   id: string
   tipo: EventoTipo
-  timeLordeId: string
-  timeAdvId?: string
-  inicio: string
+  timeId: string
+  timeAdversarioId?: string
+  inicio: string // data e hora em um único campo (dd/mm/aaaa HH:mm na interface)
   local: string
   status: EventoStatus
-  placar?: { lorde: number; adv: number }
-  confirmados: string[]
-  recorrente?: boolean
-  serieId?: string
-  participacoes?: Participacao[]
+  placarTime?: number
+  placarAdversario?: number
+  serieId?: string // ocorrência de um treino recorrente (SerieRecorrencia)
 }
 
+// confirmado = resposta do atleta ("Vou"/"Não vou"); presente = registro da diretoria.
+// São independentes: apenas presente entra nas estatísticas (RN32).
 export type Participacao = {
+  eventoId: string
   usuarioId: string
-  nome: string
-  resposta?: 'VOU' | 'NAO_VOU'
-  presente?: boolean
+  confirmado: boolean | null
+  respondidoEm?: string
+  presente: boolean | null
 }
 
 export type NoticiaStatus = 'Rascunho' | 'Publicada'
@@ -50,11 +57,10 @@ export type Noticia = {
   titulo: string
   conteudo: string
   imagem: string
-  data: string
   status: NoticiaStatus
   tags: string[]
+  criadaEm: string
   autorId?: string
-  autorNome?: string
   publicadaEm?: string
 }
 
@@ -73,26 +79,18 @@ export type Usuario = {
   email: string
   role: Role
   ativo: boolean
-  timeId?: string
+  excluido?: boolean
 }
+
+export type StatusSolicitacao = 'PENDENTE' | 'APROVADA' | 'REJEITADA' | 'CANCELADA'
 
 export type Solicitacao = {
   id: string
   usuarioId: string
-  nomeUsuario: string
   timeId: string
-  status: 'PENDENTE' | 'APROVADA' | 'REJEITADA' | 'CANCELADA'
-  data: string
-}
-
-export type AuditLog = {
-  id: string
-  usuarioId: string
-  nomeUsuario: string
-  acao: string
-  entidade: AuditEntity
-  alvo: string
-  data: string
+  status: StatusSolicitacao
+  criadaEm: string
+  avaliadaEm?: string
 }
 
 export type AuditEntity =
@@ -108,12 +106,29 @@ export type AuditEntity =
   | 'Cargos'
   | 'Avisos'
 
-export type DemoState = 'ready' | 'loading' | 'error' | 'offline'
+export type AuditLog = {
+  id: string
+  usuarioId: string
+  nomeUsuario: string
+  acao: string
+  entidade: AuditEntity
+  alvo: string
+  data: string
+}
+
+// Estados simulados pelo menu Demo (UC01 A2/A3, RNF19, UC12 A1)
+export type DemoFlags = {
+  offline: boolean
+  carregando: boolean
+  erro: boolean
+  notifNegada: boolean
+}
 
 export type ToastItem = { id: string; message: string; type: 'success' | 'error' }
 
 export type ConfirmState = {
   title: string
   message: string
+  confirmLabel?: string
   onConfirm: () => void
 } | null

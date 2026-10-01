@@ -1,199 +1,191 @@
 import { useState } from 'react'
 import { C } from '../../theme'
-import { ROLE_LABEL, fmtFull, initials, canManageRoles, getMeByRole } from '../../utils'
+import { ROLE_LABEL, fmtFull, initials, canManageRoles, roleLevel } from '../../utils'
+import { estatisticas, timesDoUsuario } from '../../domain'
 import { Card, Chip, Av, Pill, IcoBack, IcoCheck, IcoAlert, IcoUsers, IcoClipboard, IcoShield } from '../../components/atoms'
-import { EmptyState } from '../../components/shared'
+import { EmptyState, Sheet } from '../../components/shared'
 import { useApp } from '../../AppContext'
-import type { Usuario, Role } from '../../types'
+import type { Usuario, Role, AuditEntity } from '../../types'
 
 const ROLE_COLORS: Record<Role, string> = {
-  atleta: C.muted, diretor: C.blue, vice: C.blue, presidente: C.yellow, admin: C.red,
+  atleta: C.muted, diretor: C.blue, vice: C.yellow, presidente: C.yellow, admin: C.red,
 }
 
 const ROLE_ORDER: Role[] = ['atleta', 'diretor', 'vice', 'presidente', 'admin']
 
-function roleLevel(r: Role): number {
-  return ({ atleta: 0, diretor: 1, vice: 2, presidente: 2, admin: 3 } as Record<Role, number>)[r]
-}
+const ativosCom = (us: Usuario[], r: Role) => us.filter(u => u.role === r && u.ativo && !u.excluido)
 
-// ─── Alterar cargo sheet ──────────────────────────────────────────────────────
-function AlterarCargoSheet({ target, allUsers, onSave, onClose }:
-  { target: Usuario; allUsers: Usuario[]; onSave: (id: string, role: Role) => void; onClose: () => void }) {
-  const { showToast } = useApp()
-  const [selectedRole, setSelectedRole] = useState<Role>(target.role)
-  const [conflictMsg, setConflictMsg] = useState<string | null>(null)
+// ─── Alterar cargo (UC24) ─────────────────────────────────────────────────────
+function AlterarCargoSheet({ target, onClose }: { target: Usuario; onClose: () => void }) {
+  const { usuarios, setUsuarios, showToast, showConfirm, audit, online } = useApp()
+  const [selected, setSelected] = useState<Role>(target.role)
+  // RN08: o último Administrador ativo não pode perder o cargo
+  const ultimoAdmin = target.role === 'admin' && ativosCom(usuarios, 'admin').length === 1
+  // RN07: no máximo um Presidente e um Vice
+  const atual = (selected === 'presidente' || selected === 'vice')
+    ? ativosCom(usuarios, selected).find(u => u.id !== target.id) : undefined
 
-  const isLastAdmin = allUsers.filter(u => u.role === 'admin' && u.ativo).length === 1 && target.role === 'admin'
-
-  function tryAssign(r: Role) {
-    if (isLastAdmin && target.role === 'admin' && r !== 'admin') {
-      setConflictMsg('Não é possível: este é o único Administrador ativo.')
-      setSelectedRole(target.role)
-      return
-    }
-    setConflictMsg(null)
-    setSelectedRole(r)
-  }
-
-  // Conflict detection for presidente/vice
-  const conflictUser = selectedRole === 'presidente' || selectedRole === 'vice'
-    ? allUsers.find(u => u.id !== target.id && u.role === selectedRole && u.ativo)
-    : null
-
-  function confirm() {
-    if (isLastAdmin && target.role === 'admin' && selectedRole !== 'admin') {
-      showToast('Não é possível remover o último administrador', 'error')
-      return
-    }
-    onSave(target.id, selectedRole)
+  function aplicar() {
+    if (!online()) return
+    setUsuarios(p => p.map(u => {
+      if (u.id === target.id) return { ...u, role: selected }
+      if (atual && u.id === atual.id) return { ...u, role: 'diretor' }
+      return u
+    }))
+    audit('Cargos', 'Alterou cargo', `${target.nome}: ${ROLE_LABEL[target.role]} → ${ROLE_LABEL[selected]}`)
+    if (atual) audit('Cargos', 'Alterou cargo', `${atual.nome}: ${ROLE_LABEL[selected]} → Diretor`)
     showToast('Cargo alterado — usuário notificado', 'success')
     onClose()
   }
 
+  function confirmar() {
+    if (ultimoAdmin && selected !== 'admin') return
+    if (atual) {
+      showConfirm(`Substituir ${ROLE_LABEL[selected]}`,
+        `${atual.nome} é o atual ${ROLE_LABEL[selected]} e passará a Diretor. Confirmar?`, aplicar, 'Confirmar')
+      return
+    }
+    aplicar()
+  }
+
   return (
-    <div className="absolute inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(4px)' }}>
-      <div className="w-full rounded-t-3xl p-5 a-up" style={{ background: C.card, border: `1px solid ${C.bdr}` }}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="f-sora font-black text-base" style={{ color: C.text }}>Alterar cargo</h3>
-          <button onClick={onClose}><span style={{ color: C.muted, fontSize: 18 }}>✕</span></button>
-        </div>
-        <p className="f-mono text-xs mb-3" style={{ color: C.muted }}>
-          Cargo atual de <span style={{ color: C.text }}>{target.nome.split(' ')[0]}</span>:{' '}
-          <span style={{ color: ROLE_COLORS[target.role] }}>{ROLE_LABEL[target.role]}</span>
-        </p>
-
-        {conflictMsg && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl mb-3" style={{ background: '#450a0a', border: '1px solid rgba(244,63,94,.3)' }}>
-            <IcoAlert size={14} color="#f87171" />
-            <p className="f-mono text-[10px]" style={{ color: '#f87171' }}>{conflictMsg}</p>
-          </div>
-        )}
-
-        {conflictUser && (
-          <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl mb-3" style={{ background: C.yellow + '15', border: `1px solid ${C.yellow}33` }}>
-            <IcoAlert size={14} color={C.yellow} />
-            <p className="f-mono text-[10px] leading-relaxed" style={{ color: C.yellow }}>
-              {conflictUser.nome} é o {ROLE_LABEL[selectedRole]} atual e passará a ser Diretor. Confirmar?
-            </p>
-          </div>
-        )}
-
-        <div className="flex flex-col gap-2 mb-5">
-          {ROLE_ORDER.map(r => (
-            <button key={r} onClick={() => tryAssign(r)}
-              className="flex items-center gap-3 px-4 py-3 rounded-2xl text-left"
-              style={{ background: selectedRole === r ? ROLE_COLORS[r] + '22' : C.card2, border: `1px solid ${selectedRole === r ? ROLE_COLORS[r] + '55' : C.bdr}` }}>
-              <div className="w-3 h-3 rounded-full" style={{ background: ROLE_COLORS[r] }} />
-              <div className="flex-1">
-                <div className="f-sora font-semibold text-sm" style={{ color: selectedRole === r ? ROLE_COLORS[r] : C.text }}>
-                  {ROLE_LABEL[r]}
-                </div>
-              </div>
-              {selectedRole === r && <IcoCheck size={14} color={ROLE_COLORS[r]} />}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 rounded-2xl f-sora font-semibold text-sm"
-            style={{ background: C.card2, color: C.muted, border: `1px solid ${C.bdr}` }}>Cancelar</button>
-          <button onClick={confirm} disabled={selectedRole === target.role}
-            className="flex-1 py-3 rounded-2xl f-sora font-bold text-sm"
-            style={{ background: selectedRole !== target.role ? C.red : C.dim, color: '#fff' }}>Confirmar</button>
-        </div>
+    <Sheet onClose={onClose}>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="f-sora font-black text-base" style={{ color: C.text }}>Alterar cargo</h3>
+        <button onClick={onClose} style={{ color: C.muted, fontSize: 18 }}>✕</button>
       </div>
-    </div>
+      <p className="f-mono text-xs mb-3" style={{ color: C.muted }}>
+        Cargo atual de <span style={{ color: C.text }}>{target.nome}</span>:{' '}
+        <span style={{ color: ROLE_COLORS[target.role] }}>{ROLE_LABEL[target.role]}</span>
+      </p>
+
+      {ultimoAdmin && (
+        <div className="flex items-start gap-2 px-3 py-2 rounded-xl mb-3" style={{ background: '#450a0a', border: '1px solid rgba(244,63,94,.3)' }}>
+          <IcoAlert size={14} color="#f87171" />
+          <p className="f-mono text-[10px]" style={{ color: '#f87171' }}>Este é o único Administrador ativo e não pode perder o cargo.</p>
+        </div>
+      )}
+      {atual && (
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl mb-3" style={{ background: C.yellow + '15', border: `1px solid ${C.yellow}33` }}>
+          <IcoAlert size={14} color={C.yellow} />
+          <p className="f-mono text-[10px] leading-relaxed" style={{ color: C.yellow }}>
+            {atual.nome} é o atual {ROLE_LABEL[selected]} e passará a Diretor.
+          </p>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2 mb-5">
+        {ROLE_ORDER.map(r => {
+          const bloqueado = ultimoAdmin && r !== 'admin'
+          return (
+            <button key={r} onClick={() => !bloqueado && setSelected(r)} disabled={bloqueado}
+              className="flex items-center gap-3 px-4 py-3 rounded-2xl text-left"
+              style={{ background: selected === r ? ROLE_COLORS[r] + '22' : C.card2, border: `1px solid ${selected === r ? ROLE_COLORS[r] + '55' : C.bdr}`, opacity: bloqueado ? .4 : 1 }}>
+              <div className="w-3 h-3 rounded-full" style={{ background: ROLE_COLORS[r] }} />
+              <div className="flex-1 f-sora font-semibold text-sm" style={{ color: selected === r ? ROLE_COLORS[r] : C.text }}>
+                {ROLE_LABEL[r]}
+              </div>
+              {selected === r && <IcoCheck size={14} color={ROLE_COLORS[r]} />}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="flex gap-3">
+        <button onClick={onClose} className="flex-1 py-3 rounded-2xl f-sora font-semibold text-sm"
+          style={{ background: C.card2, color: C.muted, border: `1px solid ${C.bdr}` }}>Cancelar</button>
+        <button onClick={confirmar} disabled={selected === target.role}
+          className="flex-1 py-3 rounded-2xl f-sora font-bold text-sm"
+          style={{ background: selected !== target.role ? C.red : C.dim, color: '#fff' }}>Salvar</button>
+      </div>
+    </Sheet>
   )
 }
 
-// ─── User detail ──────────────────────────────────────────────────────────────
-function UserDetail({ user, allUsers, myRole, onBack, onToggleAtivo, onChangeRole }:
-  { user: Usuario; allUsers: Usuario[]; myRole: Role; onBack: () => void; onToggleAtivo: (id: string) => void; onChangeRole: (id: string, r: Role) => void }) {
-  const { showConfirm, showToast, times: TIMES, eventos } = useApp()
-  const [showRoleSheet, setShowRoleSheet] = useState(false)
-  const myTime = TIMES.find(t => t.id === user.timeId)
+// ─── Detalhe do usuário (UC23 passo 3) ────────────────────────────────────────
+function UserDetail({ userId, onBack }: { userId: string; onBack: () => void }) {
+  const { me, usuarios, setUsuarios, times, membros, eventos, participacoes, showConfirm, showToast, audit, online } = useApp()
+  const [cargoSheet, setCargoSheet] = useState(false)
+  const user = usuarios.find(u => u.id === userId)
+  if (!user) return null
 
-  const isSelf = user.id === getMeByRole(myRole).id
-  const canToggle = !isSelf && roleLevel(user.role) < roleLevel(myRole)
-  const canRole   = canManageRoles(myRole)
+  const isSelf = user.id === me.id
+  // UC23 A1: só usuários de nível inferior (inclusive entre Presidente e Vice)
+  const podeAlterar = !isSelf && !user.excluido && roleLevel(user.role) < roleLevel(me.role)
+  const meusTimes = timesDoUsuario(membros, user.id).map(id => times.find(t => t.id === id)?.nome).filter(Boolean)
+  const st = estatisticas(participacoes, eventos, user.id)
 
-  function handleToggle() {
-    if (!canToggle) { showToast('Você não pode alterar usuários de nível igual ou superior', 'error'); return }
-    showConfirm(
-      user.ativo ? 'Desativar conta' : 'Reativar conta',
-      `${user.ativo ? 'Desativar' : 'Reativar'} a conta de ${user.nome}?`,
-      () => onToggleAtivo(user.id)
-    )
+  function toggleAtivo() {
+    const alvo = user!
+    showConfirm(alvo.ativo ? 'Desativar conta' : 'Reativar conta',
+      alvo.ativo ? `${alvo.nome} não poderá mais fazer login até ser reativado.` : `${alvo.nome} poderá voltar a fazer login.`,
+      () => {
+        if (!online()) return
+        setUsuarios(p => p.map(u => u.id === alvo.id ? { ...u, ativo: !u.ativo } : u))
+        audit('Usuários', alvo.ativo ? 'Desativou usuário' : 'Reativou usuário', alvo.nome)
+        showToast(alvo.ativo ? 'Conta desativada' : 'Conta reativada', 'success')
+      }, alvo.ativo ? 'Desativar' : 'Reativar')
   }
 
-  const memberTimes = TIMES.filter(t => t.atletas?.includes(user.nome) || t.capitao === user.nome || t.id === user.timeId)
-  const memberTimeIds = new Set(memberTimes.map(t => t.id))
-  const stats = [
-    { label: 'Jogos',   v: eventos.filter(e => memberTimeIds.has(e.timeLordeId) && e.tipo === 'JOGO').length },
-    { label: 'Treinos', v: eventos.filter(e => memberTimeIds.has(e.timeLordeId) && e.tipo === 'TREINO').length },
-    { label: 'Cargo',   v: ROLE_LABEL[user.role] },
-  ]
+  const motivo = isSelf ? 'Você não pode desativar a própria conta.'
+    : user.excluido ? 'Conta excluída pelo próprio usuário (dados anonimizados).'
+    : 'Só é possível alterar usuários de nível de acesso inferior ao seu.'
 
   return (
-    <div className="flex flex-col gap-4 pb-6 a-up relative">
+    <div className="flex flex-col gap-4 pb-6 a-up">
       <div className="px-4 pt-4 flex items-center gap-3">
         <button onClick={onBack} className="flex items-center justify-center rounded-xl"
           style={{ width: 36, height: 36, background: C.card, border: `1px solid ${C.bdr}` }}><IcoBack /></button>
         <h3 className="f-sora font-black text-base" style={{ color: C.text }}>Detalhes do usuário</h3>
       </div>
 
-      {/* Profile */}
-      <div className="flex flex-col items-center gap-3 py-4">
+      <div className="flex flex-col items-center gap-3 py-2">
         <Av s={initials(user.nome)} size={64} bg={user.ativo ? ROLE_COLORS[user.role] : C.dim} />
-        <div className="text-center">
+        <div className="text-center px-4">
           <h3 className="f-sora font-black text-lg" style={{ color: user.ativo ? C.text : C.muted }}>{user.nome}</h3>
           <p className="f-mono text-[10px]" style={{ color: C.muted }}>{user.email}</p>
-          <div className="flex items-center justify-center gap-2 mt-2">
-            <Chip label={ROLE_LABEL[user.role]} color={ROLE_COLORS[user.role]} />
-            {myTime && <Chip label={myTime.nome} color={C.blue} />}
-            {!user.ativo && <Chip label="INATIVO" color={C.muted} />}
+          <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
+            <Chip label={ROLE_LABEL[user.role].toUpperCase()} color={ROLE_COLORS[user.role]} />
+            {meusTimes.map(n => <Chip key={n} label={n!.toUpperCase()} color={C.blue} />)}
+            {!user.ativo && <Chip label={user.excluido ? 'EXCLUÍDO' : 'DESATIVADO'} color={C.muted} />}
           </div>
         </div>
       </div>
 
-      {/* Stats */}
       <div className="mx-4">
         <Card pad="p-4">
           <div className="flex justify-around">
-            {stats.map(({ label, v }) => (
+            {[
+              { label: 'Jogos', v: st.jogos },
+              { label: 'Treinos', v: st.treinos },
+              { label: 'Presença', v: st.taxa === null ? '—' : `${st.taxa}%` },
+            ].map(({ label, v }) => (
               <div key={label} className="text-center">
                 <div className="f-sora font-black text-xl" style={{ color: C.red }}>{v}</div>
                 <div className="f-mono text-[9px]" style={{ color: C.muted }}>{label}</div>
               </div>
             ))}
           </div>
+          <p className="f-mono text-[9px] text-center mt-2" style={{ color: C.dim }}>Presenças registradas pela diretoria</p>
         </Card>
       </div>
 
-      {/* Permission warning */}
-      {!canToggle && (
+      {!podeAlterar && (
         <div className="mx-4 flex items-center gap-2 px-3 py-2.5 rounded-xl"
           style={{ background: C.yellow + '15', border: `1px solid ${C.yellow}33` }}>
           <IcoAlert size={14} color={C.yellow} />
-          <p className="f-mono text-[10px] leading-relaxed" style={{ color: C.yellow }}>
-            {isSelf ? 'Você não pode desativar a própria conta.' : 'Só é possível alterar usuários de nível inferior ao seu.'}
-          </p>
+          <p className="f-mono text-[10px] leading-relaxed" style={{ color: C.yellow }}>{motivo}</p>
         </div>
       )}
 
-      {/* Actions */}
       <div className="flex flex-col gap-3 px-4">
-        <button onClick={handleToggle}
+        <button onClick={toggleAtivo} disabled={!podeAlterar}
           className="w-full py-3.5 rounded-2xl f-sora font-semibold text-sm active:scale-95"
-          style={{
-            background: (user.ativo ? '#f43f5e' : C.green) + (canToggle ? '' : '44'),
-            color: canToggle ? '#fff' : C.muted,
-            opacity: canToggle ? 1 : .6,
-          }}>
+          style={{ background: podeAlterar ? (user.ativo ? '#f43f5e' : C.green) : C.card2, color: podeAlterar ? '#fff' : C.dim, border: `1px solid ${C.bdr}` }}>
           {user.ativo ? 'Desativar conta' : 'Reativar conta'}
         </button>
-        {canRole && (
-          <button onClick={() => setShowRoleSheet(true)}
+        {canManageRoles(me.role) && !user.excluido && (
+          <button onClick={() => setCargoSheet(true)}
             className="w-full py-3.5 rounded-2xl f-sora font-semibold text-sm active:scale-95"
             style={{ background: C.blue + '22', color: C.blueL, border: `1px solid ${C.bdrB}` }}>
             <span className="flex items-center justify-center gap-2">
@@ -203,88 +195,45 @@ function UserDetail({ user, allUsers, myRole, onBack, onToggleAtivo, onChangeRol
         )}
       </div>
 
-      {showRoleSheet && (
-        <AlterarCargoSheet
-          target={user}
-          allUsers={allUsers}
-          onSave={(id, role) => { onChangeRole(id, role); setShowRoleSheet(false) }}
-          onClose={() => setShowRoleSheet(false)}
-        />
-      )}
+      {cargoSheet && <AlterarCargoSheet target={user} onClose={() => setCargoSheet(false)} />}
     </div>
   )
 }
 
-// ─── Main UsuariosSection ─────────────────────────────────────────────────────
+// ─── Seção Usuários e Auditoria ───────────────────────────────────────────────
+const AUDIT_FILTROS: ('Todos' | AuditEntity)[] = [
+  'Todos', 'Eventos', 'Resultados', 'Presenças', 'Times e elencos', 'Modalidades', 'Solicitações', 'Notícias', 'Banners', 'Avisos', 'Usuários', 'Cargos',
+]
+
 export default function UsuariosSection() {
-  const {
-    role: myRole, showToast, usuarios, setUsuarios, auditoria: AUDIT_LOG,
-    audit, times: TIMES,
-  } = useApp()
+  const { usuarios, auditoria } = useApp()
   const [tab, setTab] = useState<'usuarios' | 'auditoria'>('usuarios')
   const [search, setSearch] = useState('')
   const [filterRole, setFilterRole] = useState<'Todos' | Role>('Todos')
-  const [selected, setSelected] = useState<Usuario | null>(null)
-  const [auditFilter, setAuditFilter] = useState('Todos')
+  const [selId, setSelId] = useState<string | null>(null)
+  const [auditFilter, setAuditFilter] = useState<'Todos' | AuditEntity>('Todos')
 
-  function toggleAtivo(id: string) {
-    setUsuarios(p => p.map(u => u.id === id ? { ...u, ativo: !u.ativo } : u))
-    const u = usuarios.find(x => x.id === id)
-    if (u) audit('Usuários', u.ativo ? 'Desativou usuário' : 'Reativou usuário', u.nome)
-    showToast(u?.ativo ? 'Conta desativada' : 'Conta reativada!', u?.ativo ? 'error' : 'success')
-  }
+  if (selId) return <UserDetail userId={selId} onBack={() => setSelId(null)} />
 
-  function changeRole(id: string, role: Role) {
-    setUsuarios(p => {
-      let updated = p.map(u => u.id === id ? { ...u, role } : u)
-      // Downgrade conflicting presidente/vice
-      if (role === 'presidente' || role === 'vice') {
-        updated = updated.map(u => u.id !== id && u.role === role ? { ...u, role: 'diretor' } : u)
-      }
-      return updated
-    })
-    const user = usuarios.find(u => u.id === id)
-    if (user) audit('Cargos', 'Alterou cargo', `${user.nome} → ${ROLE_LABEL[role]}`)
-  }
+  const q = search.trim().toLowerCase()
+  const filtered = usuarios
+    .filter(u => (!q || u.nome.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)) && (filterRole === 'Todos' || u.role === filterRole))
+    .sort((a, b) => roleLevel(b.role) - roleLevel(a.role) || a.nome.localeCompare(b.nome))
 
-  if (selected) {
-    const live = usuarios.find(u => u.id === selected.id) ?? selected
-    return (
-      <UserDetail
-        user={live}
-        allUsers={usuarios}
-        myRole={myRole}
-        onBack={() => setSelected(null)}
-        onToggleAtivo={toggleAtivo}
-        onChangeRole={changeRole}
-      />
-    )
-  }
-
-  const filtered = usuarios.filter(u => {
-    const matchSearch = !search || u.nome.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase())
-    const matchRole = filterRole === 'Todos' || u.role === filterRole
-    return matchSearch && matchRole
-  })
-
-  const auditTypes = ['Todos', 'Eventos', 'Resultados', 'Presenças', 'Times e elencos', 'Modalidades', 'Solicitações', 'Notícias', 'Banners', 'Usuários', 'Cargos']
-  const filteredAudit = AUDIT_LOG.filter(log => auditFilter === 'Todos' || log.entidade === auditFilter)
+  const filteredAudit = auditoria.filter(log => auditFilter === 'Todos' || log.entidade === auditFilter)
     .sort((a, b) => b.data.localeCompare(a.data))
 
   return (
     <div className="flex flex-col gap-4 pb-4">
       <div className="px-4">
         <div className="grid grid-cols-2 rounded-xl overflow-hidden" style={{ background: C.card, border: `1px solid ${C.bdr}` }}>
-          <button onClick={() => setTab('usuarios')}
-            className="py-2.5 f-sora font-semibold text-xs flex items-center justify-center gap-1.5"
-            style={{ background: tab === 'usuarios' ? C.red : 'transparent', color: tab === 'usuarios' ? '#fff' : C.muted }}>
-            <IcoUsers size={12} color={tab === 'usuarios' ? '#fff' : C.muted} /> Usuários
-          </button>
-          <button onClick={() => setTab('auditoria')}
-            className="py-2.5 f-sora font-semibold text-xs flex items-center justify-center gap-1.5"
-            style={{ background: tab === 'auditoria' ? C.red : 'transparent', color: tab === 'auditoria' ? '#fff' : C.muted }}>
-            <IcoClipboard size={12} color={tab === 'auditoria' ? '#fff' : C.muted} /> Auditoria
-          </button>
+          {([['usuarios', 'Usuários', IcoUsers], ['auditoria', 'Auditoria', IcoClipboard]] as const).map(([id, label, Icon]) => (
+            <button key={id} onClick={() => setTab(id)}
+              className="py-2.5 f-sora font-semibold text-xs flex items-center justify-center gap-1.5"
+              style={{ background: tab === id ? C.red : 'transparent', color: tab === id ? '#fff' : C.muted }}>
+              <Icon size={12} color={tab === id ? '#fff' : C.muted} /> {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -297,27 +246,26 @@ export default function UsuariosSection() {
               style={{ background: C.card2, border: `1px solid ${C.bdr}`, color: C.text, caretColor: C.red }} />
           </div>
           <div className="flex gap-1.5 px-4 overflow-x-auto">
-            {(['Todos', ...ROLE_ORDER] as ('Todos' | Role)[]).map(r => (
-              <Pill key={r} label={r === 'Todos' ? 'Todos' : ROLE_LABEL[r as Role]}
-                active={filterRole === r} color={r === 'Todos' ? C.muted : ROLE_COLORS[r as Role]}
-                onClick={() => setFilterRole(r as 'Todos' | Role)} />
+            {(['Todos', ...ROLE_ORDER] as const).map(r => (
+              <Pill key={r} label={r === 'Todos' ? 'Todos' : ROLE_LABEL[r]}
+                active={filterRole === r} color={r === 'Todos' ? C.muted : ROLE_COLORS[r]}
+                onClick={() => setFilterRole(r)} />
             ))}
           </div>
           <div className="flex flex-col gap-2 px-4">
             {filtered.length === 0
               ? <EmptyState message="Nenhum usuário encontrado" />
               : filtered.map(u => (
-                <Card key={u.id} onClick={() => setSelected(u)} pad="p-3">
+                <Card key={u.id} onClick={() => setSelId(u.id)} pad="p-3">
                   <div className="flex items-center gap-3">
-                    <Av s={initials(u.nome)} size={40}
-                      bg={u.ativo ? ROLE_COLORS[u.role] : C.dim} />
+                    <Av s={initials(u.nome)} size={40} bg={u.ativo ? ROLE_COLORS[u.role] : C.dim} />
                     <div className="flex-1 min-w-0">
-                      <div className="f-sora font-semibold text-sm" style={{ color: u.ativo ? C.text : C.muted }}>{u.nome}</div>
-                      <div className="f-mono text-[10px] mt-px" style={{ color: C.dim }}>{u.email}</div>
+                      <div className="f-sora font-semibold text-sm truncate" style={{ color: u.ativo ? C.text : C.muted }}>{u.nome}</div>
+                      <div className="f-mono text-[10px] mt-px truncate" style={{ color: C.dim }}>{u.email}</div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <Chip label={ROLE_LABEL[u.role]} color={ROLE_COLORS[u.role]} />
-                      {!u.ativo && <Chip label="OFF" color={C.dim} />}
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <Chip label={ROLE_LABEL[u.role].toUpperCase()} color={ROLE_COLORS[u.role]} />
+                      {!u.ativo && <Chip label={u.excluido ? 'EXCLUÍDO' : 'DESATIVADO'} color={C.dim} />}
                     </div>
                   </div>
                 </Card>
@@ -329,7 +277,7 @@ export default function UsuariosSection() {
       {tab === 'auditoria' && (
         <>
           <div className="flex gap-1.5 px-4 overflow-x-auto">
-            {auditTypes.map(t => (
+            {AUDIT_FILTROS.map(t => (
               <Pill key={t} label={t} active={auditFilter === t} color={C.muted} onClick={() => setAuditFilter(t)} />
             ))}
           </div>
@@ -340,13 +288,15 @@ export default function UsuariosSection() {
                 <Card key={log.id} pad="p-3">
                   <div className="flex items-start gap-3">
                     <Av s={initials(log.nomeUsuario)} size={36} bg={C.blue} />
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div>
                         <span className="f-sora font-semibold text-sm" style={{ color: C.text }}>{log.nomeUsuario}</span>
-                        <span className="f-sora text-sm" style={{ color: C.muted }}> {log.acao}</span>
+                        <span className="f-sora text-sm" style={{ color: C.muted }}> · {log.acao}</span>
                       </div>
-                      <div className="f-mono text-[10px] mt-0.5" style={{ color: C.dim }}>
-                        {log.entidade} · {log.alvo} · {fmtFull(log.data)}
+                      <div className="f-mono text-[10px] mt-0.5" style={{ color: C.text }}>{log.alvo}</div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Chip label={log.entidade.toUpperCase()} color={C.muted} />
+                        <span className="f-mono text-[10px]" style={{ color: C.dim }}>{fmtFull(log.data)}</span>
                       </div>
                     </div>
                   </div>

@@ -1,137 +1,66 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
+import type { FC } from 'react'
 import { AppContext } from './AppContext'
-import type { Role, Screen, Tab, Time } from './types'
-import type { ToastItem, ConfirmState } from './types'
-import { C, ATLETICA } from './theme'
-import { canAccessPanel } from './utils'
-import { EVENTOS, TIMES, MODALIDADES, ATLETICAS, SOLICITACOES, NOTICIAS, BANNERS, USUARIOS, AUDIT_LOG } from './data'
-import { getMeByRole } from './utils'
-import type { AuditEntity, DemoState } from './types'
+import type { AppCtx } from './AppContext'
+import type { Screen, Tab, AgendaTab, ToastItem, ConfirmState, AuditEntity, DemoFlags, Usuario } from './types'
+import { C } from './theme'
+import { canAccessPanel, nowLocal } from './utils'
+import {
+  EVENTOS, PARTICIPACOES, TIMES, MEMBROS, MODALIDADES, ATLETICAS, SOLICITACOES, NOTICIAS, BANNERS, USUARIOS, AUDIT_LOG, DEMO_SENHA,
+} from './data'
 
-import LoginScreen      from './screens/LoginScreen'
-import HomeScreen       from './screens/HomeScreen'
-import AgendaScreen     from './screens/AgendaScreen'
+import LoginScreen       from './screens/LoginScreen'
+import HomeScreen        from './screens/HomeScreen'
+import AgendaScreen      from './screens/AgendaScreen'
 import ModalidadesScreen from './screens/ModalidadesScreen'
-import PerfilScreen     from './screens/PerfilScreen'
-import PainelScreen     from './screens/PainelScreen'
+import PerfilScreen, { PREFS_PADRAO } from './screens/PerfilScreen'
+import type { Prefs } from './screens/PerfilScreen'
+import PainelScreen      from './screens/PainelScreen'
+import EventoDetalhe     from './components/EventoDetalhe'
+import { ToastBar, ConfirmModal, OfflineBanner, DemoMenu } from './components/shared'
 
-import { IcoHome, IcoCal, IcoSport, IcoUser, IcoBell, IcoWifi, IcoCheck, IcoAlert, IcoX, IcoRefresh } from './components/atoms'
-
-// ─── Toast container ──────────────────────────────────────────────────────────
-function ToastBar({ toasts, onRemove }: { toasts: ToastItem[]; onRemove: (id: string) => void }) {
-  if (toasts.length === 0) return null
-  return (
-    <div className="absolute bottom-24 left-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
-      {toasts.map(t => (
-        <div key={t.id}
-          className="flex items-center gap-3 px-4 py-3 rounded-2xl pointer-events-auto a-up"
-          style={{
-            background: t.type === 'success' ? '#052e16' : '#450a0a',
-            border: `1px solid ${t.type === 'success' ? C.green + '55' : '#f43f5e44'}`,
-            boxShadow: `0 8px 24px ${t.type === 'success' ? '#22c55e22' : '#f43f5e22'}`,
-          }}>
-          <div className="flex items-center justify-center rounded-full shrink-0"
-            style={{ width: 22, height: 22, background: t.type === 'success' ? C.green + '33' : '#f43f5e33' }}>
-            {t.type === 'success'
-              ? <IcoCheck size={12} color={C.green} />
-              : <IcoX size={12} color="#f43f5e" />}
-          </div>
-          <span className="f-sora font-semibold text-sm flex-1" style={{ color: t.type === 'success' ? C.green : '#f87171' }}>
-            {t.message}
-          </span>
-          <button className="shrink-0" onClick={() => onRemove(t.id)}>
-            <IcoX size={12} color={C.muted} />
-          </button>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ─── Confirm modal ────────────────────────────────────────────────────────────
-function ConfirmModal({ state, onCancel }: { state: ConfirmState; onCancel: () => void }) {
-  useEffect(() => {
-    if (!state) return
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [state, onCancel])
-
-  if (!state) return null
-  return (
-    <div className="absolute inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)' }}>
-      <div className="w-full rounded-t-3xl p-6 a-up"
-        style={{ background: C.card, border: `1px solid ${C.bdr}`, boxShadow: '0 -16px 40px rgba(0,0,0,.5)' }}>
-        <div className="flex items-center gap-3 mb-3">
-          <div className="flex items-center justify-center rounded-2xl"
-            style={{ width: 44, height: 44, background: C.red + '1a', border: `1px solid ${C.bdrR}` }}>
-            <IcoAlert size={22} color={C.red} />
-          </div>
-          <h3 className="f-sora font-black text-lg" style={{ color: C.text }}>{state.title}</h3>
-        </div>
-        <p className="f-mono text-sm mb-6" style={{ color: C.muted }}>{state.message}</p>
-        <div className="flex gap-3">
-          <button onClick={onCancel}
-            className="flex-1 py-3.5 rounded-2xl f-sora font-semibold text-sm active:scale-95"
-            style={{ background: C.card2, color: C.muted, border: `1px solid ${C.bdr}` }}>
-            Cancelar
-          </button>
-          <button onClick={() => { state.onConfirm(); onCancel() }}
-            className="flex-1 py-3.5 rounded-2xl f-sora font-bold text-sm active:scale-95"
-            style={{ background: C.red, color: '#fff', boxShadow: '0 4px 16px rgba(225,29,72,.35)' }}>
-            Confirmar
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Offline banner ───────────────────────────────────────────────────────────
-function OfflineBanner({ visible }: { visible: boolean }) {
-  if (!visible) return null
-  return (
-    <div className="flex items-center gap-2 px-4 py-2 a-up"
-      style={{ background: '#431407', borderBottom: `1px solid ${C.orange}33` }}>
-      <IcoWifi size={13} color={C.orange} />
-      <span className="f-mono text-[11px]" style={{ color: C.orange }}>
-        Você está offline — exibindo os últimos dados
-      </span>
-      <IcoRefresh size={13} color={C.orange} />
-    </div>
-  )
-}
+import { IcoHome, IcoCal, IcoSport, IcoUser, IcoBell, IcoWifi } from './components/atoms'
 
 // ─── Bottom nav ───────────────────────────────────────────────────────────────
-const TABS: { id: Tab; label: string; Icon: React.FC<{ size: number; color: string; fill?: boolean }> }[] = [
+const TABS: { id: Tab; label: string; Icon: FC<{ size: number; color: string; fill?: boolean }> }[] = [
   { id: 'home',        label: 'Início',  Icon: IcoHome  },
   { id: 'agenda',      label: 'Agenda',  Icon: IcoCal   },
   { id: 'modalidades', label: 'Times',   Icon: IcoSport },
   { id: 'perfil',      label: 'Perfil',  Icon: IcoUser  },
 ]
 
-const TAB_SCREENS = new Set<Screen>(['home', 'agenda', 'modalidades', 'perfil'])
-
 export default function App() {
-  const [loggedIn, setLoggedIn] = useState(false)
-  const [role, setRole]         = useState<Role>('atleta')
-  const [screen, setScreen]     = useState<Screen>('home')
+  const [meId, setMeId]         = useState<string | null>(null)
+  const [screen, setScreenRaw]  = useState<Screen>('home')
+  const [agendaTab, setAgendaTab] = useState<AgendaTab>('eventos')
+  const [eventoAberto, setEventoAberto] = useState<string | null>(null)
+  // Tocar numa aba reinicia a tela na raiz (ex.: Times volta à lista de modalidades)
+  const [navKey, setNavKey]     = useState(0)
   const [toasts, setToasts]     = useState<ToastItem[]>([])
   const [confirm, setConfirm]   = useState<ConfirmState>(null)
-  const [offline]               = useState(false)
-  const [eventos, setEventos] = useState(EVENTOS)
-  const [times, setTimes] = useState<Time[]>(TIMES.map(t => ({ ...t, ativo: t.ativo ?? true })))
-  const [modalidades, setModalidades] = useState(MODALIDADES)
-  const [atleticas, setAtleticas] = useState(ATLETICAS)
-  const [solicitacoes, setSolicitacoes] = useState(SOLICITACOES)
-  const [noticias, setNoticias] = useState(NOTICIAS)
-  const [banners, setBanners] = useState(BANNERS)
-  const [usuarios, setUsuarios] = useState(USUARIOS)
-  const [auditoria, setAuditoria] = useState(AUDIT_LOG)
-  const demoState: DemoState = offline ? 'offline' : 'ready'
-  const toastTimer              = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const [demo, setDemo]         = useState<DemoFlags>({ offline: false, carregando: false, erro: false, notifNegada: false })
+  const [demoMenu, setDemoMenu] = useState(false)
+  // Preferências de notificação (PreferenciaNotificacao) — uma por usuário
+  const [prefs, setPrefsMap] = useState<Record<string, Prefs>>({})
 
-  const activeTab = TAB_SCREENS.has(screen) ? screen as Tab : null
+  const [eventos, setEventos]             = useState(EVENTOS)
+  const [participacoes, setParticipacoes] = useState(PARTICIPACOES)
+  const [times, setTimes]                 = useState(TIMES)
+  const [membros, setMembros]             = useState(MEMBROS)
+  const [modalidades, setModalidades]     = useState(MODALIDADES)
+  const [atleticas, setAtleticas]         = useState(ATLETICAS)
+  const [solicitacoes, setSolicitacoes]   = useState(SOLICITACOES)
+  const [noticias, setNoticias]           = useState(NOTICIAS)
+  const [banners, setBanners]             = useState(BANNERS)
+  const [usuarios, setUsuarios]           = useState(USUARIOS)
+  const [auditoria, setAuditoria]         = useState(AUDIT_LOG)
+  // Senhas simuladas por conta (todas começam com a senha de demonstração)
+  const [senhas, setSenhas] = useState<Record<string, string>>(() => Object.fromEntries(USUARIOS.map(u => [u.id, DEMO_SENHA])))
+  // Usuários que já viram a tela "Ativar notificações" (exibida no primeiro acesso — UC07 passo 4)
+  const [notifVistos, setNotifVistos] = useState<Set<string>>(new Set())
+
+  const toastTimer = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const me = usuarios.find(u => u.id === meId) ?? null
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     const id = Math.random().toString(36).slice(2)
@@ -148,65 +77,130 @@ export default function App() {
     setToasts(p => p.filter(t => t.id !== id))
   }, [])
 
-  const showConfirm = useCallback((title: string, message: string, onConfirm: () => void) => {
-    setConfirm({ title, message, onConfirm })
+  const showConfirm = useCallback((title: string, message: string, onConfirm: () => void, confirmLabel?: string) => {
+    setConfirm({ title, message, onConfirm, confirmLabel })
   }, [])
+  const closeConfirm = useCallback(() => setConfirm(null), [])
 
-  const audit = useCallback((entidade: AuditEntity, acao: string, alvo: string) => {
-    const me = getMeByRole(role)
-    setAuditoria(p => [{
-      id: `audit-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      usuarioId: me.id,
-      nomeUsuario: me.nome,
-      entidade,
-      acao,
-      alvo,
-      data: new Date().toISOString(),
-    }, ...p])
-  }, [role])
+  const online = useCallback(() => {
+    if (demo.offline) { showToast('Sem conexão', 'error'); return false }
+    return true
+  }, [demo.offline, showToast])
 
-  if (!loggedIn) {
-    return (
-      <div className="flex items-center justify-center min-h-screen" style={{ background: C.bg }}>
-        <div className="relative overflow-hidden rounded-[48px] shadow-2xl"
-          style={{ width: 390, height: 844, background: C.bg, border: `1px solid ${C.bdr}` }}>
-          <LoginScreen onLogin={(r) => { setRole(r); setLoggedIn(true) }} />
-        </div>
+  function setScreen(s: Screen) {
+    setEventoAberto(null)
+    setScreenRaw(s)
+    setNavKey(k => k + 1)
+  }
+
+  function logout(toast?: string) {
+    setMeId(null)
+    setScreenRaw('home')
+    setEventoAberto(null)
+    setAgendaTab('eventos')
+    if (toast) showToast(toast, 'success')
+  }
+
+  function entrar(id: string) {
+    setMeId(id)
+    setScreenRaw('home')
+    setNotifVistos(p => new Set(p).add(id))
+  }
+
+  function cadastrar(nome: string, email: string, senha: string): Usuario {
+    // RN02: toda conta nova recebe o papel Atleta
+    const novo: Usuario = { id: `u${Date.now()}`, nome: nome.trim(), email: email.trim().toLowerCase(), role: 'atleta', ativo: true }
+    setUsuarios(p => [...p, novo])
+    setSenhas(p => ({ ...p, [novo.id]: senha }))
+    return novo
+  }
+
+  const frame = (children: React.ReactNode) => (
+    <div className="flex items-center justify-center min-h-screen" style={{ background: C.bg }}>
+      <div className="relative overflow-hidden rounded-[48px] shadow-2xl flex flex-col"
+        style={{ width: 390, height: 844, background: C.bg, border: `1px solid ${C.bdr}` }}>
+        {children}
+        <ToastBar toasts={toasts} onRemove={removeToast} />
+        <ConfirmModal state={confirm} onCancel={closeConfirm} />
+        {demoMenu && <DemoMenu demo={demo} setDemo={setDemo} onClose={() => setDemoMenu(false)} />}
+        <div id="overlay-root" />
       </div>
+    </div>
+  )
+
+  if (!me) {
+    return frame(
+      <>
+        <OfflineBanner visible={demo.offline} />
+        <div className="flex-1 min-h-0">
+          <LoginScreen
+            usuarios={usuarios}
+            senhaCorreta={(id, s) => senhas[id] === s}
+            alterarSenha={(id, s) => setSenhas(p => ({ ...p, [id]: s }))}
+            primeiroAcesso={id => !notifVistos.has(id)}
+            onCadastro={cadastrar}
+            onLogin={entrar}
+            onDemo={() => setDemoMenu(true)}
+            demo={demo}
+            showToast={showToast}
+          />
+        </div>
+      </>
     )
   }
 
-  return (
-    <AppContext.Provider value={{
-      role, setScreen, showToast, showConfirm,
-      eventos, setEventos, times, setTimes, modalidades, setModalidades,
-      atleticas, setAtleticas, solicitacoes, setSolicitacoes,
-      noticias, setNoticias, banners, setBanners, usuarios, setUsuarios,
-      auditoria, audit, demoState,
-    }}>
-      <div className="flex items-center justify-center min-h-screen" style={{ background: C.bg }}>
-        <div className="relative overflow-hidden rounded-[48px] shadow-2xl flex flex-col"
-          style={{ width: 390, height: 844, background: C.bg, border: `1px solid ${C.bdr}` }}>
+  const ctx: AppCtx = {
+    me, role: me.role,
+    setScreen,
+    agendaTab, setAgendaTab,
+    openAgenda: tab => { setAgendaTab(tab); setScreen('agenda') },
+    abrirEvento: setEventoAberto,
+    showToast, showConfirm, logout,
+    senhaCorreta: (id, s) => senhas[id] === s,
+    alterarSenha: (id, s) => setSenhas(p => ({ ...p, [id]: s })),
+    demo, setDemo, online,
+    nomeUsuario: id => usuarios.find(u => u.id === id)?.nome ?? 'Usuário',
+    eventos, setEventos, participacoes, setParticipacoes, times, setTimes, membros, setMembros,
+    modalidades, setModalidades, atleticas, setAtleticas, solicitacoes, setSolicitacoes,
+    noticias, setNoticias, banners, setBanners, usuarios, setUsuarios, auditoria,
+    audit: (entidade: AuditEntity, acao: string, alvo: string) => setAuditoria(p => [{
+      id: `audit-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      usuarioId: me.id, nomeUsuario: me.nome, entidade, acao, alvo, data: nowLocal(),
+    }, ...p]),
+  }
 
+  const evento = eventoAberto ? eventos.find(e => e.id === eventoAberto) : undefined
+  const activeTab = screen !== 'painel' ? screen : null
+
+  return (
+    <AppContext.Provider value={ctx}>
+      {frame(
+        <>
           {/* Status bar */}
           <div className="flex items-center justify-between px-7 py-3 shrink-0" style={{ background: C.bg }}>
             <span className="f-mono text-[11px] font-semibold" style={{ color: C.text }}>9:41</span>
             <div className="flex items-center gap-1.5">
-              <IcoWifi size={13} color={C.text} />
+              <IcoWifi size={13} color={demo.offline ? C.dim : C.text} />
               <IcoBell size={13} color={C.text} />
               <span className="f-mono text-[11px] font-semibold" style={{ color: C.text }}>100%</span>
             </div>
           </div>
 
-          <OfflineBanner visible={offline} />
+          <OfflineBanner visible={demo.offline} />
 
           {/* Screen content */}
           <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-            {screen === 'home'        && <HomeScreen />}
-            {screen === 'agenda'      && <AgendaScreen />}
-            {screen === 'modalidades' && <ModalidadesScreen />}
-            {screen === 'perfil'      && <PerfilScreen />}
-            {screen === 'painel' && canAccessPanel(role) && <PainelScreen />}
+            {screen !== 'painel' && evento
+              ? <EventoDetalhe ev={evento} onBack={() => setEventoAberto(null)} />
+              : <>
+                  {screen === 'home'        && <HomeScreen key={navKey} />}
+                  {screen === 'agenda'      && <AgendaScreen key={navKey} />}
+                  {screen === 'modalidades' && <ModalidadesScreen key={navKey} />}
+                  {screen === 'perfil'      && <PerfilScreen key={navKey} onDemo={() => setDemoMenu(true)}
+                    prefs={prefs[me.id] ?? PREFS_PADRAO}
+                    setPrefs={f => setPrefsMap(p => ({ ...p, [me.id]: f(p[me.id] ?? PREFS_PADRAO) }))} />}
+                  {screen === 'painel' && canAccessPanel(me.role) && <PainelScreen key={navKey} />}
+                </>}
           </div>
 
           {/* Bottom nav */}
@@ -216,7 +210,7 @@ export default function App() {
               {TABS.map(({ id, label, Icon }) => {
                 const isActive = activeTab === id
                 return (
-                  <button key={id} onClick={() => setScreen(id)}
+                  <button key={id} onClick={() => { if (id === 'agenda') setAgendaTab('eventos'); setScreen(id) }}
                     className="flex-1 flex flex-col items-center gap-1 py-1 rounded-2xl transition-all active:scale-90"
                     style={{ background: isActive ? C.red + '15' : 'transparent' }}>
                     <Icon size={22} color={isActive ? C.red : C.muted} fill={isActive} />
@@ -229,12 +223,8 @@ export default function App() {
               })}
             </div>
           )}
-
-          {/* Overlays */}
-          <ToastBar toasts={toasts} onRemove={removeToast} />
-          <ConfirmModal state={confirm} onCancel={() => setConfirm(null)} />
-        </div>
-      </div>
+        </>
+      )}
     </AppContext.Provider>
   )
 }

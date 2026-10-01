@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { C, ATLETICA } from '../theme'
-import { EVENTOS, TIMES, MODALIDADES } from '../data'
-import { ROLE_LABEL, canAccessPanel, getMeByRole, fmtCard, initials } from '../utils'
-import { Card, SH, Chip, Av, Toggle, IcoBell, IcoCode, IcoShield, IcoUser, IcoCheck, IcoX, IcoPlus, IcoBack, IcoAlert } from '../components/atoms'
+import { ROLE_LABEL, canAccessPanel, fmtCard, initials, nowLocal, SENHA_REGRA, senhaValida } from '../utils'
+import { encerrarVinculo, estatisticas, isMembro, participacaoDe, podeResponder, timesDoUsuario } from '../domain'
+import { Card, SH, Chip, Av, Toggle, IcoBell, IcoCode, IcoShield, IcoUser, IcoCheck, IcoX, IcoBack, IcoAlert, IcoChev } from '../components/atoms'
+import { Field, PasswordField, ErrorBox, StrBar, TermsModal, Sheet, DemoButton } from '../components/shared'
+import { EventoCard } from '../components/EventoDetalhe'
 import { useApp } from '../AppContext'
 
 type PView = 'main' | 'settings' | 'edit-profile' | 'change-password' | 'notif-settings' | 'about' | 'delete-account'
 
-// ─── Chevron right icon (inline) ─────────────────────────────────────────────
 function ChevR() {
   return (
     <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} style={{ color: 'rgba(107,114,128,.5)' }}>
@@ -16,20 +17,6 @@ function ChevR() {
   )
 }
 
-function IcoEye({ open }: { open: boolean }) {
-  return open ? (
-    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-    </svg>
-  ) : (
-    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path d="M17.94 17.94A10 10 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9 9 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-      <line x1="1" y1="1" x2="23" y2="23"/>
-    </svg>
-  )
-}
-
-// ─── Sub-page header ─────────────────────────────────────────────────────────
 function SubHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <div className="flex items-center gap-3 px-4 pt-5 pb-4" style={{ borderBottom: `1px solid ${C.bdr}` }}>
@@ -43,95 +30,96 @@ function SubHeader({ title, onBack }: { title: string; onBack: () => void }) {
   )
 }
 
-// ─── Edit profile ─────────────────────────────────────────────────────────────
-function EditProfile({ nome: initNome, onBack }: { nome: string; onBack: () => void }) {
-  const { showToast } = useApp()
-  const [nome, setNome] = useState(initNome)
+// ─── Editar perfil (UC11) ─────────────────────────────────────────────────────
+function EditProfile({ onBack }: { onBack: () => void }) {
+  const { me, setUsuarios, showToast, online } = useApp()
+  const [nome, setNome] = useState(me.nome)
+  const [fotoSheet, setFotoSheet] = useState(false)
+  const [err, setErr] = useState<string | undefined>()
+
+  function salvar() {
+    if (!nome.trim()) { setErr('Informe seu nome'); return }
+    if (!online()) return
+    setUsuarios(p => p.map(u => u.id === me.id ? { ...u, nome: nome.trim() } : u))
+    showToast('Perfil atualizado', 'success')
+    onBack()
+  }
+
   return (
-    <div className="flex flex-col h-full a-up">
+    <div className="flex flex-col h-full a-up relative">
       <SubHeader title="Editar perfil" onBack={onBack} />
       <div className="flex flex-col gap-5 px-4 pt-5 flex-1">
         <div className="flex flex-col items-center gap-3">
-          <div className="relative">
-            <Av s={initials(nome)} size={80} bg={`linear-gradient(135deg,${C.red},${C.redD})`} />
-            <button className="absolute -bottom-1 -right-1 flex items-center justify-center rounded-full"
+          <button className="relative" onClick={() => setFotoSheet(true)}>
+            <Av s={initials(nome || me.nome)} size={80} bg={`linear-gradient(135deg,${C.red},${C.redD})`} />
+            <span className="absolute -bottom-1 -right-1 flex items-center justify-center rounded-full"
               style={{ width: 28, height: 28, background: C.blue, border: `2px solid ${C.bg}` }}>
               <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="#fff" strokeWidth={2.5}>
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                 <circle cx="12" cy="13" r="4"/>
               </svg>
-            </button>
-          </div>
-          <p className="f-mono text-[10px]" style={{ color: C.muted }}>Toque para alterar a foto</p>
+            </span>
+          </button>
+          <p className="f-mono text-[10px] text-center" style={{ color: C.muted }}>
+            Toque para alterar a foto<br />A imagem será redimensionada para até 1080 px (máx. 5 MB)
+          </p>
         </div>
-        <div>
-          <label className="f-mono text-[10px] uppercase tracking-wider mb-1.5 block" style={{ color: C.muted }}>Nome</label>
-          <input value={nome} onChange={e => setNome(e.target.value)}
-            className="w-full px-4 py-3 rounded-2xl f-sora text-sm outline-none"
-            style={{ background: C.card2, border: `1px solid ${C.bdr}`, color: C.text, caretColor: C.red }} />
-        </div>
-        <button onClick={() => { showToast('Perfil atualizado!', 'success'); onBack() }}
+        <Field label="Nome" value={nome} onChange={v => { setNome(v); setErr(undefined) }} error={err} />
+        <Field label="E-mail" value={me.email} onChange={() => {}} disabled hint="O e-mail não pode ser alterado" />
+        <button onClick={salvar}
           className="w-full py-4 rounded-2xl f-sora font-bold text-sm active:scale-95"
           style={{ background: C.red, color: '#fff', boxShadow: '0 4px 20px rgba(225,29,72,.4)' }}>
           Salvar alterações
         </button>
       </div>
+      {fotoSheet && (
+        <Sheet onClose={() => setFotoSheet(false)}>
+          <h3 className="f-sora font-black text-base mb-3" style={{ color: C.text }}>Foto de perfil</h3>
+          {['Tirar foto', 'Escolher da galeria', 'Remover foto'].map(op => (
+            <button key={op} onClick={() => { setFotoSheet(false); showToast(op === 'Remover foto' ? 'Foto removida' : 'Foto atualizada', 'success') }}
+              className="w-full px-4 py-3 rounded-xl mb-2 text-left f-sora font-semibold text-sm"
+              style={{ background: C.card2, border: `1px solid ${C.bdr}`, color: op === 'Remover foto' ? '#f43f5e' : C.text }}>
+              {op}
+            </button>
+          ))}
+          <button onClick={() => setFotoSheet(false)} className="w-full py-3 f-mono text-sm" style={{ color: C.muted }}>Cancelar</button>
+        </Sheet>
+      )}
     </div>
   )
 }
 
-// ─── Change password ──────────────────────────────────────────────────────────
+// ─── Alterar senha (UC11) ─────────────────────────────────────────────────────
 function ChangePassword({ onBack }: { onBack: () => void }) {
-  const { showToast } = useApp()
+  const { me, senhaCorreta, alterarSenha, showToast, online } = useApp()
   const [cur, setCur]   = useState('')
   const [nw, setNw]     = useState('')
   const [conf, setConf] = useState('')
-  const [showCur, setShowCur] = useState(false)
-  const [showNw, setShowNw]   = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   function submit() {
-    if (cur !== '123456') { setErr('Senha atual incorreta.'); return }
-    if (nw.length < 8)    { setErr('Nova senha deve ter ao menos 8 caracteres.'); return }
-    if (nw !== conf)      { setErr('As senhas não coincidem.'); return }
+    if (!senhaCorreta(me.id, cur)) { setErr('Senha atual incorreta.'); return }
+    if (!senhaValida(nw))           { setErr(SENHA_REGRA); return }
+    if (nw !== conf)                { setErr('As senhas não coincidem.'); return }
+    if (!online()) return
     setErr(null)
-    showToast('Senha alterada!', 'success')
+    alterarSenha(me.id, nw)
+    showToast('Senha alterada', 'success')
     onBack()
-  }
-
-  function PwField({ label, val, setVal, show, toggleShow }: { label: string; val: string; setVal: (v: string) => void; show: boolean; toggleShow: () => void }) {
-    return (
-      <div>
-        <label className="f-mono text-[10px] uppercase tracking-wider mb-1.5 block" style={{ color: C.muted }}>{label}</label>
-        <div className="relative">
-          <input type={show ? 'text' : 'password'} value={val} onChange={e => setVal(e.target.value)}
-            placeholder="••••••••"
-            className="w-full px-4 py-3 rounded-2xl f-sora text-sm outline-none"
-            style={{ background: C.card2, border: `1px solid ${C.bdr}`, color: C.text, caretColor: C.red }} />
-          <button type="button" onClick={toggleShow}
-            className="absolute right-4 top-1/2 -translate-y-1/2" style={{ color: C.muted }}>
-            <IcoEye open={show} />
-          </button>
-        </div>
-      </div>
-    )
   }
 
   return (
     <div className="flex flex-col h-full a-up">
       <SubHeader title="Alterar senha" onBack={onBack} />
       <div className="flex flex-col gap-4 px-4 pt-5">
-        {err && (
-          <div className="flex items-center gap-2 px-4 py-3 rounded-2xl"
-            style={{ background: '#450a0a', border: '1px solid rgba(244,63,94,.3)' }}>
-            <IcoX size={14} color="#f87171" />
-            <p className="f-mono text-xs" style={{ color: '#f87171' }}>{err}</p>
-          </div>
-        )}
-        <PwField label="Senha atual" val={cur} setVal={setCur} show={showCur} toggleShow={() => setShowCur(v => !v)} />
-        <PwField label="Nova senha"  val={nw}  setVal={setNw}  show={showNw}  toggleShow={() => setShowNw(v => !v)} />
-        <PwField label="Confirmar nova senha" val={conf} setVal={setConf} show={false} toggleShow={() => {}} />
-        <p className="f-mono text-[10px]" style={{ color: C.dim }}>Senha demo: 123456</p>
+        {err && <ErrorBox message={err} />}
+        <PasswordField label="Senha atual" value={cur} onChange={setCur} />
+        <div>
+          <PasswordField label="Nova senha" value={nw} onChange={setNw} hint={SENHA_REGRA} />
+          <StrBar pw={nw} />
+        </div>
+        <PasswordField label="Confirmar nova senha" value={conf} onChange={setConf}
+          error={conf && nw !== conf ? 'As senhas não coincidem' : undefined} />
         <button onClick={submit} disabled={!cur || !nw || !conf}
           className="w-full py-4 rounded-2xl f-sora font-bold text-sm active:scale-95"
           style={{ background: (cur && nw && conf) ? C.red : C.dim, color: '#fff' }}>
@@ -142,92 +130,92 @@ function ChangePassword({ onBack }: { onBack: () => void }) {
   )
 }
 
-// ─── Notification settings ────────────────────────────────────────────────────
+// ─── Notificações (seção 3.4 / UC12) ──────────────────────────────────────────
 const NOTIF_CATS = [
-  { key: 'eventos',    label: 'Novos eventos' },
-  { key: 'alteracoes', label: 'Alterações e cancelamentos' },
-  { key: 'lembretes',  label: 'Lembretes' },
-  { key: 'resultados', label: 'Resultados' },
-  { key: 'noticias',   label: 'Notícias' },
-  { key: 'solics',     label: 'Solicitações' },
-  { key: 'avisos',     label: 'Avisos da diretoria' },
+  { key: 'eventos',    label: 'Novos eventos',              desc: 'Jogos e treinos criados para os meus times' },
+  { key: 'alteracoes', label: 'Alterações e cancelamentos', desc: 'Data, horário, local ou status alterados' },
+  { key: 'lembretes',  label: 'Lembretes',                  desc: 'Antes dos eventos confirmados e confirmação pendente' },
+  { key: 'resultados', label: 'Resultados',                 desc: 'Resultado de jogo registrado' },
+  { key: 'noticias',   label: 'Notícias',                   desc: 'Notícia publicada' },
+  { key: 'solics',     label: 'Solicitações',               desc: 'Respostas às minhas solicitações de entrada' },
+  { key: 'avisos',     label: 'Avisos da diretoria',        desc: 'Avisos manuais da diretoria' },
 ] as const
 
 const ANTECEDENCIAS = ['1 h', '2 h', '6 h', '24 h'] as const
 
-function NotifSettings({ onBack }: { onBack: () => void }) {
-  const { showToast } = useApp()
-  const [global, setGlobal] = useState(true)
-  const [cats, setCats] = useState<Record<string, boolean>>(
-    Object.fromEntries(NOTIF_CATS.map(c => [c.key, true]))
-  )
-  const [antecedencia, setAntecedencia] = useState<string>('2 h')
-  const [androidDenied] = useState(false)
+export type Prefs = { global: boolean; cats: Record<string, boolean>; antecedencia: string }
+export const PREFS_PADRAO: Prefs = { global: true, cats: Object.fromEntries(NOTIF_CATS.map(c => [c.key, true])), antecedencia: '2 h' }
 
-  function toggleGlobal() {
-    const next = !global
-    setGlobal(next)
-    showToast(next ? 'Notificações ativadas!' : 'Notificações desativadas', 'success')
-  }
-  function toggleCat(key: string) {
-    setCats(p => ({ ...p, [key]: !p[key] }))
+function NotifSettings({ prefs, setPrefs, onBack }: { prefs: Prefs; setPrefs: (f: (p: Prefs) => Prefs) => void; onBack: () => void }) {
+  const { demo, showToast, online } = useApp()
+  const off = !prefs.global
+
+  function salvar(f: (p: Prefs) => Prefs, msg?: string) {
+    if (!online()) return
+    setPrefs(f)
+    if (msg) showToast(msg, 'success')
   }
 
   return (
     <div className="flex flex-col h-full overflow-y-auto a-up">
       <SubHeader title="Notificações" onBack={onBack} />
       <div className="flex flex-col gap-4 px-4 pt-4 pb-6">
-        {androidDenied && (
+        {demo.notifNegada && (
           <div className="flex items-start gap-3 p-4 rounded-2xl"
             style={{ background: '#1c1209', border: `1px solid ${C.yellow}33` }}>
             <IcoAlert size={18} color={C.yellow} />
             <div className="flex-1">
-              <p className="f-sora font-bold text-sm mb-0.5" style={{ color: C.yellow }}>Permissão negada</p>
+              <p className="f-sora font-bold text-sm mb-0.5" style={{ color: C.yellow }}>Permissão negada no Android</p>
               <p className="f-mono text-xs mb-2" style={{ color: C.muted }}>
-                Notificações estão bloqueadas nas configurações do sistema.
+                As notificações estão bloqueadas nas configurações do sistema.
               </p>
-              <button className="f-mono text-xs font-semibold" style={{ color: C.blueL }}>
+              <button onClick={() => showToast('Abrindo configurações do Android', 'success')}
+                className="f-mono text-xs font-semibold" style={{ color: C.blueL }}>
                 Abrir configurações →
               </button>
             </div>
           </div>
         )}
 
-        {/* Global toggle */}
         <Card pad="p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="f-sora font-semibold text-sm" style={{ color: C.text }}>Notificações push</p>
               <p className="f-mono text-[10px] mt-px" style={{ color: C.muted }}>Ativar ou desativar todas</p>
             </div>
-            <Toggle on={global} onChange={toggleGlobal} />
+            <Toggle on={prefs.global} onChange={() => salvar(p => ({ ...p, global: !p.global }), prefs.global ? 'Notificações desativadas' : 'Notificações ativadas')} />
           </div>
         </Card>
 
-        {/* Per-category toggles */}
         <Card pad="p-0">
           <p className="f-mono text-[9px] uppercase tracking-widest px-4 pt-4 pb-2" style={{ color: C.dim }}>Categorias</p>
           {NOTIF_CATS.map((cat, i) => (
-            <div key={cat.key} className="flex items-center justify-between px-4 py-3.5"
-              style={{ borderTop: i > 0 ? `1px solid ${C.bdr}` : 'none', opacity: global ? 1 : .4 }}>
-              <span className="f-sora font-medium text-sm" style={{ color: C.text }}>{cat.label}</span>
-              <Toggle on={cats[cat.key] && global} onChange={() => global && toggleCat(cat.key)} />
+            <div key={cat.key} className="flex items-center justify-between gap-3 px-4 py-3"
+              style={{ borderTop: i > 0 ? `1px solid ${C.bdr}` : 'none', opacity: off ? .45 : 1 }}>
+              <div>
+                <span className="f-sora font-medium text-sm" style={{ color: C.text }}>{cat.label}</span>
+                <p className="f-mono text-[9px]" style={{ color: C.muted }}>{cat.desc}</p>
+              </div>
+              <Toggle on={prefs.cats[cat.key]} disabled={off}
+                onChange={() => salvar(p => ({ ...p, cats: { ...p.cats, [cat.key]: !p.cats[cat.key] } }))} />
             </div>
           ))}
+          <p className="f-mono text-[9px] px-4 pb-3" style={{ color: C.dim }}>
+            Avisos de alteração de cargo são sempre enviados.
+          </p>
         </Card>
 
-        {/* Antecedência */}
-        <div>
+        <div style={{ opacity: off || !prefs.cats.lembretes ? .45 : 1 }}>
           <p className="f-mono text-[9px] uppercase tracking-widest mb-3" style={{ color: C.dim }}>Antecedência do lembrete</p>
           <div className="grid grid-cols-4 gap-2">
             {ANTECEDENCIAS.map(a => (
-              <button key={a} onClick={() => setAntecedencia(a)}
+              <button key={a} disabled={off || !prefs.cats.lembretes} onClick={() => salvar(p => ({ ...p, antecedencia: a }))}
                 className="py-2.5 rounded-xl f-mono text-xs font-semibold transition-all"
                 style={{
-                  background: antecedencia === a ? C.red : C.card,
-                  color: antecedencia === a ? '#fff' : C.muted,
-                  border: `1px solid ${antecedencia === a ? C.red : C.bdr}`,
-                  opacity: global ? 1 : .4,
+                  background: prefs.antecedencia === a ? C.red : C.card,
+                  color: prefs.antecedencia === a ? '#fff' : C.muted,
+                  border: `1px solid ${prefs.antecedencia === a ? C.red : C.bdr}`,
+                  cursor: off ? 'not-allowed' : 'pointer',
                 }}>
                 {a}
               </button>
@@ -239,21 +227,22 @@ function NotifSettings({ onBack }: { onBack: () => void }) {
   )
 }
 
-// ─── About ────────────────────────────────────────────────────────────────────
-function About({ onBack, onTermos, onPrivacidade }: { onBack: () => void; onTermos: () => void; onPrivacidade: () => void }) {
-  const items = [
-    { label: 'Termos de Uso', onClick: onTermos },
-    { label: 'Política de Privacidade', onClick: onPrivacidade },
+// ─── Sobre ────────────────────────────────────────────────────────────────────
+function About({ onBack }: { onBack: () => void }) {
+  const [modal, setModal] = useState<'termos' | 'privacidade' | null>(null)
+  const items: { label: string; onClick?: () => void; right?: string }[] = [
+    { label: 'Termos de Uso', onClick: () => setModal('termos') },
+    { label: 'Política de Privacidade', onClick: () => setModal('privacidade') },
     { label: 'Versão do app', right: 'v1.0.0 (build 1)' },
-    { label: 'Contato da diretoria', right: 'diretoria@atleticalorde.ufma.br' },
+    { label: 'Contato da diretoria', right: 'diretoria@atleticalorde.com.br' },
   ]
   return (
-    <div className="flex flex-col h-full a-up">
+    <div className="flex flex-col h-full a-up relative">
       <SubHeader title="Sobre" onBack={onBack} />
       <div className="px-4 pt-5">
         <Card pad="p-0">
           {items.map((item, i) => (
-            <button key={item.label} onClick={item.onClick}
+            <button key={item.label} onClick={item.onClick} disabled={!item.onClick}
               className="w-full flex items-center justify-between px-4 py-4"
               style={{ borderBottom: i < items.length - 1 ? `1px solid ${C.bdr}` : 'none', textAlign: 'left' }}>
               <span className="f-sora font-medium text-sm" style={{ color: C.text }}>{item.label}</span>
@@ -266,25 +255,37 @@ function About({ onBack, onTermos, onPrivacidade }: { onBack: () => void; onTerm
         <div className="mt-8 text-center">
           <p className="f-sora font-black text-2xl" style={{ color: C.text }}>{ATLETICA.sigla}</p>
           <p className="f-mono text-[10px] mt-1" style={{ color: C.dim }}>{ATLETICA.nome} · {ATLETICA.curso}</p>
-          <p className="f-mono text-[9px] mt-0.5" style={{ color: C.dim }}>UFMA</p>
         </div>
       </div>
+      {modal && <TermsModal type={modal} onClose={() => setModal(null)} />}
     </div>
   )
 }
 
-// ─── Delete account ───────────────────────────────────────────────────────────
+// ─── Excluir conta (UC13 / RN33 / RN08) ───────────────────────────────────────
 function DeleteAccount({ onBack }: { onBack: () => void }) {
-  const { showToast } = useApp()
+  const {
+    me, usuarios, setUsuarios, setMembros, setTimes, setSolicitacoes, senhaCorreta, online, logout,
+  } = useApp()
   const [pw, setPw] = useState('')
-  const [showPw, setShowPw] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  const ultimoAdmin = me.role === 'admin' && usuarios.filter(u => u.role === 'admin' && u.ativo && !u.excluido).length === 1
+
   function submit() {
-    if (pw !== '123456') { setErr('Senha incorreta.'); return }
-    showToast('Conta excluída', 'error')
-    onBack()
+    if (ultimoAdmin) return
+    if (!senhaCorreta(me.id, pw)) { setErr('Senha incorreta.'); return }
+    if (!online()) return
+    const agora = nowLocal()
+    // Anonimiza dados pessoais, sai dos elencos e cancela solicitações pendentes; participações ficam (anônimas)
+    setUsuarios(p => p.map(u => u.id === me.id
+      ? { ...u, nome: 'Usuário excluído', email: `excluido-${u.id}@anonimo`, ativo: false, excluido: true, role: 'atleta' }
+      : u))
+    setMembros(p => encerrarVinculo(p, me.id))
+    setTimes(p => p.map(t => t.capitaoId === me.id ? { ...t, capitaoId: undefined } : t))
+    setSolicitacoes(p => p.map(s => s.usuarioId === me.id && s.status === 'PENDENTE' ? { ...s, status: 'CANCELADA', avaliadaEm: agora } : s))
+    logout('Conta excluída')
   }
 
   return (
@@ -294,88 +295,65 @@ function DeleteAccount({ onBack }: { onBack: () => void }) {
         <div className="p-4 rounded-2xl" style={{ background: '#450a0a', border: '1px solid rgba(244,63,94,.3)' }}>
           <div className="flex items-center gap-2 mb-3">
             <IcoAlert size={18} color="#f87171" />
-            <p className="f-sora font-bold text-sm" style={{ color: '#f87171' }}>Ação irreversível</p>
+            <p className="f-sora font-bold text-sm" style={{ color: '#f87171' }}>Ao excluir sua conta</p>
           </div>
-          <p className="f-mono text-xs leading-loose" style={{ color: C.muted }}>
-            Ao excluir sua conta:{'\n'}
-            {['Seus dados pessoais serão anonimizados', 'Você será removido de todos os times', 'Solicitações pendentes serão canceladas', 'Confirmações de presença serão removidas'].map(item => (
-              <span key={item} className="flex items-start gap-2 mt-1">
-                <IcoX size={10} color="#f87171" />
-                {item}
+          <div className="flex flex-col gap-1.5">
+            {[
+              'Seus dados pessoais serão anonimizados',
+              'Você sairá de todos os times',
+              'Suas solicitações pendentes serão canceladas',
+              'Seu histórico de presenças e resultados será mantido de forma anônima',
+            ].map(item => (
+              <span key={item} className="flex items-start gap-2 f-mono text-xs leading-relaxed" style={{ color: C.muted }}>
+                <span style={{ color: '#f87171' }}>•</span>{item}
               </span>
             ))}
-          </p>
+          </div>
         </div>
 
-        {err && (
-          <div className="flex items-center gap-2 px-4 py-3 rounded-2xl"
-            style={{ background: '#450a0a', border: '1px solid rgba(244,63,94,.3)' }}>
-            <IcoX size={14} color="#f87171" />
-            <p className="f-mono text-xs" style={{ color: '#f87171' }}>{err}</p>
-          </div>
-        )}
-
-        <div>
-          <label className="f-mono text-[10px] uppercase tracking-wider mb-1.5 block" style={{ color: C.muted }}>
-            Confirme sua senha
-          </label>
-          <div className="relative">
-            <input type={showPw ? 'text' : 'password'} value={pw} onChange={e => setPw(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-4 py-3 rounded-2xl f-sora text-sm outline-none"
-              style={{ background: C.card2, border: `1px solid #f43f5e44`, color: C.text, caretColor: '#f43f5e' }} />
-            <button type="button" onClick={() => setShowPw(v => !v)}
-              className="absolute right-4 top-1/2 -translate-y-1/2" style={{ color: C.muted }}>
-              <IcoEye open={showPw} />
+        {ultimoAdmin ? (
+          <ErrorBox message="Você é o único Administrador. Conceda o cargo a outra pessoa antes de excluir sua conta." />
+        ) : (
+          <>
+            {err && <ErrorBox message={err} />}
+            <PasswordField label="Confirme sua senha" value={pw} onChange={setPw} />
+            <div className="flex items-start gap-3">
+              <button onClick={() => setConfirmed(v => !v)}
+                className="shrink-0 mt-0.5 rounded-lg flex items-center justify-center transition-all"
+                style={{ width: 20, height: 20, background: confirmed ? '#f43f5e' : C.card2, border: `1.5px solid ${confirmed ? '#f43f5e' : C.dim}` }}>
+                {confirmed && <IcoCheck size={12} color="#fff" />}
+              </button>
+              <p className="f-mono text-[10px] leading-relaxed" style={{ color: C.muted }}>
+                Entendo que esta ação não pode ser desfeita.
+              </p>
+            </div>
+            <button onClick={submit} disabled={!pw || !confirmed}
+              className="w-full py-4 rounded-2xl f-sora font-bold text-sm active:scale-95"
+              style={{ background: (pw && confirmed) ? '#f43f5e' : C.dim, color: '#fff' }}>
+              Excluir minha conta
             </button>
-          </div>
-        </div>
-
-        <div className="flex items-start gap-3">
-          <button onClick={() => setConfirmed(v => !v)}
-            className="shrink-0 mt-0.5 rounded-lg flex items-center justify-center transition-all"
-            style={{ width: 20, height: 20, background: confirmed ? '#f43f5e' : C.card2, border: `1.5px solid ${confirmed ? '#f43f5e' : C.dim}` }}>
-            {confirmed && <IcoCheck size={12} color="#fff" />}
-          </button>
-          <p className="f-mono text-[10px] leading-relaxed" style={{ color: C.muted }}>
-            Entendo que esta ação é irreversível e que meus dados serão apagados permanentemente.
-          </p>
-        </div>
-
-        <button onClick={submit} disabled={!pw || !confirmed}
-          className="w-full py-4 rounded-2xl f-sora font-bold text-sm active:scale-95"
-          style={{ background: (pw && confirmed) ? '#f43f5e' : C.dim, color: '#fff' }}>
-          Excluir minha conta
-        </button>
+          </>
+        )}
       </div>
     </div>
   )
 }
 
-// ─── Settings menu ────────────────────────────────────────────────────────────
-function SettingsMenu({ onBack, setView, showConfirm }: { onBack: () => void; setView: (v: PView) => void; showConfirm: (t: string, m: string, cb: () => void) => void }) {
-  const { showToast } = useApp()
+// ─── Configurações ────────────────────────────────────────────────────────────
+function SettingsMenu({ onBack, setView }: { onBack: () => void; setView: (v: PView) => void }) {
+  const { showConfirm, logout } = useApp()
 
   const sections = [
-    {
-      title: 'Conta',
-      items: [
-        { Icon: IcoUser,    label: 'Editar perfil',    onClick: () => setView('edit-profile') },
-        { Icon: IcoShield,  label: 'Alterar senha',    onClick: () => setView('change-password') },
-      ],
-    },
-    {
-      title: 'Notificações',
-      items: [
-        { Icon: IcoBell, label: 'Configurar notificações', onClick: () => setView('notif-settings') },
-      ],
-    },
-    {
-      title: 'Sobre',
-      items: [
-        { Icon: IcoCode, label: 'Sobre o app', onClick: () => setView('about') },
-      ],
-    },
+    { title: 'Conta', items: [
+      { Icon: IcoUser,   label: 'Editar perfil', onClick: () => setView('edit-profile') },
+      { Icon: IcoShield, label: 'Alterar senha', onClick: () => setView('change-password') },
+    ] },
+    { title: 'Notificações', items: [
+      { Icon: IcoBell, label: 'Preferências de notificação', onClick: () => setView('notif-settings') },
+    ] },
+    { title: 'Sobre', items: [
+      { Icon: IcoCode, label: 'Termos, privacidade e versão', onClick: () => setView('about') },
+    ] },
   ]
 
   return (
@@ -399,8 +377,8 @@ function SettingsMenu({ onBack, setView, showConfirm }: { onBack: () => void; se
           </div>
         ))}
 
-        {/* Sign out */}
-        <button onClick={() => showConfirm('Sair da conta', 'Tem certeza que deseja encerrar a sessão?', () => showToast('Sessão encerrada', 'error'))}
+        {/* UC08: confirmação e volta ao login */}
+        <button onClick={() => showConfirm('Sair da conta', 'Deseja encerrar a sessão neste dispositivo?', () => logout('Sessão encerrada'), 'Sair')}
           className="w-full py-3.5 rounded-2xl f-sora font-semibold text-sm active:scale-95"
           style={{ background: C.red + '15', color: C.red, border: `1px solid rgba(225,29,72,.22)` }}>
           <span className="flex items-center justify-center gap-2">
@@ -408,9 +386,8 @@ function SettingsMenu({ onBack, setView, showConfirm }: { onBack: () => void; se
           </span>
         </button>
 
-        {/* Delete account */}
         <button onClick={() => setView('delete-account')}
-          className="f-mono text-xs text-center w-full py-2" style={{ color: '#f43f5e66' }}>
+          className="f-mono text-xs text-center w-full py-2" style={{ color: '#f43f5e99' }}>
           Excluir conta
         </button>
       </div>
@@ -418,65 +395,62 @@ function SettingsMenu({ onBack, setView, showConfirm }: { onBack: () => void; se
   )
 }
 
-// ─── Main profile view ────────────────────────────────────────────────────────
-function ProfileMain({ setView }: { setView: (v: PView) => void }) {
-  const { role, setScreen, showToast } = useApp()
-  const me = getMeByRole(role)
-  const [confirmed, setConfirmed] = useState<Set<string>>(new Set(['e1', 'e5']))
+// ─── Perfil (UC10) ────────────────────────────────────────────────────────────
+function ProfileMain({ setView, onDemo }: { setView: (v: PView) => void; onDemo: () => void }) {
+  const {
+    me, setScreen, abrirEvento, eventos, times, membros, participacoes, setParticipacoes, showToast, online,
+  } = useApp()
 
-  const myTime = TIMES.find(t => t.id === me.timeId)
-  const proxEvents = EVENTOS
-    .filter(e => (e.status === 'Agendado' || e.status === 'Em andamento') && e.timeLordeId === me.timeId)
+  const meusTimes = timesDoUsuario(membros, me.id).map(id => times.find(t => t.id === id)).filter(t => !!t)
+  const stats = estatisticas(participacoes, eventos, me.id)
+  const agora = nowLocal()
+
+  const futuros = eventos
+    .filter(e => (e.status === 'Agendado' || e.status === 'Em andamento') && isMembro(membros, e.timeId, me.id))
     .sort((a, b) => a.inicio.localeCompare(b.inicio))
-    .slice(0, 5)
 
-  const confirmedEvents = proxEvents.filter(e => confirmed.has(e.id))
+  // UC10 passo 4: próximos eventos em que confirmei participação
+  const confirmados = futuros.filter(e => participacaoDe(participacoes, e.id, me.id)?.confirmado === true)
+  // Eventos agendados do meu elenco ainda sem resposta
+  const pendentes = futuros.filter(e =>
+    podeResponder(e, true).ok && (participacaoDe(participacoes, e.id, me.id)?.confirmado ?? null) === null)
 
-  function toggleConf(id: string) {
-    setConfirmed(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) { next.delete(id); showToast('Presença cancelada', 'error') }
-      else               { next.add(id);   showToast('Presença confirmada!', 'success') }
-      return next
+  function responder(eventoId: string, confirmado: boolean) {
+    if (!online()) return
+    setParticipacoes(p => {
+      const existe = p.some(x => x.eventoId === eventoId && x.usuarioId === me.id)
+      return existe
+        ? p.map(x => x.eventoId === eventoId && x.usuarioId === me.id ? { ...x, confirmado, respondidoEm: agora } : x)
+        : [...p, { eventoId, usuarioId: me.id, confirmado, respondidoEm: agora, presente: null }]
     })
+    showToast(confirmado ? 'Participação confirmada' : 'Você marcou que não vai', 'success')
   }
-
-  const presencaTotal = confirmedEvents.length
-  const totalPossivel = proxEvents.length || 1
-  const taxaPresenca  = Math.round((presencaTotal / totalPossivel) * 100)
-
-  const stats = [
-    { label: 'Jogos',    v: 14 },
-    { label: 'Treinos',  v: 31 },
-    { label: 'Presença', v: `${taxaPresenca}%` },
-  ]
 
   return (
     <div className="flex flex-col gap-4 pb-4 a-up">
       {/* Hero */}
-      <div className="relative overflow-hidden" style={{ paddingTop: 24, paddingBottom: 28 }}>
+      <div className="relative overflow-hidden" style={{ paddingTop: 24, paddingBottom: 24 }}>
         <div className="absolute inset-0"
           style={{ background: 'radial-gradient(ellipse at 80% 0%,rgba(225,29,72,.16),transparent 55%), radial-gradient(ellipse at 15% 100%,rgba(37,99,235,.14),transparent 55%)' }} />
+        <div className="absolute top-4 right-4 z-10"><DemoButton onClick={onDemo} /></div>
         <div className="relative flex flex-col items-center gap-3">
-          <div className="relative">
-            <Av s={initials(me.nome)} size={76} bg={`linear-gradient(135deg,${C.red},${C.redD} 55%,#1e3a8a)`} />
-            <div className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center"
-              style={{ width: 24, height: 24, background: C.green, border: `2px solid ${C.bg}` }}>
-              <IcoShield size={12} color="#fff" />
-            </div>
-          </div>
-          <div className="text-center">
+          <Av s={initials(me.nome)} size={76} bg={`linear-gradient(135deg,${C.red},${C.redD} 55%,#1e3a8a)`} />
+          <div className="text-center px-4">
             <h2 className="f-sora font-black text-xl" style={{ color: C.text }}>{me.nome}</h2>
             <p className="f-mono text-[11px] mt-px" style={{ color: C.muted }}>{me.email}</p>
             <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
-              <Chip label={ROLE_LABEL[me.role]} color={C.red} />
-              {myTime && <Chip label={myTime.nome} color={C.blue} />}
+              <Chip label={ROLE_LABEL[me.role].toUpperCase()} color={C.red} />
               <Chip label={ATLETICA.sigla} color={C.muted} />
+              {meusTimes.map(t => <Chip key={t.id} label={t.nome.toUpperCase()} color={C.blue} />)}
             </div>
           </div>
-          {/* Stats */}
+          {/* Estatísticas (RF26 / RN32) */}
           <div className="flex items-center gap-8 mt-1">
-            {stats.map(({ label, v }) => (
+            {[
+              { label: 'Jogos', v: stats.jogos },
+              { label: 'Treinos', v: stats.treinos },
+              { label: 'Presença', v: stats.taxa === null ? '—' : `${stats.taxa}%` },
+            ].map(({ label, v }) => (
               <div key={label} className="text-center">
                 <div className="f-sora font-black text-2xl" style={{ color: C.red }}>{v}</div>
                 <div className="f-mono text-[10px]" style={{ color: C.muted }}>{label}</div>
@@ -489,8 +463,7 @@ function ProfileMain({ setView }: { setView: (v: PView) => void }) {
         </div>
       </div>
 
-      {/* Panel access */}
-      {canAccessPanel(role) && (
+      {canAccessPanel(me.role) && (
         <div className="px-4">
           <button onClick={() => setScreen('painel')}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl active:scale-95 transition-all"
@@ -508,31 +481,61 @@ function ProfileMain({ setView }: { setView: (v: PView) => void }) {
         </div>
       )}
 
-      {/* My confirmed upcoming events */}
-      {confirmedEvents.length > 0 && (
+      {/* UC10 A1: sem time */}
+      {meusTimes.length === 0 && (
         <div className="px-4">
-          <SH title="Meus eventos confirmados" sub={`${confirmedEvents.length} próximo${confirmedEvents.length !== 1 ? 's' : ''}`} />
+          <Card pad="p-4">
+            <p className="f-sora font-semibold text-sm mb-1" style={{ color: C.text }}>Você ainda não faz parte de um time</p>
+            <p className="f-mono text-[10px] mb-3" style={{ color: C.muted }}>Escolha um time e envie uma solicitação de entrada.</p>
+            <button onClick={() => setScreen('modalidades')}
+              className="px-4 py-2 rounded-xl f-sora font-semibold text-xs"
+              style={{ background: C.blue + '22', color: C.blueL, border: `1px solid ${C.bdrB}` }}>
+              Ver times
+            </button>
+          </Card>
+        </div>
+      )}
+
+      {/* Meus próximos eventos confirmados */}
+      {meusTimes.length > 0 && (
+        <div className="px-4">
+          <SH title="Meus próximos eventos confirmados" sub={confirmados.length ? `${confirmados.length} evento${confirmados.length !== 1 ? 's' : ''}` : undefined} />
+          {confirmados.length === 0
+            ? <p className="f-mono text-xs py-2 text-center" style={{ color: C.muted }}>Nenhuma participação confirmada</p>
+            : (
+              <div className="flex flex-col gap-2">
+                {confirmados.map(ev => <EventoCard key={ev.id} ev={ev} onClick={() => abrirEvento(ev.id)} right={<IcoChev />} />)}
+              </div>
+            )}
+        </div>
+      )}
+
+      {/* Responder participação */}
+      {pendentes.length > 0 && (
+        <div className="px-4">
+          <SH title="Responder participação" sub="Você pode alterar a resposta até o início" />
           <div className="flex flex-col gap-2">
-            {confirmedEvents.map(ev => {
-              const tl  = TIMES.find(t => t.id === ev.timeLordeId)
-              const mod = MODALIDADES.find(m => m.id === tl?.modalidadeId)
+            {pendentes.map(ev => {
+              const t = times.find(x => x.id === ev.timeId)
               return (
                 <Card key={ev.id} pad="p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center rounded-xl shrink-0 text-base"
-                      style={{ width: 40, height: 40, background: C.green + '18', border: `1px solid ${C.green}33` }}>
-                      {mod?.emoji ?? '🏅'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="f-sora font-semibold text-sm" style={{ color: C.text }}>
-                        {ev.tipo === 'JOGO' ? 'Jogo' : 'Treino'} — {tl?.nome}
-                      </span>
-                      <div className="f-mono text-[10px]" style={{ color: C.muted }}>{fmtCard(ev.inicio)}</div>
-                    </div>
-                    <div className="flex items-center justify-center rounded-full"
-                      style={{ width: 22, height: 22, background: C.green + '22' }}>
-                      <IcoCheck size={12} color={C.green} />
-                    </div>
+                  <button className="w-full text-left mb-2" onClick={() => abrirEvento(ev.id)}>
+                    <span className="f-sora font-semibold text-sm" style={{ color: C.text }}>
+                      {ev.tipo === 'JOGO' ? 'Jogo' : 'Treino'} — {t?.nome}
+                    </span>
+                    <div className="f-mono text-[10px]" style={{ color: C.muted }}>{fmtCard(ev.inicio)} · {ev.local}</div>
+                  </button>
+                  <div className="flex gap-2">
+                    <button onClick={() => responder(ev.id, true)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl f-sora font-semibold text-xs active:scale-95"
+                      style={{ background: C.green + '1a', color: C.green, border: `1px solid ${C.green}44` }}>
+                      <IcoCheck size={12} /> Vou
+                    </button>
+                    <button onClick={() => responder(ev.id, false)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl f-sora font-semibold text-xs active:scale-95"
+                      style={{ background: '#f43f5e1a', color: '#f43f5e', border: '1px solid rgba(244,63,94,.3)' }}>
+                      <IcoX size={12} /> Não vou
+                    </button>
                   </div>
                 </Card>
               )
@@ -541,49 +544,6 @@ function ProfileMain({ setView }: { setView: (v: PView) => void }) {
         </div>
       )}
 
-      {/* Presença nos eventos */}
-      <div className="px-4">
-        <SH title="Confirmação de Presença" sub="Confirme antes do início" />
-        {proxEvents.length === 0
-          ? <p className="f-mono text-xs py-3 text-center" style={{ color: C.muted }}>Sem eventos nos próximos dias</p>
-          : (
-            <div className="flex flex-col gap-2">
-              {proxEvents.map(ev => {
-                const tl   = TIMES.find(t => t.id === ev.timeLordeId)
-                const mod  = MODALIDADES.find(m => m.id === tl?.modalidadeId)
-                const conf = confirmed.has(ev.id)
-                const isLive = ev.status === 'Em andamento'
-                return (
-                  <Card key={ev.id} pad="p-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center rounded-xl shrink-0"
-                        style={{ width: 40, height: 40, background: (ev.tipo === 'JOGO' ? C.red : C.blue) + '1a', border: `1px solid ${(ev.tipo === 'JOGO' ? C.red : C.blue)}33` }}>
-                        <span className="text-base">{mod?.emoji ?? '🏅'}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-px">
-                          <span className="f-sora font-semibold text-sm" style={{ color: C.text }}>
-                            {ev.tipo === 'JOGO' ? 'Jogo' : 'Treino'} — {tl?.nome}
-                          </span>
-                          {isLive && <span className="a-pulse inline-block w-1.5 h-1.5 rounded-full" style={{ background: C.green }} />}
-                        </div>
-                        <div className="f-mono text-[10px]" style={{ color: C.muted }}>{fmtCard(ev.inicio)}</div>
-                      </div>
-                      <button onClick={() => toggleConf(ev.id)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 active:scale-90"
-                        style={{ background: conf ? C.green + '1a' : C.card2, color: conf ? C.green : C.muted, border: `1px solid ${conf ? C.green + '33' : C.bdr}` }}>
-                        {conf ? <IcoCheck size={12} /> : <IcoPlus size={12} color={C.muted} />}
-                        {conf ? 'Confirmado' : 'Confirmar'}
-                      </button>
-                    </div>
-                  </Card>
-                )
-              })}
-            </div>
-          )}
-      </div>
-
-      {/* Settings shortcut */}
       <div className="px-4">
         <button onClick={() => setView('settings')}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl"
@@ -597,21 +557,16 @@ function ProfileMain({ setView }: { setView: (v: PView) => void }) {
   )
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
-export default function PerfilScreen() {
-  const { showConfirm } = useApp()
+export default function PerfilScreen({ onDemo, prefs, setPrefs }:
+  { onDemo: () => void; prefs: Prefs; setPrefs: (f: (p: Prefs) => Prefs) => void }) {
   const [view, setView] = useState<PView>('main')
+  const toSettings = () => setView('settings')
 
-  if (view === 'settings')       return <SettingsMenu onBack={() => setView('main')} setView={setView} showConfirm={showConfirm} />
-  if (view === 'edit-profile') {
-    const { role } = useApp()
-    const me = getMeByRole(role)
-    return <EditProfile nome={me.nome} onBack={() => setView('settings')} />
-  }
-  if (view === 'change-password') return <ChangePassword onBack={() => setView('settings')} />
-  if (view === 'notif-settings')  return <NotifSettings onBack={() => setView('settings')} />
-  if (view === 'about')           return <About onBack={() => setView('settings')} onTermos={() => {}} onPrivacidade={() => {}} />
-  if (view === 'delete-account')  return <DeleteAccount onBack={() => setView('settings')} />
-
-  return <ProfileMain setView={setView} />
+  if (view === 'settings')        return <SettingsMenu onBack={() => setView('main')} setView={setView} />
+  if (view === 'edit-profile')    return <EditProfile onBack={toSettings} />
+  if (view === 'change-password') return <ChangePassword onBack={toSettings} />
+  if (view === 'notif-settings')  return <NotifSettings prefs={prefs} setPrefs={setPrefs} onBack={toSettings} />
+  if (view === 'about')           return <About onBack={toSettings} />
+  if (view === 'delete-account')  return <DeleteAccount onBack={toSettings} />
+  return <ProfileMain setView={setView} onDemo={onDemo} />
 }

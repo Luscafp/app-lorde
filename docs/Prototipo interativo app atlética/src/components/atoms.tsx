@@ -66,10 +66,10 @@ export function SH({ title, sub, action, onAction }:
 }
 
 // ─── Toggle switch ────────────────────────────────────────────────────────────
-export function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
+export function Toggle({ on, onChange, disabled }: { on: boolean; onChange: () => void; disabled?: boolean }) {
   return (
-    <button onClick={onChange} className="rounded-full transition-all shrink-0"
-      style={{ width: 44, height: 24, background: on ? C.blue : C.dim, padding: 2 }}>
+    <button onClick={onChange} disabled={disabled} className="rounded-full transition-all shrink-0"
+      style={{ width: 44, height: 24, background: on ? C.blue : C.dim, padding: 2, opacity: disabled ? .4 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>
       <div className="rounded-full transition-all"
         style={{ width: 20, height: 20, background: '#fff', transform: `translateX(${on ? 20 : 0}px)` }} />
     </button>

@@ -1,39 +1,48 @@
 import { useState } from 'react'
-import { C } from '../../theme'
-import { initials } from '../../utils'
-import { Card, Chip, Av, IcoBack, IcoPlus, IcoCheck, IcoX, IcoBin, IcoEdit, IcoAlert, IcoStar } from '../../components/atoms'
-import { EmptyState } from '../../components/shared'
+import { C, ATLETICA } from '../../theme'
+import { initials, canDelete } from '../../utils'
+import { elencoIds, encerrarVinculo } from '../../domain'
+import { Card, Chip, Av, IcoBack, IcoPlus, IcoCheck, IcoBin, IcoEdit, IcoStar, IcoUsers } from '../../components/atoms'
+import { EmptyState, Field } from '../../components/shared'
 import { useApp } from '../../AppContext'
 import type { Time, Modalidade } from '../../types'
 
-// ─── Elenco manager ───────────────────────────────────────────────────────────
-function ElencoView({ time, onBack }: { time: Time; onBack: () => void }) {
-  const {
-    showToast, showConfirm, times, setTimes, modalidades: MODALIDADES,
-    solicitacoes, audit,
-  } = useApp()
-  const liveTime = times.find(t => t.id === time.id) ?? time
-  const atletas = liveTime.atletas ?? []
-  const capitao = liveTime.capitao
-  const mod = MODALIDADES.find(m => m.id === time.modalidadeId)
-  const pending = solicitacoes.filter(s => s.timeId === time.id && s.status === 'PENDENTE').length
+function Switch({ on, onClick }: { on: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} title={on ? 'Ativo — toque para desativar' : 'Inativo — toque para ativar'}
+      className="rounded-full shrink-0" style={{ width: 36, height: 20, background: on ? C.green : C.dim, padding: 2 }}>
+      <div className="rounded-full transition-all" style={{ width: 16, height: 16, background: '#fff', transform: `translateX(${on ? 16 : 0}px)` }} />
+    </button>
+  )
+}
 
-  function removeAtleta(nome: string) {
-    showConfirm('Remover atleta', `Remover ${nome} do elenco do ${time.nome}?`, () => {
-      setTimes(p => p.map(t => t.id === time.id ? {
-        ...t,
-        atletas: (t.atletas ?? []).filter(a => a !== nome),
-        capitao: t.capitao === nome ? undefined : t.capitao,
-      } : t))
-      audit('Times e elencos', 'Removeu atleta do elenco', `${nome} · ${time.nome}`)
-      showToast('Atleta removido', 'error')
-    })
+// ─── Elenco e capitão (UC19 passo 4) ──────────────────────────────────────────
+function ElencoView({ timeId, onBack, onVerSolicitacoes }: { timeId: string; onBack: () => void; onVerSolicitacoes: () => void }) {
+  const { times, setTimes, membros, setMembros, modalidades, solicitacoes, showToast, showConfirm, audit, online, nomeUsuario } = useApp()
+  const time = times.find(t => t.id === timeId)
+  if (!time) return null
+  const mod = modalidades.find(m => m.id === time.modalidadeId)
+  const elenco = elencoIds(membros, time.id).sort((a, b) => nomeUsuario(a).localeCompare(nomeUsuario(b)))
+  const pendentes = solicitacoes.filter(s => s.timeId === time.id && s.status === 'PENDENTE').length
+
+  function remover(id: string) {
+    showConfirm('Remover do elenco', `Remover ${nomeUsuario(id)} do elenco do ${time!.nome}?`, () => {
+      if (!online()) return
+      setMembros(p => encerrarVinculo(p, id, time!.id))
+      // RN23: capitão precisa estar no elenco
+      if (time!.capitaoId === id) setTimes(p => p.map(t => t.id === time!.id ? { ...t, capitaoId: undefined } : t))
+      audit('Times e elencos', 'Removeu atleta do elenco', `${nomeUsuario(id)} · ${time!.nome}`)
+      showToast('Atleta removido do elenco', 'success')
+    }, 'Remover')
   }
 
-  function setAsCapitao(nome: string) {
-    setTimes(p => p.map(t => t.id === time.id ? { ...t, capitao: t.capitao === nome ? undefined : nome } : t))
-    audit('Times e elencos', capitao === nome ? 'Removeu capitão' : 'Definiu capitão', `${nome} · ${time.nome}`)
-    showToast(capitao === nome ? 'Capitão removido' : `${nome.split(' ')[0]} definido como capitão!`, 'success')
+  function definirCapitao(id: string) {
+    if (!online()) return
+    const remover = time!.capitaoId === id
+    // RN22: no máximo um capitão — definir um novo substitui o anterior
+    setTimes(p => p.map(t => t.id === time!.id ? { ...t, capitaoId: remover ? undefined : id } : t))
+    audit('Times e elencos', remover ? 'Removeu capitão' : 'Definiu capitão', `${nomeUsuario(id)} · ${time!.nome}`)
+    showToast(remover ? 'Capitão removido' : `${nomeUsuario(id).split(' ')[0]} é o novo capitão`, 'success')
   }
 
   return (
@@ -42,50 +51,42 @@ function ElencoView({ time, onBack }: { time: Time; onBack: () => void }) {
         <button onClick={onBack} className="flex items-center justify-center rounded-xl"
           style={{ width: 36, height: 36, background: C.card, border: `1px solid ${C.bdr}` }}><IcoBack /></button>
         <div>
-          <h3 className="f-sora font-black text-base" style={{ color: C.text }}>{time.nome}</h3>
-          <p className="f-mono text-[10px]" style={{ color: C.muted }}>
-            {mod?.emoji} {mod?.nome} · {atletas.length} atletas
-          </p>
+          <h3 className="f-sora font-black text-base" style={{ color: C.text }}>Elenco — {time.nome}</h3>
+          <p className="f-mono text-[10px]" style={{ color: C.muted }}>{mod?.emoji} {mod?.nome} · {elenco.length} atletas</p>
         </div>
       </div>
 
-      {capitao && (
-        <div className="mx-4 flex items-center gap-2 px-3 py-2 rounded-xl"
-          style={{ background: C.yellow + '15', border: `1px solid ${C.yellow}33` }}>
-          <IcoStar size={14} />
-          <span className="f-mono text-[10px]" style={{ color: C.yellow }}>Capitão: {capitao}</span>
-        </div>
-      )}
-
-      <div className="mx-4 px-3 py-2.5 rounded-xl f-mono text-[10px]"
+      <button onClick={onVerSolicitacoes}
+        className="mx-4 flex items-center justify-between px-3 py-2.5 rounded-xl f-mono text-[10px]"
         style={{ color: C.yellow, background: C.yellow + '15', border: `1px solid ${C.yellow}33` }}>
-        Solicitações pendentes deste time ({pending})
-      </div>
+        <span>Solicitações pendentes deste time ({pendentes})</span>
+        <span>→</span>
+      </button>
+      <p className="mx-4 f-mono text-[10px]" style={{ color: C.dim }}>
+        Atletas entram no elenco quando a solicitação de entrada é aprovada. Toque na estrela para definir o capitão.
+      </p>
 
-      {/* Elenco list */}
-      {atletas.length === 0
+      {elenco.length === 0
         ? <div className="px-4"><EmptyState message="Elenco vazio" /></div>
         : (
           <div className="flex flex-col gap-2 px-4">
-            {atletas.map((nome, i) => {
-              const isCap = capitao === nome
+            {elenco.map(id => {
+              const isCap = time.capitaoId === id
               return (
-                <Card key={nome} pad="p-3">
+                <Card key={id} pad="p-3">
                   <div className="flex items-center gap-3">
-                    <span className="f-mono text-[10px] shrink-0" style={{ color: C.dim, width: 20 }}>
-                      {String(i + 1).padStart(2, '0')}
-                    </span>
-                    <Av s={initials(nome)} size={36} bg={isCap ? `linear-gradient(135deg,${mod?.cor ?? C.red},${mod?.cor ?? C.red}88)` : C.card2} />
-                    <span className="f-sora font-medium text-sm flex-1" style={{ color: C.text }}>{nome}</span>
-                    {/* Set capitão */}
-                    <button onClick={() => setAsCapitao(nome)}
+                    <Av s={initials(nomeUsuario(id))} size={36} bg={isCap ? `linear-gradient(135deg,${mod?.cor ?? C.red},${mod?.cor ?? C.red}88)` : C.card2} />
+                    <div className="flex-1 min-w-0">
+                      <span className="f-sora font-medium text-sm" style={{ color: C.text }}>{nomeUsuario(id)}</span>
+                      {isCap && <div><Chip label="CAPITÃO" color={C.yellow} /></div>}
+                    </div>
+                    <button onClick={() => definirCapitao(id)}
                       className="flex items-center justify-center rounded-lg p-1.5"
                       style={{ background: isCap ? C.yellow + '22' : C.card2, border: `1px solid ${isCap ? C.yellow + '44' : C.bdr}` }}
                       title={isCap ? 'Remover capitão' : 'Definir como capitão'}>
                       <IcoStar size={14} color={isCap ? C.yellow : C.muted} fill={isCap} />
                     </button>
-                    {/* Remove */}
-                    <button onClick={() => removeAtleta(nome)}
+                    <button onClick={() => remover(id)} title="Remover do elenco"
                       className="flex items-center justify-center rounded-lg p-1.5"
                       style={{ background: '#f43f5e1a' }}>
                       <IcoBin size={13} color="#f43f5e" />
@@ -100,22 +101,45 @@ function ElencoView({ time, onBack }: { time: Time; onBack: () => void }) {
   )
 }
 
-// ─── Time form ────────────────────────────────────────────────────────────────
-function TimeForm({ initial, onSave, onBack }: { initial?: Partial<Time>; onSave: (t: Partial<Time>) => void; onBack: () => void }) {
-  const { showToast, modalidades: MODALIDADES, atleticas: ATLETICAS, setAtleticas, audit } = useApp()
+// ─── Formulário de time (UC19 passo 3) ────────────────────────────────────────
+function TimeForm({ initial, onBack }: { initial?: Time; onBack: () => void }) {
+  const { showToast, modalidades, atleticas, setAtleticas, setTimes, audit, online } = useApp()
   const [nome, setNome]     = useState(initial?.nome ?? '')
   const [modId, setModId]   = useState(initial?.modalidadeId ?? '')
-  const [isLorde, setIsLorde] = useState(initial?.atleticaId === undefined || initial.atleticaId === 'lorde')
-  const [atleticaId, setAtleticaId] = useState(initial?.atleticaId ?? 'lorde')
+  const [atleticaId, setAtleticaId] = useState(initial?.atleticaId ?? ATLETICA.id)
   const [newAtl, setNewAtl] = useState(false)
   const [atlNome, setAtlNome] = useState('')
   const [atlCurso, setAtlCurso] = useState('')
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const nossa = atleticaId === ATLETICA.id
+  const adversarias = atleticas.filter(a => a.id !== ATLETICA.id)
 
   function save() {
-    if (!nome || !modId) { showToast('Preencha nome e modalidade', 'error'); return }
-    onSave({ nome, modalidadeId: modId, atleticaId: isLorde ? 'lorde' : atleticaId, atletas: initial?.atletas ?? [] })
-    showToast('Time salvo!', 'success')
+    const e: Record<string, string> = {}
+    if (!nome.trim()) e.nome = 'Informe o nome do time'
+    if (!modId) e.mod = 'Escolha a modalidade'
+    if (!atleticaId) e.atl = 'Escolha a atlética'
+    setErrors(e)
+    if (Object.keys(e).length || !online()) return
+    if (initial) {
+      setTimes(p => p.map(t => t.id === initial.id ? { ...t, nome: nome.trim(), modalidadeId: modId, atleticaId } : t))
+      audit('Times e elencos', 'Editou time', nome.trim())
+    } else {
+      setTimes(p => [...p, { id: `t${Date.now()}`, nome: nome.trim(), modalidadeId: modId, atleticaId, ativo: true }])
+      audit('Times e elencos', 'Criou time', `${nome.trim()} · ${atleticas.find(a => a.id === atleticaId)?.nome}`)
+    }
+    showToast('Time salvo', 'success')
     onBack()
+  }
+
+  function cadastrarAtletica() {
+    if (!atlNome.trim() || !atlCurso.trim() || !online()) return
+    const id = `atl-${Date.now()}`
+    setAtleticas(p => [...p, { id, nome: atlNome.trim(), curso: atlCurso.trim(), usaAplicativo: false }])
+    setAtleticaId(id)
+    setNewAtl(false); setAtlNome(''); setAtlCurso('')
+    audit('Times e elencos', 'Cadastrou atlética adversária', atlNome.trim())
+    showToast('Atlética cadastrada', 'success')
   }
 
   return (
@@ -123,68 +147,60 @@ function TimeForm({ initial, onSave, onBack }: { initial?: Partial<Time>; onSave
       <div className="px-4 pt-4 flex items-center gap-3">
         <button onClick={onBack} className="flex items-center justify-center rounded-xl"
           style={{ width: 36, height: 36, background: C.card, border: `1px solid ${C.bdr}` }}><IcoBack /></button>
-        <h3 className="f-sora font-black text-base" style={{ color: C.text }}>{initial?.nome ? 'Editar time' : 'Novo time'}</h3>
+        <h3 className="f-sora font-black text-base" style={{ color: C.text }}>{initial ? 'Editar time' : 'Novo time'}</h3>
       </div>
       <div className="flex flex-col gap-4 px-4">
-        <div>
-          <label className="f-mono text-[10px] uppercase tracking-wider mb-1 block" style={{ color: C.muted }}>Nome do time</label>
-          <input value={nome} onChange={e => setNome(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-xl f-sora text-sm outline-none"
-            style={{ background: C.card2, border: `1px solid ${C.bdr}`, color: C.text, caretColor: C.red }} />
-        </div>
+        <Field label="Nome do time" value={nome} onChange={setNome} placeholder="Ex.: Futsal Masculino" error={errors.nome} />
         <div>
           <label className="f-mono text-[10px] uppercase tracking-wider mb-2 block" style={{ color: C.muted }}>Modalidade</label>
           <div className="grid grid-cols-2 gap-2">
-            {MODALIDADES.map(m => (
+            {modalidades.map(m => (
               <button key={m.id} onClick={() => setModId(m.id)}
                 className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
-                style={{ background: modId === m.id ? m.cor + '22' : C.card2, border: `1px solid ${modId === m.id ? m.cor + '55' : C.bdr}` }}>
+                style={{ background: modId === m.id ? m.cor + '22' : C.card2, border: `1px solid ${modId === m.id ? m.cor + '55' : C.bdr}`, opacity: m.ativa ? 1 : .5 }}>
                 <span className="text-lg">{m.emoji}</span>
                 <span className="f-sora font-semibold text-sm" style={{ color: modId === m.id ? m.cor : C.text }}>{m.nome}</span>
                 {modId === m.id && <IcoCheck size={12} color={m.cor} />}
               </button>
             ))}
           </div>
+          {errors.mod && <p className="f-mono text-[10px] mt-1" style={{ color: '#f87171' }}>{errors.mod}</p>}
         </div>
         <div>
           <label className="f-mono text-[10px] uppercase tracking-wider mb-2 block" style={{ color: C.muted }}>Atlética</label>
           <div className="grid grid-cols-2 gap-2">
-            {[{ id: 'lorde', label: 'Lorde (nossa)' }, { id: 'adversario', label: 'Adversária' }].map(opt => (
-              <button key={opt.id} onClick={() => setIsLorde(opt.id === 'lorde')}
-                className="py-2.5 rounded-xl f-sora font-semibold text-sm"
-                style={{ background: (isLorde ? 'lorde' : 'adversario') === opt.id ? C.red : C.card2, color: (isLorde ? 'lorde' : 'adversario') === opt.id ? '#fff' : C.muted, border: `1px solid ${C.bdr}` }}>
-                {opt.label}
-              </button>
-            ))}
+            {[{ id: 'nossa', label: ATLETICA.nome }, { id: 'adversaria', label: 'Adversária' }].map(opt => {
+              const ativo = (nossa ? 'nossa' : 'adversaria') === opt.id
+              return (
+                <button key={opt.id} onClick={() => setAtleticaId(opt.id === 'nossa' ? ATLETICA.id : (adversarias[0]?.id ?? ''))}
+                  className="py-2.5 rounded-xl f-sora font-semibold text-sm"
+                  style={{ background: ativo ? C.red : C.card2, color: ativo ? '#fff' : C.muted, border: `1px solid ${C.bdr}` }}>
+                  {opt.label}
+                </button>
+              )
+            })}
           </div>
+          {!nossa && <p className="f-mono text-[10px] mt-2" style={{ color: C.dim }}>Times adversários não têm elenco, capitão nem treinos.</p>}
         </div>
-        {!isLorde && (
+        {!nossa && (
           <div>
             <label className="f-mono text-[10px] uppercase tracking-wider mb-2 block" style={{ color: C.muted }}>Atlética adversária</label>
-            {ATLETICAS.filter(a => a.id !== 'lorde').map(a => (
+            {adversarias.map(a => (
               <button key={a.id} onClick={() => setAtleticaId(a.id)}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1.5 text-left"
                 style={{ background: atleticaId === a.id ? C.blue + '18' : C.card2, border: `1px solid ${atleticaId === a.id ? C.bdrB : C.bdr}` }}>
-                <span className="f-sora font-semibold text-sm flex-1" style={{ color: C.text }}>{a.nome}</span>
+                <div className="flex-1">
+                  <span className="f-sora font-semibold text-sm" style={{ color: C.text }}>{a.nome}</span>
+                  <div className="f-mono text-[9px]" style={{ color: C.muted }}>{a.curso}</div>
+                </div>
                 {atleticaId === a.id && <IcoCheck size={13} color={C.blueL} />}
               </button>
             ))}
             {newAtl ? (
               <div className="flex flex-col gap-2 mt-2">
-                <input value={atlNome} onChange={e => setAtlNome(e.target.value)} placeholder="Nome da atlética"
-                  className="w-full px-3 py-2.5 rounded-xl f-sora text-sm outline-none"
-                  style={{ background: C.card2, border: `1px solid ${C.bdr}`, color: C.text }} />
-                <input value={atlCurso} onChange={e => setAtlCurso(e.target.value)} placeholder="Curso"
-                  className="w-full px-3 py-2.5 rounded-xl f-sora text-sm outline-none"
-                  style={{ background: C.card2, border: `1px solid ${C.bdr}`, color: C.text }} />
-                <button onClick={() => {
-                  if (!atlNome.trim() || !atlCurso.trim()) return
-                  const id = `atl-${Date.now()}`
-                  setAtleticas(p => [...p, { id, nome: atlNome, curso: atlCurso }])
-                  setAtleticaId(id)
-                  setNewAtl(false)
-                  audit('Times e elencos', 'Cadastrou atlética adversária', `${atlNome} · ${atlCurso}`)
-                }} className="py-2 rounded-xl f-sora font-semibold text-xs" style={{ background: C.blue, color: '#fff' }}>Cadastrar atlética</button>
+                <Field label="Nome da atlética" value={atlNome} onChange={setAtlNome} />
+                <Field label="Curso" value={atlCurso} onChange={setAtlCurso} />
+                <button onClick={cadastrarAtletica} className="py-2 rounded-xl f-sora font-semibold text-xs" style={{ background: C.blue, color: '#fff' }}>Cadastrar atlética</button>
               </div>
             ) : (
               <button onClick={() => setNewAtl(true)} className="f-mono text-xs mt-2" style={{ color: C.blueL }}>+ Nova atlética</button>
@@ -201,58 +217,106 @@ function TimeForm({ initial, onSave, onBack }: { initial?: Partial<Time>; onSave
   )
 }
 
-// ─── Main TimesSection ────────────────────────────────────────────────────────
-export default function TimesSection() {
-  const {
-    showToast, showConfirm, role, times, setTimes, modalidades, setModalidades,
-    atleticas: ATLETICAS, eventos: EVENTOS, audit,
-  } = useApp()
-  const [tab, setTab] = useState<'modalidades' | 'times'>('times')
-  const [filter, setFilter] = useState<'Lorde' | 'Adversários'>('Lorde')
-  const [view, setView] = useState<'list' | 'form' | 'elenco'>('list')
-  const [selectedTime, setSelectedTime] = useState<Time | null>(null)
-  const [modForm, setModForm] = useState<Modalidade | null>(null)
-  const [newMod, setNewMod] = useState(false)
+// ─── Modalidade: novo/editar (nome e ícone) ───────────────────────────────────
+function ModalidadeForm({ initial, onClose }: { initial?: Modalidade; onClose: () => void }) {
+  const { setModalidades, audit, showToast, online } = useApp()
+  const [nome, setNome] = useState(initial?.nome ?? '')
+  const [emoji, setEmoji] = useState(initial?.emoji ?? '🏅')
 
-  function toggleModAtivo(id: string) {
-    const mod = modalidades.find(m => m.id === id)
-    if (!mod) return
-    setModalidades(p => p.map(m => m.id === id ? { ...m, ativa: !m.ativa } : m))
-    audit('Modalidades', mod.ativa ? 'Desativou modalidade' : 'Ativou modalidade', mod.nome)
-    showToast('Modalidade atualizada', 'success')
-  }
-
-  const displayTimes = times.filter(t => filter === 'Lorde' ? t.atleticaId === 'lorde' : t.atleticaId !== 'lorde')
-
-  if (view === 'elenco' && selectedTime) {
-    return <ElencoView time={selectedTime} onBack={() => setView('list')} />
-  }
-  if (view === 'form') {
-    return (
-      <TimeForm
-        initial={selectedTime ?? undefined}
-        onSave={data => {
-          if (selectedTime) {
-            setTimes(p => p.map(t => t.id === selectedTime.id ? { ...t, ...data } : t))
-            audit('Times e elencos', 'Atualizou time', data.nome ?? selectedTime.nome)
-          } else {
-            setTimes(p => [...p, { ...data, id: `t${Date.now()}`, ativo: true } as Time])
-            audit('Times e elencos', 'Criou time', data.nome ?? 'Novo time')
-          }
-        }}
-        onBack={() => { setView('list'); setSelectedTime(null) }}
-      />
-    )
+  function salvar() {
+    if (!nome.trim() || !emoji.trim() || !online()) return
+    if (initial) setModalidades(p => p.map(m => m.id === initial.id ? { ...m, nome: nome.trim(), emoji: emoji.trim() } : m))
+    else setModalidades(p => [...p, { id: `mod-${Date.now()}`, nome: nome.trim(), emoji: emoji.trim(), cor: C.red, ativa: true }])
+    audit('Modalidades', initial ? 'Editou modalidade' : 'Criou modalidade', nome.trim())
+    showToast('Modalidade salva', 'success')
+    onClose()
   }
 
   return (
+    <Card>
+      <p className="f-sora font-bold text-sm mb-3" style={{ color: C.text }}>{initial ? 'Editar modalidade' : 'Nova modalidade'}</p>
+      <div className="grid grid-cols-[1fr_80px] gap-2 mb-3">
+        <Field label="Nome" value={nome} onChange={setNome} placeholder="Ex.: Xadrez" />
+        <Field label="Ícone" value={emoji} onChange={setEmoji} />
+      </div>
+      <div className="flex gap-2">
+        <button onClick={onClose} className="flex-1 py-2 rounded-xl f-sora text-xs" style={{ color: C.muted, border: `1px solid ${C.bdr}` }}>Cancelar</button>
+        <button onClick={salvar} disabled={!nome.trim()} className="flex-1 py-2 rounded-xl f-sora font-semibold text-xs"
+          style={{ background: nome.trim() ? C.red : C.dim, color: '#fff' }}>Salvar</button>
+      </div>
+    </Card>
+  )
+}
+
+// ─── Seção Times e Modalidades (UC19) ─────────────────────────────────────────
+export default function TimesSection({ onVerSolicitacoes }: { onVerSolicitacoes: () => void }) {
+  const {
+    role, times, setTimes, modalidades, setModalidades, atleticas, eventos, membros,
+    showToast, showConfirm, audit, online,
+  } = useApp()
+  const [tab, setTab] = useState<'times' | 'modalidades'>('times')
+  const [filter, setFilter] = useState<'nossa' | 'adversarias'>('nossa')
+  const [view, setView] = useState<'list' | 'form' | 'elenco'>('list')
+  const [selId, setSelId] = useState<string | null>(null)
+  const [modForm, setModForm] = useState<Modalidade | 'novo' | null>(null)
+  const podeExcluir = canDelete(role)
+
+  const selected = selId ? times.find(t => t.id === selId) : undefined
+
+  function toggleMod(m: Modalidade) {
+    if (!online()) return
+    setModalidades(p => p.map(x => x.id === m.id ? { ...x, ativa: !x.ativa } : x))
+    audit('Modalidades', m.ativa ? 'Desativou modalidade' : 'Ativou modalidade', m.nome)
+    showToast(m.ativa ? `${m.nome} desativada — some das telas do atleta` : `${m.nome} ativada`, 'success')
+  }
+
+  function excluirMod(m: Modalidade) {
+    const vinculada = times.some(t => t.modalidadeId === m.id) ||
+      eventos.some(e => times.find(t => t.id === e.timeId)?.modalidadeId === m.id)
+    if (vinculada) { showToast('Esta modalidade possui vínculos e não pode ser excluída. Desative-a.', 'error'); return }
+    showConfirm('Excluir modalidade', `Excluir ${m.nome}?`, () => {
+      if (!online()) return
+      setModalidades(p => p.filter(x => x.id !== m.id))
+      audit('Modalidades', 'Excluiu modalidade', m.nome)
+      showToast('Modalidade excluída', 'success')
+    }, 'Excluir')
+  }
+
+  function toggleTime(t: Time) {
+    if (!online()) return
+    setTimes(p => p.map(x => x.id === t.id ? { ...x, ativo: !x.ativo } : x))
+    audit('Times e elencos', t.ativo ? 'Desativou time' : 'Ativou time', t.nome)
+    showToast(t.ativo ? `${t.nome} desativado` : `${t.nome} ativado`, 'success')
+  }
+
+  function excluirTime(t: Time) {
+    if (eventos.some(e => e.timeId === t.id || e.timeAdversarioId === t.id)) {
+      showToast('Este time possui eventos e não pode ser excluído. Desative-o.', 'error'); return
+    }
+    showConfirm('Excluir time', `Excluir ${t.nome}?`, () => {
+      if (!online()) return
+      setTimes(p => p.filter(x => x.id !== t.id))
+      audit('Times e elencos', 'Excluiu time', t.nome)
+      showToast('Time excluído', 'success')
+    }, 'Excluir')
+  }
+
+  if (view === 'elenco' && selected) {
+    return <ElencoView timeId={selected.id} onBack={() => setView('list')} onVerSolicitacoes={onVerSolicitacoes} />
+  }
+  if (view === 'form') {
+    return <TimeForm initial={selected} onBack={() => { setView('list'); setSelId(null) }} />
+  }
+
+  const lista = times.filter(t => filter === 'nossa' ? t.atleticaId === ATLETICA.id : t.atleticaId !== ATLETICA.id)
+
+  return (
     <div className="flex flex-col gap-4 pb-4">
-      {/* Tab */}
       <div className="px-4">
         <div className="grid grid-cols-2 rounded-xl overflow-hidden" style={{ background: C.card, border: `1px solid ${C.bdr}` }}>
           {(['times', 'modalidades'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className="py-2.5 f-sora font-semibold text-xs capitalize"
+              className="py-2.5 f-sora font-semibold text-xs"
               style={{ background: tab === t ? C.red : 'transparent', color: tab === t ? '#fff' : C.muted }}>
               {t === 'times' ? '🏅 Times' : '🎮 Modalidades'}
             </button>
@@ -262,56 +326,34 @@ export default function TimesSection() {
 
       {tab === 'modalidades' && (
         <div className="flex flex-col gap-2 px-4">
-          {(newMod || modForm) && (
-            <Card>
-              <input value={modForm?.nome ?? ''} onChange={e => setModForm(p => ({ ...(p ?? { id: `mod-${Date.now()}`, emoji: '🏅', cor: C.red, ativa: true }), nome: e.target.value }))}
-                placeholder="Nome da modalidade" className="w-full px-3 py-2 rounded-xl f-sora text-sm outline-none mb-2"
-                style={{ background: C.card2, border: `1px solid ${C.bdr}`, color: C.text }} />
-              <input value={modForm?.emoji ?? ''} onChange={e => setModForm(p => ({ ...(p ?? { id: `mod-${Date.now()}`, nome: '', cor: C.red, ativa: true }), emoji: e.target.value }))}
-                placeholder="Ícone/emoji" className="w-full px-3 py-2 rounded-xl f-sora text-sm outline-none mb-2"
-                style={{ background: C.card2, border: `1px solid ${C.bdr}`, color: C.text }} />
-              <div className="flex gap-2">
-                <button onClick={() => { setNewMod(false); setModForm(null) }} className="flex-1 py-2 rounded-xl f-sora text-xs" style={{ color: C.muted }}>Cancelar</button>
-                <button onClick={() => {
-                  if (!modForm?.nome.trim() || !modForm.emoji.trim()) return
-                  const exists = modalidades.some(m => m.id === modForm.id)
-                  setModalidades(p => exists ? p.map(m => m.id === modForm.id ? modForm : m) : [...p, modForm])
-                  audit('Modalidades', exists ? 'Atualizou modalidade' : 'Criou modalidade', modForm.nome)
-                  setModForm(null); setNewMod(false)
-                }} className="flex-1 py-2 rounded-xl f-sora font-semibold text-xs" style={{ background: C.red, color: '#fff' }}>Salvar</button>
-              </div>
-            </Card>
-          )}
-          {!newMod && !modForm && <button onClick={() => { setNewMod(true); setModForm({ id: `mod-${Date.now()}`, nome: '', emoji: '🏅', cor: C.red, ativa: true }) }}
-            className="w-full py-3 rounded-xl f-sora font-semibold text-sm" style={{ background: C.red, color: '#fff' }}>Nova modalidade</button>}
+          <p className="f-mono text-[10px]" style={{ color: C.dim }}>Modalidade é o esporte; time é o grupo de pessoas. Modalidades inativas somem das telas do atleta.</p>
+          {modForm
+            ? <ModalidadeForm initial={modForm === 'novo' ? undefined : modForm} onClose={() => setModForm(null)} />
+            : <button onClick={() => setModForm('novo')}
+                className="w-full py-3 rounded-xl f-sora font-semibold text-sm flex items-center justify-center gap-2" style={{ background: C.red, color: '#fff' }}>
+                <IcoPlus size={14} /> Nova modalidade
+              </button>}
           {modalidades.map(m => {
-            const count = times.filter(t => t.modalidadeId === m.id && t.atleticaId === 'lorde').length
-            const linkedEvents = EVENTOS.some(e => times.find(t => t.id === e.timeLordeId)?.modalidadeId === m.id)
+            const n = times.filter(t => t.modalidadeId === m.id && t.atleticaId === ATLETICA.id).length
             return (
-              <Card key={m.id} pad="p-4">
+              <Card key={m.id} pad="p-3">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center justify-center rounded-2xl text-2xl shrink-0"
-                    style={{ width: 50, height: 50, background: m.cor + '18', border: `1px solid ${m.cor}30` }}>
+                    style={{ width: 46, height: 46, background: m.cor + '18', border: `1px solid ${m.cor}30`, opacity: m.ativa ? 1 : .5 }}>
                     {m.emoji}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="f-sora font-bold text-sm" style={{ color: C.text }}>{m.nome}</div>
-                    <div className="f-mono text-[10px] mt-px" style={{ color: C.muted }}>{count} times Lorde</div>
-                    {!m.ativa && <div className="f-mono text-[9px]" style={{ color: C.yellow }}>Inativa</div>}
+                    <div className="f-mono text-[10px] mt-px" style={{ color: C.muted }}>{n} times da {ATLETICA.sigla}</div>
+                    {!m.ativa && <Chip label="INATIVA" color={C.yellow} />}
                   </div>
-                  <button onClick={() => toggleModAtivo(m.id)}
-                    className="rounded-full transition-all shrink-0"
-                    style={{ width: 44, height: 24, background: m.ativa ? C.green : C.dim, padding: 3 }}>
-                    <div className="rounded-full" style={{ width: 18, height: 18, background: '#fff', transform: `translateX(${m.ativa ? 20 : 0}px)` }} />
-                  </button>
-                  <button onClick={() => setModForm(m)} className="p-1.5 rounded-lg" style={{ background: C.blue + '22' }}><IcoEdit size={14} /></button>
-                  {(role === 'presidente' || role === 'vice' || role === 'admin') && <button onClick={() => {
-                    if (count > 0 || linkedEvents) { showToast('Esta modalidade possui vínculos e não pode ser excluída. Desative-a.', 'error'); return }
-                    showConfirm('Excluir modalidade', `Excluir ${m.nome}?`, () => {
-                      setModalidades(p => p.filter(x => x.id !== m.id))
-                      audit('Modalidades', 'Excluiu modalidade', m.nome)
-                    })
-                  }} className="p-1.5 rounded-lg" style={{ background: '#f43f5e1a' }}><IcoBin size={14} color="#f43f5e" /></button>}
+                  <Switch on={m.ativa} onClick={() => toggleMod(m)} />
+                  <button onClick={() => setModForm(m)} className="p-1.5 rounded-lg" style={{ background: C.blue + '22' }} title="Editar"><IcoEdit size={14} /></button>
+                  {podeExcluir && (
+                    <button onClick={() => excluirMod(m)} className="p-1.5 rounded-lg" style={{ background: '#f43f5e1a' }} title="Excluir">
+                      <IcoBin size={14} color="#f43f5e" />
+                    </button>
+                  )}
                 </div>
               </Card>
             )
@@ -322,60 +364,63 @@ export default function TimesSection() {
       {tab === 'times' && (
         <>
           <div className="flex gap-2 px-4">
-            {(['Lorde', 'Adversários'] as const).map(f => (
+            {([['nossa', ATLETICA.sigla], ['adversarias', 'Adversários']] as const).map(([f, label]) => (
               <button key={f} onClick={() => setFilter(f)}
                 className="flex-1 py-2 rounded-xl f-sora font-semibold text-xs"
                 style={{ background: filter === f ? C.red : C.card, color: filter === f ? '#fff' : C.muted, border: `1px solid ${filter === f ? C.red : C.bdr}` }}>
-                {f}
+                {label}
               </button>
             ))}
           </div>
 
-          {displayTimes.length === 0
+          <div className="px-4">
+            <button onClick={() => { setSelId(null); setView('form') }}
+              className="w-full py-3 rounded-2xl f-sora font-bold text-sm flex items-center justify-center gap-2"
+              style={{ background: C.blue + '22', color: C.blueL, border: `1px solid ${C.bdrB}` }}>
+              <IcoPlus size={14} color={C.blueL} /> Novo time
+            </button>
+          </div>
+
+          {lista.length === 0
             ? <div className="px-4"><EmptyState message="Nenhum time encontrado" /></div>
             : (
               <div className="flex flex-col gap-2 px-4">
-                {displayTimes.map(t => {
+                {lista.map(t => {
                   const mod = modalidades.find(m => m.id === t.modalidadeId)
-                  const atl = ATLETICAS.find(a => a.id === t.atleticaId)
+                  const atl = atleticas.find(a => a.id === t.atleticaId)
+                  const nossa = t.atleticaId === ATLETICA.id
                   return (
                     <Card key={t.id} pad="p-3">
                       <div className="flex items-center gap-3">
                         <div className="flex items-center justify-center rounded-xl text-xl shrink-0"
-                          style={{ width: 44, height: 44, background: (mod?.cor ?? C.muted) + '18', border: `1px solid ${(mod?.cor ?? C.muted)}30` }}>
+                          style={{ width: 42, height: 42, background: (mod?.cor ?? C.muted) + '18', border: `1px solid ${(mod?.cor ?? C.muted)}30`, opacity: t.ativo ? 1 : .5 }}>
                           {mod?.emoji}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="f-sora font-bold text-sm" style={{ color: C.text }}>{t.nome}</div>
-                          <div className="f-mono text-[10px]" style={{ color: C.muted }}>
-                            {atl?.nome ?? t.atleticaId}
-                            {t.atletas ? ` · ${t.atletas.length} atletas` : ''}
+                          <div className="f-sora font-bold text-sm truncate" style={{ color: C.text }}>{t.nome}</div>
+                          <div className="f-mono text-[10px] truncate" style={{ color: C.muted }}>
+                            {nossa ? `${elencoIds(membros, t.id).length} atletas` : atl?.nome}
                           </div>
+                          {!t.ativo && <Chip label="INATIVO" color={C.yellow} />}
                         </div>
-                        <div className="flex gap-1.5 shrink-0">
-                          <button onClick={() => {
-                            setTimes(p => p.map(x => x.id === t.id ? { ...x, ativo: x.ativo === false } : x))
-                            audit('Times e elencos', t.ativo === false ? 'Ativou time' : 'Desativou time', t.nome)
-                          }} className="rounded-full shrink-0" style={{ width: 36, height: 20, background: t.ativo === false ? C.dim : C.green, padding: 2 }}>
-                            <div className="rounded-full" style={{ width: 16, height: 16, background: '#fff', transform: `translateX(${t.ativo === false ? 0 : 16}px)` }} />
-                          </button>
-                          {filter === 'Lorde' && (
-                            <button onClick={() => { setSelectedTime(t); setView('elenco') }}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Switch on={t.ativo} onClick={() => toggleTime(t)} />
+                          {nossa && (
+                            <button onClick={() => { setSelId(t.id); setView('elenco') }} title="Elenco e capitão"
                               className="flex items-center justify-center rounded-lg p-1.5" style={{ background: C.green + '18' }}>
-                              <IcoCheck size={14} color={C.green} />
+                              <IcoUsers size={14} color={C.green} />
                             </button>
                           )}
-                          <button onClick={() => { setSelectedTime(t); setView('form') }}
+                          <button onClick={() => { setSelId(t.id); setView('form') }} title="Editar"
                             className="flex items-center justify-center rounded-lg p-1.5" style={{ background: C.blue + '22' }}>
                             <IcoEdit size={14} />
                           </button>
-                          {(role === 'presidente' || role === 'vice' || role === 'admin') && <button onClick={() => {
-                            if (EVENTOS.some(e => e.timeLordeId === t.id || e.timeAdvId === t.id)) { showToast('Este time possui eventos e não pode ser excluído. Desative-o.', 'error'); return }
-                            showConfirm('Excluir time', `Excluir ${t.nome}?`, () => {
-                              setTimes(p => p.filter(x => x.id !== t.id))
-                              audit('Times e elencos', 'Excluiu time', t.nome)
-                            })
-                          }} className="p-1.5 rounded-lg" style={{ background: '#f43f5e1a' }}><IcoBin size={14} color="#f43f5e" /></button>}
+                          {podeExcluir && (
+                            <button onClick={() => excluirTime(t)} title="Excluir"
+                              className="p-1.5 rounded-lg" style={{ background: '#f43f5e1a' }}>
+                              <IcoBin size={14} color="#f43f5e" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </Card>
@@ -383,14 +428,6 @@ export default function TimesSection() {
                 })}
               </div>
             )}
-
-          <div className="px-4">
-            <button onClick={() => { setSelectedTime(null); setView('form') }}
-              className="w-full py-3.5 rounded-2xl f-sora font-bold text-sm flex items-center justify-center gap-2"
-              style={{ background: C.blue + '22', color: C.blueL, border: `1px solid ${C.bdrB}` }}>
-              <IcoPlus size={14} color={C.blueL} /> Novo time
-            </button>
-          </div>
         </>
       )}
     </div>
