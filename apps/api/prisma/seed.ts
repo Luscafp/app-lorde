@@ -10,6 +10,7 @@ import type { TransacaoComEscopo } from '../src/infra/prisma/prisma.service'
 import { SenhaService } from '../src/infra/senha/senha.service'
 import { semearDemo, SENHA_DEMO } from './seed-demo'
 import { ErroSeed, validarEnvSeed, type EnvSeed } from './seed-env'
+import { garantirUsuarioComVinculo } from './seed-usuario'
 
 // Cores do protótipo e contato vazio até a decisão em #97.
 export const LORDE = {
@@ -54,12 +55,12 @@ export async function executarSeed(
   const senha = new SenhaService()
 
   try {
-    const lorde = await semearLorde(semEscopo)
     const senhaAdminHash = await senha.hash(env.SEED_ADMIN_SENHA)
     const senhaDemoHash = env.SEED_DEMO ? await senha.hash(SENHA_DEMO) : undefined
 
-    return await contexto.executarComAtletica(lorde.id, () =>
-      db.$transaction(async (tx) => {
+    return await db.$transaction(async (tx) => {
+      const lorde = await semearLorde(tx)
+      return contexto.executarComAtletica(lorde.id, async () => {
         const adminCriado = await semearAdmin(tx, lorde.id, env, senhaAdminHash)
         const modalidades = await semearModalidades(tx)
         if (senhaDemoHash) await semearDemo(tx, lorde.id, modalidades.ids, senhaDemoHash)
@@ -69,15 +70,15 @@ export async function executarSeed(
           modalidadesCriadas: modalidades.criadas,
           demo: senhaDemoHash !== undefined,
         }
-      }),
-    )
+      })
+    })
   } finally {
     await semEscopo.$disconnect()
   }
 }
 
-async function semearLorde(prisma: PrismaClient) {
-  const outra = await prisma.atletica.findFirst({
+async function semearLorde(tx: TransacaoComEscopo) {
+  const outra = await tx.atletica.findFirst({
     where: { usaAplicativo: true, slug: { not: LORDE.slug } },
     select: { nome: true },
   })
@@ -87,7 +88,7 @@ async function semearLorde(prisma: PrismaClient) {
         'A Lorde deve ser a única atlética que usa o aplicativo.',
     )
   }
-  return prisma.atletica.upsert({ where: { slug: LORDE.slug }, create: LORDE, update: {} })
+  return tx.atletica.upsert({ where: { slug: LORDE.slug }, create: LORDE, update: {} })
 }
 
 /** Cria o administrador só se a Lorde ainda não tiver um; nunca altera um usuário existente. */
@@ -105,22 +106,19 @@ async function semearAdmin(
         'na Lorde. Use outro e-mail para o administrador inicial.',
     )
   }
-  const admin = await tx.usuario.create({
-    data: {
-      nome: env.SEED_ADMIN_NOME,
-      email: env.SEED_ADMIN_EMAIL,
-      senhaHash,
-      emailVerificado: true,
-      preferencia: { create: {} },
-    },
-  })
-  await tx.vinculoAtletica.create({
-    data: { usuarioId: admin.id, atleticaId, papel: 'ADMINISTRADOR' },
-  })
+  await garantirUsuarioComVinculo(
+    tx,
+    atleticaId,
+    { email: env.SEED_ADMIN_EMAIL, nome: env.SEED_ADMIN_NOME, papel: 'ADMINISTRADOR' },
+    senhaHash,
+  )
   return true
 }
 
-/** Modalidade já existente (mesmo nome, sem diferenciar maiúsculas) é mantida como está. */
+/**
+ * Modalidade já existente (mesmo nome, sem diferenciar maiúsculas) é mantida como está.
+ * Sem `upsert`: a unicidade é o índice `lower(nome)`, que o Prisma não aceita como alvo.
+ */
 async function semearModalidades(tx: TransacaoComEscopo) {
   const ids = new Map<string, string>()
   let criadas = 0

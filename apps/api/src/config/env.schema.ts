@@ -1,4 +1,11 @@
 import { z } from 'zod'
+import {
+  appEnvExigidaEmProducao,
+  appEnvSchema,
+  databaseUrlSchema,
+  listarVariaveisInvalidas,
+  vazioComoAusente,
+} from './env-comum'
 
 /**
  * Schema único das variáveis de ambiente da API (convenções §4.3).
@@ -7,12 +14,9 @@ import { z } from 'zod'
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-    APP_ENV: z.enum(['local', 'development', 'homologacao', 'producao']).optional(),
+    APP_ENV: appEnvSchema.optional(),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
-    DATABASE_URL: z.url({
-      protocol: /^postgres(ql)?$/,
-      error: 'obrigatória, no formato postgresql://',
-    }),
+    DATABASE_URL: databaseUrlSchema,
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
@@ -21,10 +25,7 @@ export const envSchema = z
       error: 'obrigatória (resend | fake | log)',
     }),
     // Vazia conta como ausente: o `.env.example` traz `RESEND_API_KEY=` e o dotenv a lê como ''.
-    RESEND_API_KEY: z.preprocess(
-      (valor) => (typeof valor === 'string' && valor.trim() === '' ? undefined : valor),
-      z.string().trim().optional(),
-    ),
+    RESEND_API_KEY: vazioComoAusente(z.string().trim().optional()),
     EMAIL_REMETENTE: z
       .string()
       .trim()
@@ -32,12 +33,7 @@ export const envSchema = z
     // Segredo do HMAC dos códigos de verificação (#61, usado pela #62 e #31).
     CODIGO_PEPPER: z.string().min(32, { error: 'obrigatória, com ao menos 32 caracteres' }),
   })
-  // Com NODE_ENV=production, APP_ENV é obrigatória: um deploy sem ela não pode subir como `local`.
-  .refine(
-    (env) =>
-      env.NODE_ENV !== 'production' || env.APP_ENV === 'homologacao' || env.APP_ENV === 'producao',
-    { path: ['APP_ENV'], error: 'obrigatória com NODE_ENV=production (homologacao | producao)' },
-  )
+  .refine(...appEnvExigidaEmProducao)
   .refine((env) => env.EMAIL_PROVIDER !== 'resend' || env.RESEND_API_KEY !== undefined, {
     path: ['RESEND_API_KEY'],
     error: 'obrigatória com EMAIL_PROVIDER=resend',
@@ -59,9 +55,7 @@ export class ErroConfiguracao extends Error {
 export function validarEnv(config: Record<string, unknown>): Env {
   const resultado = envSchema.safeParse(config)
   if (resultado.success) return resultado.data
-
-  const linhas = resultado.error.issues.map(
-    (issue) => `  - ${issue.path.join('.')}: ${issue.message}`,
+  throw new ErroConfiguracao(
+    `Variáveis de ambiente inválidas:\n${listarVariaveisInvalidas(resultado.error)}`,
   )
-  throw new ErroConfiguracao(`Variáveis de ambiente inválidas:\n${linhas.join('\n')}`)
 }

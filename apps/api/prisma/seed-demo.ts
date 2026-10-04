@@ -1,10 +1,11 @@
 import type { Papel } from '../src/generated/prisma/client'
 import type { TransacaoComEscopo } from '../src/infra/prisma/prisma.service'
+import { garantirUsuarioComVinculo, type UsuarioSeed } from './seed-usuario'
 
 /** Senha conhecida de todos os usuários de demonstração (só com SEED_DEMO=true, nunca em produção). */
 export const SENHA_DEMO = 'lorde2026'
 
-const USUARIOS_DEMO: { email: string; nome: string; papel: Papel }[] = [
+const USUARIOS_DEMO: UsuarioSeed[] = [
   { email: 'presidente@demo.exemplo.com.br', nome: 'Paula Presidente', papel: 'PRESIDENTE' },
   { email: 'vice@demo.exemplo.com.br', nome: 'Victor Vice', papel: 'VICE_PRESIDENTE' },
   { email: 'diretor@demo.exemplo.com.br', nome: 'Diana Diretora', papel: 'DIRETOR' },
@@ -16,11 +17,40 @@ const CARGOS_UNICOS: Papel[] = ['PRESIDENTE', 'VICE_PRESIDENTE']
 const ADVERSARIA = { slug: 'demo-adversaria', nome: 'Atlética Adversária (demo)' }
 const DIA_MS = 24 * 60 * 60 * 1000
 
-/** 19h em Fortaleza (UTC−3), `dias` a partir de hoje. */
+// Trocar por `FUSO_PADRAO` e pelos helpers de `shared/utils/datas.ts` quando a #50 entrar.
+const FUSO = 'America/Fortaleza'
+const relogioDoFuso = new Intl.DateTimeFormat('en-US', {
+  timeZone: FUSO,
+  hourCycle: 'h23',
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: 'numeric',
+  second: 'numeric',
+})
+
+/** Data e hora de parede no fuso, expressas como se fossem UTC. */
+function horaDeParede(instante: number): number {
+  const partes = new Map(
+    relogioDoFuso.formatToParts(instante).map(({ type, value }) => [type, Number(value)]),
+  )
+  const parte = (tipo: Intl.DateTimeFormatPartTypes) => partes.get(tipo) ?? 0
+  return Date.UTC(
+    parte('year'),
+    parte('month') - 1,
+    parte('day'),
+    parte('hour'),
+    parte('minute'),
+    parte('second'),
+  )
+}
+
+/** 19h no fuso da Lorde, `dias` a partir de hoje. */
 function emDias(dias: number): Date {
-  const data = new Date(Date.now() + dias * DIA_MS)
-  data.setUTCHours(22, 0, 0, 0)
-  return data
+  const dia = new Date(horaDeParede(Date.now() + dias * DIA_MS))
+  const as19 = Date.UTC(dia.getUTCFullYear(), dia.getUTCMonth(), dia.getUTCDate(), 19)
+  return new Date(as19 - (horaDeParede(as19) - as19))
 }
 
 /** Dados de homologação e do teste de carga (#83); cada bloco só é criado se ainda não existir. */
@@ -47,39 +77,47 @@ export async function semearDemo(
     'Adversária Futsal (demo)',
   )
 
-  if ((await tx.evento.count({ where: { timeId: timeLorde.id } })) === 0) {
-    const comum = { atleticaId, timeId: timeLorde.id, criadoPorId: diretorId }
-    await tx.evento.createMany({
-      data: [
-        { ...comum, tipo: 'TREINO', inicio: emDias(3), local: 'Ginásio da universidade' },
-        {
-          ...comum,
-          tipo: 'JOGO',
-          timeAdversarioId: timeAdversario.id,
-          inicio: emDias(10),
-          local: 'Quadra central',
-        },
-        {
-          ...comum,
-          tipo: 'JOGO',
-          timeAdversarioId: timeAdversario.id,
-          inicio: emDias(-7),
-          local: 'Quadra central',
-          status: 'FINALIZADO',
-          placarTime: 3,
-          placarAdversario: 1,
-          resultado: 'VITORIA',
-        },
-      ],
-    })
-  }
+  await semearEventos(tx, atleticaId, diretorId, timeLorde.id, timeAdversario.id)
+  await semearNoticias(tx, atleticaId, diretorId)
+}
 
+async function semearEventos(
+  tx: TransacaoComEscopo,
+  atleticaId: string,
+  criadoPorId: string,
+  timeId: string,
+  timeAdversarioId: string,
+): Promise<void> {
+  if ((await tx.evento.count({ where: { timeId } })) > 0) return
+  const comum = { atleticaId, timeId, criadoPorId }
+  const jogo = { ...comum, tipo: 'JOGO', timeAdversarioId, local: 'Quadra central' } as const
+  await tx.evento.createMany({
+    data: [
+      { ...comum, tipo: 'TREINO', inicio: emDias(3), local: 'Ginásio da universidade' },
+      { ...jogo, inicio: emDias(10) },
+      {
+        ...jogo,
+        inicio: emDias(-7),
+        status: 'FINALIZADO',
+        placarTime: 3,
+        placarAdversario: 1,
+        resultado: 'VITORIA',
+      },
+    ],
+  })
+}
+
+async function semearNoticias(
+  tx: TransacaoComEscopo,
+  atleticaId: string,
+  autorId: string,
+): Promise<void> {
   for (const titulo of ['Bem-vindos ao app da Lorde!', 'Vitória no amistoso de futsal']) {
     if (await tx.noticia.findFirst({ where: { titulo } })) continue
     await tx.noticia.create({
       data: {
         atleticaId,
-        autorId: diretorId,
+        autorId,
         titulo,
         conteudo: `${titulo} (notícia de demonstração).`,
         status: 'PUBLICADA',
@@ -96,23 +134,17 @@ async function semearUsuarios(
   senhaHash: string,
 ): Promise<string> {
   let diretorId: string | undefined
-  for (const { email, nome, papel } of USUARIOS_DEMO) {
-    const ocupante = CARGOS_UNICOS.includes(papel)
-      ? await tx.vinculoAtletica.findFirst({ where: { papel }, include: { usuario: true } })
+  for (const dados of USUARIOS_DEMO) {
+    const ocupante = CARGOS_UNICOS.includes(dados.papel)
+      ? await tx.vinculoAtletica.findFirst({
+          where: { papel: dados.papel },
+          include: { usuario: true },
+        })
       : null
-    if (ocupante && ocupante.usuario.email !== email) continue
+    if (ocupante && ocupante.usuario.email !== dados.email) continue
 
-    const usuario = await tx.usuario.upsert({
-      where: { email },
-      create: { email, nome, senhaHash, emailVerificado: true, preferencia: { create: {} } },
-      update: {},
-    })
-    await tx.vinculoAtletica.upsert({
-      where: { usuarioId_atleticaId: { usuarioId: usuario.id, atleticaId } },
-      create: { usuarioId: usuario.id, atleticaId, papel },
-      update: {},
-    })
-    if (papel === 'DIRETOR') diretorId = usuario.id
+    const usuarioId = await garantirUsuarioComVinculo(tx, atleticaId, dados, senhaHash)
+    if (dados.papel === 'DIRETOR') diretorId = usuarioId
   }
   if (!diretorId) throw new Error('semearDemo: diretor de demonstração não criado')
   return diretorId

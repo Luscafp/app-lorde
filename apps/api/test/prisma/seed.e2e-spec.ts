@@ -135,6 +135,7 @@ describe('Seed (#45)', () => {
       await prismaTeste.usuario.findUniqueOrThrow({ where: { id: usuario.id } }),
     ).toMatchObject({ senhaHash: usuario.senhaHash, nome: usuario.nome })
     expect(await prismaTeste.vinculoAtletica.count({ where: { papel: 'ADMINISTRADOR' } })).toBe(0)
+    expect(await prismaTeste.atletica.findUnique({ where: { slug: LORDE.slug } })).toBeNull()
   })
 
   it('SEED_DEMO=true grava dados de demonstração uma única vez', async () => {
@@ -159,6 +160,15 @@ describe('Seed (#45)', () => {
       where: { email: 'diretor@demo.exemplo.com.br' },
     })
     await expect(senha.verificar(diretor.senhaHash, SENHA_DEMO)).resolves.toBe(true)
+    const horaEmFortaleza = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Fortaleza',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    const eventos = await prismaTeste.evento.findMany({ select: { inicio: true } })
+    expect(new Set(eventos.map(({ inicio }) => horaEmFortaleza.format(inicio)))).toEqual(
+      new Set(['19:00']),
+    )
     const papeis = await prismaTeste.vinculoAtletica.findMany({
       where: { atleticaId: resumo.atleticaId },
       select: { papel: true },
