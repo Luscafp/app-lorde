@@ -1,0 +1,9 @@
+{
+  "extends": "../../apps/api/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "typeRoots": ["../../apps/api/node_modules/@types"],
+    "types": ["node"]
+  },
+  "include": ["*.ts"]
+}

@@ -67,7 +67,11 @@ export default tseslint.config(
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
   {
-    files: ['apps/api/**/*.ts'],
+    files: ['tests/carga/**/*.js'],
+    languageOptions: { globals: { __ENV: 'readonly', __VU: 'readonly', __ITER: 'readonly' } },
+  },
+  {
+    files: ['apps/api/**/*.ts', 'tests/carga/**/*.ts'],
     languageOptions: { globals: globals.node },
     rules: { 'no-console': 'error' },
   },
