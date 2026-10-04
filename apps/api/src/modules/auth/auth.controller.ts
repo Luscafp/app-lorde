@@ -1,6 +1,7 @@
 import {
   cadastroSchema,
   loginSchema,
+  refreshTokenSchema,
   respostaSessaoSchema,
   TERMOS_VERSAO,
   type RespostaSessao,
@@ -11,6 +12,7 @@ import {
   ApiBody,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -21,9 +23,11 @@ import type { Request } from 'express'
 import { createZodDto } from 'nestjs-zod'
 import { AuthService, LIMITE_CADASTRO, LIMITE_LOGIN, type OrigemRequisicao } from './auth.service'
 import { Publico } from './decorators/publico.decorator'
+import { JANELA_CONCORRENCIA_MS } from './sessao.service'
 
 class CadastroDto extends createZodDto(cadastroSchema) {}
 class LoginDto extends createZodDto(loginSchema) {}
+class RefreshTokenDto extends createZodDto(refreshTokenSchema) {}
 class RespostaSessaoDto extends createZodDto(respostaSessaoSchema) {}
 
 const EXEMPLO_CADASTRO = {
@@ -49,6 +53,8 @@ const EXEMPLO_RESPOSTA: RespostaSessao = {
     atleticaId: '6f1c2a7e-2f5b-4c39-9a0e-3f3b1b8d2c11',
   },
 }
+
+const EXEMPLO_REFRESH = { refreshToken: EXEMPLO_RESPOSTA.refreshToken }
 
 const LIMITE_EXCEDIDO = {
   description: '`RATE_LIMITED`: aguarde os segundos do cabeçalho `Retry-After`.',
@@ -106,5 +112,39 @@ export class AuthController {
   })
   entrar(@Body() dados: LoginDto, @Req() req: Request): Promise<RespostaSessao> {
     return this.auth.entrar(dados, origem(req))
+  }
+
+  /** Pública: o access token pode já ter expirado. Rotaciona o refresh token a cada uso. */
+  @Publico()
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Renova a sessão e rotaciona o refresh token' })
+  @ApiBody({ type: RefreshTokenDto, examples: { refresh: { value: EXEMPLO_REFRESH } } })
+  @ApiOkResponse({ type: RespostaSessaoDto, example: EXEMPLO_RESPOSTA })
+  @ApiBadRequestResponse({ description: '`VALIDATION_ERROR` (corpo sem `refreshToken`).' })
+  @ApiUnauthorizedResponse({
+    description:
+      '`REFRESH_INVALIDO` (formato, sessão inexistente ou expirada), `SESSAO_REVOGADA` ' +
+      '(revogada ou reuso de token já rotacionado), `REFRESH_JA_ROTACIONADO` (token anterior ' +
+      `reapresentado em menos de ${JANELA_CONCORRENCIA_MS / 1000} s; a sessão continua ativa) ou ` +
+      '`CONTA_DESATIVADA`. O app encerra a sessão em qualquer 401.',
+  })
+  renovar(@Body() { refreshToken }: RefreshTokenDto): Promise<RespostaSessao> {
+    return this.auth.renovar(refreshToken)
+  }
+
+  /** Pública e idempotente (UC08 A1): funciona com access token expirado e sem conexão prévia. */
+  @Publico()
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Encerra a sessão do refresh token (atual ou anterior)' })
+  @ApiBody({ type: RefreshTokenDto, examples: { logout: { value: EXEMPLO_REFRESH } } })
+  @ApiNoContentResponse({
+    description: 'Sempre, inclusive com token malformado, expirado ou de sessão já revogada.',
+  })
+  @ApiBadRequestResponse({ description: '`VALIDATION_ERROR` (corpo sem `refreshToken`).' })
+  sair(@Body() { refreshToken }: RefreshTokenDto): Promise<void> {
+    return this.auth.sair(refreshToken)
   }
 }

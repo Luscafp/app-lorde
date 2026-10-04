@@ -50,6 +50,33 @@ export function erroEmailJaCadastrado(): ErroNegocio {
   ])
 }
 
+/** Formato inválido, sessão inexistente ou expirada (convenções §11.2). */
+export function erroRefreshInvalido(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.UNAUTHORIZED,
+    'REFRESH_INVALIDO',
+    'Sessão inválida. Entre novamente.',
+  )
+}
+
+/** Sessão revogada, inclusive por reuso do refresh token. */
+export function erroSessaoRevogada(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.UNAUTHORIZED,
+    'SESSAO_REVOGADA',
+    'Sua sessão foi encerrada. Entre novamente.',
+  )
+}
+
+/** Token anterior reapresentado dentro da janela de concorrência; a sessão continua ativa. */
+export function erroRefreshJaRotacionado(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.UNAUTHORIZED,
+    'REFRESH_JA_ROTACIONADO',
+    'Esta sessão acabou de ser renovada.',
+  )
+}
+
 export function erroTermosDesatualizados(): ErroNegocio {
   return new ErroNegocio(
     HttpStatus.CONFLICT,

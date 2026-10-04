@@ -5,6 +5,7 @@ export const SENHA_MAX = 128
 export const EMAIL_MAX = 254
 export const NOME_MIN = 2
 export const NOME_MAX = 80
+export const REFRESH_TOKEN_MAX = 200
 
 /** Teto contra DoS no Argon2, também no login. */
 const senhaLimitada = z
@@ -61,6 +62,12 @@ export const cadastroFormSchema = cadastroSchema
     error: 'As senhas não conferem.',
   })
 
+/** O formato `<sessaoId>.<segredo>` é conferido na API: refresh → `401`, logout → `204`. */
+export const refreshTokenSchema = z
+  .object({ refreshToken: z.string().min(1).max(REFRESH_TOKEN_MAX) })
+  .strict()
+
 export type LoginEntrada = z.infer<typeof loginSchema>
 export type CadastroEntrada = z.infer<typeof cadastroSchema>
 export type CadastroForm = z.infer<typeof cadastroFormSchema>
+export type RefreshTokenEntrada = z.infer<typeof refreshTokenSchema>

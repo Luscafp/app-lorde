@@ -6,6 +6,7 @@ import { ZodValidationPipe } from 'nestjs-zod'
 import { ExcecaoGlobalFilter } from './common/filtros/excecao-global.filter'
 import { ConfiguracaoModule } from './config/config.module'
 import type { Env } from './config/env.schema'
+import { AgendadorModule } from './infra/agendador/agendador.module'
 import { ContextoModule } from './infra/contexto/contexto.module'
 import { EventosModule } from './infra/eventos/eventos.module'
 import { criarConfigLogger } from './infra/logs/logger.config'
@@ -33,6 +34,7 @@ import { HealthModule } from './modules/health/health.module'
     ContextoModule,
     PrismaModule,
     EventosModule,
+    AgendadorModule,
     AuditoriaModule,
     AuthModule,
     AtleticasModule,

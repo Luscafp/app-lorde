@@ -6,25 +6,31 @@ import {
   type LoginEntrada,
   type RespostaSessao,
 } from '@atletica/shared'
-import { Injectable, type OnModuleInit } from '@nestjs/common'
+import { Injectable, Logger, type OnModuleInit } from '@nestjs/common'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client'
+import { ErroNegocio } from '../../common/erros/erro-negocio'
 import { ContextoAtletica } from '../../infra/contexto/contexto-atletica.service'
 import { TransacaoService } from '../../infra/eventos/apos-commit'
+import type { MotivoRevogacao } from '../../infra/eventos/eventos-dominio'
 import { EventosDominioService } from '../../infra/eventos/eventos-dominio.service'
-import { PrismaService } from '../../infra/prisma/prisma.service'
+import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import { SenhaService } from '../../infra/senha/senha.service'
 import { AtleticaPadraoService } from '../atleticas/atletica-padrao.service'
 import {
   erroContaDesativada,
   erroCredenciaisInvalidas,
   erroEmailJaCadastrado,
+  erroRefreshInvalido,
+  erroRefreshJaRotacionado,
+  erroSessaoRevogada,
   erroTermosDesatualizados,
 } from './erros'
 import { RateLimitService, TipoTentativa, type LimiteTentativas } from './rate-limit.service'
 import { RespostaSessaoService } from './resposta-sessao.service'
-import { SessaoService } from './sessao.service'
+import { SessaoService, type SessaoDoUsuario } from './sessao.service'
 
 const MINUTO_MS = 60_000
+const logger = new Logger('AuthService')
 
 /** RNF06: 5 falhas em 15 min por e-mail + IP bloqueiam por 15 min. */
 export const LIMITE_LOGIN: LimiteTentativas = {
@@ -157,6 +163,74 @@ export class AuthService implements OnModuleInit {
       }
       const sessao = await this.sessoes.criar(tx, { usuarioId: usuario.id, atleticaId, ...origem })
       return this.respostas.montar({ ...usuario, papel: vinculo.papel, atleticaId }, sessao)
+    })
+  }
+
+  /** As revogações (reuso, conta desativada) são gravadas antes de responder `401`. */
+  async renovar(refreshToken: string): Promise<RespostaSessao> {
+    const resultado = await this.transacao.executar((tx) => this.rotacionar(tx, refreshToken))
+    if (resultado instanceof ErroNegocio) throw resultado
+    return resultado
+  }
+
+  /** Idempotente: só revoga e emite o evento se o token pertence a uma sessão ativa. */
+  async sair(refreshToken: string): Promise<void> {
+    await this.transacao.executar(async (tx) => {
+      const sessao = await this.sessoes.revogarPorToken(tx, refreshToken, 'LOGOUT')
+      if (sessao) this.emitirSessaoEncerrada(sessao, 'LOGOUT', sessao.usuarioId)
+    })
+  }
+
+  private async rotacionar(
+    tx: TransacaoComEscopo,
+    refreshToken: string,
+  ): Promise<RespostaSessao | ErroNegocio> {
+    const rotacao = await this.sessoes.rotacionar(tx, refreshToken)
+    switch (rotacao.tipo) {
+      case 'INVALIDO':
+        return erroRefreshInvalido()
+      case 'REVOGADA':
+        return erroSessaoRevogada()
+      case 'JA_ROTACIONADO':
+        return erroRefreshJaRotacionado()
+      case 'REUSO':
+        logger.warn(
+          { sessaoId: rotacao.sessaoId, usuarioId: rotacao.usuarioId },
+          'Reuso de refresh token: sessão revogada',
+        )
+        this.emitirSessaoEncerrada(rotacao, 'REUSO_REFRESH', null)
+        return erroSessaoRevogada()
+    }
+
+    const { atleticaId } = rotacao
+    const usuario = await tx.usuario.findUnique({
+      where: { id: rotacao.usuarioId },
+      select: {
+        ...CAMPOS_USUARIO,
+        ativo: true,
+        excluidoEm: true,
+        vinculos: { where: { atleticaId }, select: { papel: true, ativo: true } },
+      },
+    })
+    const vinculo = usuario?.vinculos[0]
+    if (!usuario?.ativo || usuario.excluidoEm || !vinculo?.ativo) {
+      await this.sessoes.revogar(tx, rotacao.sessaoId, 'CONTA_DESATIVADA')
+      this.emitirSessaoEncerrada(rotacao, 'CONTA_DESATIVADA', null)
+      return erroContaDesativada()
+    }
+    return this.respostas.montar({ ...usuario, papel: vinculo.papel, atleticaId }, rotacao)
+  }
+
+  private emitirSessaoEncerrada(
+    { sessaoId, usuarioId }: SessaoDoUsuario,
+    motivo: MotivoRevogacao,
+    autorId: string | null,
+  ): void {
+    this.eventos.emitirAposCommit('usuario.sessaoEncerrada', {
+      usuarioId,
+      sessaoIds: [sessaoId],
+      motivo,
+      autorId,
     })
   }
 
