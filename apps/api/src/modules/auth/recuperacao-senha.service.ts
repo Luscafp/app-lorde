@@ -4,28 +4,29 @@ import {
   type RedefinirSenhaEntrada,
   type RespostaEsqueciSenha,
   type RespostaVerificarCodigo,
+  VALIDADE_CODIGO_MS,
   type VerificarCodigoEntrada,
 } from '@atletica/shared'
 import { Injectable } from '@nestjs/common'
 import { ErroLimiteExcedido } from '../../common/erros/erro-negocio'
+import { emMinutos, HORA_MS } from '../../common/tempo'
+import { TipoCodigoVerificacao } from '../../generated/prisma/enums'
 import { CodigoVerificacaoService } from '../../infra/email/codigo-verificacao'
 import { EmailService } from '../../infra/email/email.service'
 import { renderizar } from '../../infra/email/templates/base'
 import { recuperarSenha } from '../../infra/email/templates/recuperar-senha'
 import { TransacaoService } from '../../infra/eventos/apos-commit'
+import type { MotivoRevogacao } from '../../infra/eventos/eventos-dominio'
 import { EventosDominioService } from '../../infra/eventos/eventos-dominio.service'
 import { PrismaService } from '../../infra/prisma/prisma.service'
 import { SenhaService } from '../../infra/senha/senha.service'
 import { AtleticaPadraoService } from '../atleticas/atletica-padrao.service'
-import { chaveIp, prefixoChaveLogin, type OrigemRequisicao } from './auth.service'
+import type { OrigemRequisicao } from './auth.service'
+import { chaveIp, prefixoChaveLogin } from './chaves-limite'
 import { erroCodigoInvalido } from './erros'
 import { RateLimitService, TipoTentativa, type LimiteTentativas } from './rate-limit.service'
 import { SessaoService } from './sessao.service'
 
-const MINUTO_MS = 60_000
-const HORA_MS = 60 * MINUTO_MS
-
-export const VALIDADE_CODIGO_MS = 15 * MINUTO_MS
 /** Na 5ª tentativa errada o código é invalidado (épico #11 §3.7). */
 export const MAXIMO_TENTATIVAS_CODIGO = 5
 /** UC09 A1: contado por e-mail, exista ou não a conta. */
@@ -34,7 +35,8 @@ export const LIMITE_ENVIO_IP: LimiteTentativas = { maximo: 10, janelaMs: HORA_MS
 /** Verificações erradas por IP (épico #11 §10). */
 export const LIMITE_CODIGO_IP: LimiteTentativas = { maximo: 30, janelaMs: HORA_MS }
 
-const TIPO_CODIGO = 'RECUPERAR_SENHA'
+const TIPO_CODIGO = TipoCodigoVerificacao.RECUPERAR_SENHA
+const MOTIVO_REVOGACAO: MotivoRevogacao = 'RECUPERACAO_SENHA'
 
 interface CodigoValido {
   id: string
@@ -68,12 +70,10 @@ export class RecuperacaoSenhaService {
     { email }: EsqueciSenhaEntrada,
     origem: OrigemRequisicao,
   ): Promise<RespostaEsqueciSenha> {
-    await this.limites.consumir(
-      TipoTentativa.RECUPERACAO_ENVIO,
-      chaveIp(origem.ip),
-      LIMITE_ENVIO_IP,
-    )
+    const chave = chaveIp(origem.ip)
+    await this.limites.verificar(TipoTentativa.RECUPERACAO_ENVIO, chave, LIMITE_ENVIO_IP)
     await this.consumirEnvioDoEmail(email)
+    await this.limites.consumir(TipoTentativa.RECUPERACAO_ENVIO, chave, LIMITE_ENVIO_IP)
 
     const usuario = await this.contaRecuperavel(email)
     if (usuario) {
@@ -90,7 +90,7 @@ export class RecuperacaoSenhaService {
       const conteudo = renderizar(recuperarSenha, {
         atletica: { nome, sigla: sigla ?? nome, corPrimaria },
         codigo,
-        validadeMinutos: VALIDADE_CODIGO_MS / MINUTO_MS,
+        validadeMinutos: emMinutos(VALIDADE_CODIGO_MS),
       })
       // Sem aguardar: a latência não pode revelar a existência da conta (o erro já é logado).
       void this.email.enviar({ para: email, ...conteudo }).catch(() => undefined)
@@ -124,13 +124,13 @@ export class RecuperacaoSenhaService {
       if (count === 0) throw erroCodigoInvalido()
 
       await tx.usuario.update({ where: { id: usuarioId }, data: { senhaHash } })
-      const sessaoIds = await this.sessoes.revogarTodas(tx, usuarioId, 'RECUPERACAO_SENHA')
+      const sessaoIds = await this.sessoes.revogarTodas(tx, usuarioId, MOTIVO_REVOGACAO)
       await this.limites.limparPorPrefixo(TipoTentativa.LOGIN_FALHA, prefixoChaveLogin(email), tx)
       if (sessaoIds.length > 0) {
         this.eventos.emitirAposCommit('usuario.sessaoEncerrada', {
           usuarioId,
           sessaoIds,
-          motivo: 'RECUPERACAO_SENHA',
+          motivo: MOTIVO_REVOGACAO,
           autorId: null,
         })
       }
@@ -187,15 +187,16 @@ export class RecuperacaoSenhaService {
     return ultimo
   }
 
-  private async contarTentativa(id: string): Promise<void> {
-    const db = this.prisma.semEscopo
-    const [codigo] = await db.codigoVerificacao.updateManyAndReturn({
-      where: { id, usadoEm: null },
-      data: { tentativas: { increment: 1 } },
-      select: { tentativas: true },
+  private contarTentativa(id: string): Promise<void> {
+    return this.prisma.semEscopo.$transaction(async (tx) => {
+      const [codigo] = await tx.codigoVerificacao.updateManyAndReturn({
+        where: { id, usadoEm: null },
+        data: { tentativas: { increment: 1 } },
+        select: { tentativas: true },
+      })
+      if (codigo && codigo.tentativas >= MAXIMO_TENTATIVAS_CODIGO) {
+        await tx.codigoVerificacao.update({ where: { id }, data: { expiraEm: new Date() } })
+      }
     })
-    if (codigo && codigo.tentativas >= MAXIMO_TENTATIVAS_CODIGO) {
-      await db.codigoVerificacao.update({ where: { id }, data: { expiraEm: new Date() } })
-    }
   }
 }

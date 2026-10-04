@@ -3,8 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'expo-router'
 import { useForm } from 'react-hook-form'
 import { Botao, Campo, Texto } from '@/components/ui'
-import { useEnviarCodigo, useRecuperacaoStore } from '@/features/recuperacao-senha'
-import { TelaRecuperacao } from '@/features/recuperacao-senha/tela-recuperacao'
+import { TelaRecuperacao, useEnviarCodigo, useRecuperacaoStore } from '@/features/recuperacao-senha'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
 
 export default function InformarEmail() {

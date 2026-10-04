@@ -22,6 +22,9 @@ export const respostaSessaoSchema = z
   })
   .strict()
 
+/** Validade do código de recuperação de senha (UC09). */
+export const VALIDADE_CODIGO_MS = 15 * 60_000
+
 export const MENSAGEM_RECUPERACAO_ENVIADA =
   'Se este e-mail estiver cadastrado, você receberá um código em instantes.'
 

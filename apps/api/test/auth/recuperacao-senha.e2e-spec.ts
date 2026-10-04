@@ -1,5 +1,5 @@
 import { performance } from 'node:perf_hooks'
-import { MENSAGEM_RECUPERACAO_ENVIADA } from '@atletica/shared'
+import { MENSAGEM_RECUPERACAO_ENVIADA, VALIDADE_CODIGO_MS } from '@atletica/shared'
 import { Logger } from '@nestjs/common'
 import request from 'supertest'
 import { CodigoVerificacaoService } from '../../src/infra/email/codigo-verificacao'
@@ -9,10 +9,7 @@ import { TransacaoService } from '../../src/infra/eventos/apos-commit'
 import { SenhaService } from '../../src/infra/senha/senha.service'
 import { AtleticaPadraoService } from '../../src/modules/atleticas/atletica-padrao.service'
 import { RateLimitService } from '../../src/modules/auth/rate-limit.service'
-import {
-  MAXIMO_TENTATIVAS_CODIGO,
-  VALIDADE_CODIGO_MS,
-} from '../../src/modules/auth/recuperacao-senha.service'
+import { MAXIMO_TENTATIVAS_CODIGO } from '../../src/modules/auth/recuperacao-senha.service'
 import { SessaoService } from '../../src/modules/auth/sessao.service'
 import { aguardarOuvintes, espiarEventos, type EspiaoEventos } from '../eventos'
 import { criarAtletica } from '../fabricas/atletica'

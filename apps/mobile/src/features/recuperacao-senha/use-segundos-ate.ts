@@ -22,7 +22,7 @@ export function useSegundosAte(instante: number | null): number {
 }
 
 /** `125` → `"02:05"`. */
-export function formatarMinutos(segundos: number): string {
+export function formatarMinutosSegundos(segundos: number): string {
   const mm = String(Math.floor(segundos / 60)).padStart(2, '0')
   const ss = String(segundos % 60).padStart(2, '0')
   return `${mm}:${ss}`

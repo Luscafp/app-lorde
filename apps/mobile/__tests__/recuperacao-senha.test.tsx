@@ -54,7 +54,7 @@ async function abrir(initialUrl: string) {
   const rota = renderRouter(rotas, { initialUrl })
   await rota
   await screen.findByRole('header')
-  return () => rota.getPathname()
+  return () => rota.getPathnameWithParams()
 }
 
 const caixa = (posicao: number) => screen.getByLabelText(`Dígito ${posicao} de 6`)
@@ -70,7 +70,6 @@ function comCodigoEnviado(dados: { codigo?: string; enviadoEm?: number } = {}) {
     email: EMAIL,
     codigo: dados.codigo ?? '',
     enviadoEm: dados.enviadoEm ?? Date.now(),
-    emailLogin: null,
   })
 }
 
@@ -79,7 +78,7 @@ beforeEach(() => {
   post.mockReset()
   jest.mocked(toast.erro).mockClear()
   jest.mocked(toast.sucesso).mockClear()
-  useRecuperacaoStore.setState({ email: '', codigo: '', enviadoEm: null, emailLogin: null })
+  useRecuperacaoStore.setState({ email: '', codigo: '', enviadoEm: null })
   onlineManager.setOnline(true)
 })
 
@@ -266,7 +265,7 @@ describe('tela de nova senha', () => {
     expect(post).toHaveBeenCalledTimes(1)
   })
 
-  it('sucesso: toast, volta ao login e deixa o e-mail para preencher o login', async () => {
+  it('sucesso: toast e volta ao login com o e-mail preenchido', async () => {
     const caminho = await abrirPeloCodigo()
     post.mockResolvedValueOnce(undefined)
 
@@ -279,9 +278,8 @@ describe('tela de nova senha', () => {
       novaSenha: 'novaSenha9',
     })
     expect(toast.sucesso).toHaveBeenCalledWith(MENSAGEM_SENHA_REDEFINIDA)
-    expect(caminho()).toBe('/login')
-    expect(useRecuperacaoStore.getState().consumirEmailLogin()).toBe(EMAIL)
-    expect(useRecuperacaoStore.getState()).toMatchObject({ codigo: '', emailLogin: null })
+    expect(caminho()).toBe(`/login?email=${encodeURIComponent(EMAIL)}`)
+    expect(useRecuperacaoStore.getState()).toMatchObject({ codigo: '', enviadoEm: null })
   })
 
   it('CODIGO_INVALIDO volta para a tela do código com as caixas vazias', async () => {

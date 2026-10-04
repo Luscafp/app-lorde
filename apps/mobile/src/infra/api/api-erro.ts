@@ -11,6 +11,7 @@ export const CodigoLocal = {
 export const CodigoApi = {
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   CONTA_DESATIVADA: 'CONTA_DESATIVADA',
+  CODIGO_INVALIDO: 'CODIGO_INVALIDO',
 } as const
 
 export const MENSAGEM_ERRO_GENERICO = 'Ocorreu um erro inesperado. Tente novamente.'

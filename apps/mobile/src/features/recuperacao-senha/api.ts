@@ -8,8 +8,6 @@ import type {
 import { api } from '@/infra/api/cliente'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 
-export const CODIGO_INVALIDO = 'CODIGO_INVALIDO'
-
 export function useEnviarCodigo() {
   return useAcaoOnline({
     mutationFn: (dados: EsqueciSenhaEntrada) =>

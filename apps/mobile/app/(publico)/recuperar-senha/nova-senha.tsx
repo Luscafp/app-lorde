@@ -4,13 +4,13 @@ import { Redirect, useRouter } from 'expo-router'
 import { useForm } from 'react-hook-form'
 import { Botao, Campo, Texto, toast } from '@/components/ui'
 import {
-  CODIGO_INVALIDO,
   MENSAGEM_SENHA_REDEFINIDA,
+  TelaRecuperacao,
   useRecuperacaoStore,
   useRedefinirSenha,
 } from '@/features/recuperacao-senha'
-import { TelaRecuperacao } from '@/features/recuperacao-senha/tela-recuperacao'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
+import { CodigoApi } from '@/infra/api/api-erro'
 
 export default function NovaSenha() {
   const router = useRouter()
@@ -38,10 +38,10 @@ export default function NovaSenha() {
         onSuccess: () => {
           concluir()
           toast.sucesso(MENSAGEM_SENHA_REDEFINIDA)
-          router.dismissTo('/login')
+          router.dismissTo({ pathname: '/login', params: { email } })
         },
         onError: (erro) => {
-          if (erro.code !== CODIGO_INVALIDO) return void aplicarErrosDaApi(form, erro)
+          if (erro.code !== CodigoApi.CODIGO_INVALIDO) return void aplicarErrosDaApi(form, erro)
           definirCodigo('')
           voltarAoCodigo()
         },

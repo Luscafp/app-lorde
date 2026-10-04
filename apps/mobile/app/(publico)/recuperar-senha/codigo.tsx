@@ -1,18 +1,17 @@
-import { MENSAGEM_RECUPERACAO_ENVIADA } from '@atletica/shared'
+import { MENSAGEM_RECUPERACAO_ENVIADA, VALIDADE_CODIGO_MS } from '@atletica/shared'
 import { Redirect, useRouter } from 'expo-router'
 import { useState } from 'react'
 import { Botao, CampoCodigo, DIGITOS_CODIGO, Texto, toast } from '@/components/ui'
 import {
-  CODIGO_INVALIDO,
   ESPERA_REENVIO_MS,
-  formatarMinutos,
+  formatarMinutosSegundos,
+  TelaRecuperacao,
   useEnviarCodigo,
   useRecuperacaoStore,
   useSegundosAte,
   useVerificarCodigo,
-  VALIDADE_CODIGO_MS,
 } from '@/features/recuperacao-senha'
-import { TelaRecuperacao } from '@/features/recuperacao-senha/tela-recuperacao'
+import { CodigoApi } from '@/infra/api/api-erro'
 
 const depoisDe = (inicio: number | null, ms: number) => (inicio === null ? null : inicio + ms)
 
@@ -42,7 +41,7 @@ export default function InformarCodigo() {
       {
         onSuccess: () => router.push('/recuperar-senha/nova-senha'),
         onError: (erro) => {
-          if (erro.code !== CODIGO_INVALIDO) return
+          if (erro.code !== CodigoApi.CODIGO_INVALIDO) return
           definirCodigo('')
           setInvalido(true)
         },
@@ -74,7 +73,7 @@ export default function InformarCodigo() {
       )}
       <Texto variante="legenda" accessibilityLiveRegion="polite">
         {expiraEm > 0
-          ? `O código expira em ${formatarMinutos(expiraEm)}`
+          ? `O código expira em ${formatarMinutosSegundos(expiraEm)}`
           : 'O código expirou. Peça um novo código.'}
       </Texto>
       <Botao

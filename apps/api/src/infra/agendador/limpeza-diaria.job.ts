@@ -1,11 +1,10 @@
 import { FUSO_PADRAO } from '@atletica/shared'
 import { Injectable, Logger } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
+import { DIA_MS } from '../../common/tempo'
 import { PrismaService } from '../prisma/prisma.service'
 
 export const JOB_LIMPEZA_DIARIA = 'manutencao.limpeza-diaria'
-const HORA_MS = 60 * 60 * 1000
-const DIA_MS = 24 * HORA_MS
 export const RETENCAO_TENTATIVAS_MS = DIA_MS
 export const RETENCAO_SESSOES_ENCERRADAS_MS = 30 * DIA_MS
 export const RETENCAO_CODIGOS_MS = DIA_MS

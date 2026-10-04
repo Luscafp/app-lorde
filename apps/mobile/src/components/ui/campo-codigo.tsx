@@ -7,7 +7,6 @@ type Props = {
   valor: string
   aoMudar: (codigo: string) => void
   erro?: boolean
-  editavel?: boolean
   autoFocus?: boolean
 }
 
@@ -18,7 +17,7 @@ function digitosDe(valor: string): string[] {
 }
 
 /** Código numérico em 6 caixas; colar ou o preenchimento automático distribuem os dígitos. */
-export function CampoCodigo({ valor, aoMudar, erro = false, editavel = true, autoFocus }: Props) {
+export function CampoCodigo({ valor, aoMudar, erro = false, autoFocus }: Props) {
   const [digitos, setDigitos] = useState(() => digitosDe(valor))
   const caixas = useRef<(TextInput | null)[]>([])
 
@@ -71,7 +70,6 @@ export function CampoCodigo({ valor, aoMudar, erro = false, editavel = true, aut
           onKeyPress={({ nativeEvent }) => {
             if (nativeEvent.key === 'Backspace') aoApagar(indice)
           }}
-          editable={editavel}
           autoFocus={autoFocus && indice === 0}
           keyboardType="number-pad"
           // Sem maxLength=1: o sistema cortaria o código colado ou preenchido automaticamente.

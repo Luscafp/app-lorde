@@ -36,7 +36,7 @@ Grupos oficiais `(publico)` e `(app)/(abas)` (convenções §3 e §11.1).
 - **Aba Painel**: aparece só para `temNivelMinimo(papel, Papel.DIRETOR)` (`useVePainel()`); para os demais fica com `href: null` e `/painel` redireciona ao Início. A ocultação é só visual; quem autoriza é a API.
 - **Telas de detalhe** (eventos, notícias...) ficam em `app/(app)/...`, acima das abas. Uma aba pode virar pasta com `_layout.tsx` (Stack) + `index.tsx`; tocar de novo na aba ativa volta à raiz dessa pilha.
 - **Splash**: fica visível até a sessão (SecureStore) e a atlética (cache ou rede, até 3 s) carregarem.
-- **Recuperação de senha** (#62): e-mail → código → nova senha. E-mail e código passam pelo `useRecuperacaoStore` (`src/features/recuperacao-senha`, só em memória), nunca pela URL. Para abrir o fluxo com o e-mail preenchido, chame `useRecuperacaoStore.getState().iniciar(email)` antes de navegar. Ao concluir, o app volta a `/login` e o login lê o e-mail com `consumirEmailLogin()`.
+- **Recuperação de senha** (#62): e-mail → código → nova senha. E-mail e código passam pelo `useRecuperacaoStore` (`src/features/recuperacao-senha`, só em memória), nunca pela URL. Para abrir o fluxo com o e-mail preenchido, chame `useRecuperacaoStore.getState().iniciar(email)` antes de navegar. Ao concluir, o app volta a `/login?email=<e-mail>` para o login vir preenchido.
 
 ## Sessão — `src/infra/sessao/store.ts`
 
@@ -171,7 +171,7 @@ A conexão vem do `onlineManager` do TanStack Query (alimentado pelo NetInfo na 
 - `Cartao`: contêiner com borda e fundo `cartao`.
 - `Botao({ titulo, variante?, carregando?, disabled? })`: `primaria` (cor da atlética, texto com `corTextoSobre`), `secundaria`, `perigo`. `carregando` mostra o spinner e desabilita. Muda de aparência no `onPressIn`; alvo ≥ 44 px.
 - `Campo({ controle, nome, rotulo, ...TextInputProps })`: React Hook Form via `Controller`; o erro aparece abaixo do campo e os valores ficam no formulário após erro da API.
-- `CampoCodigo({ valor, aoMudar, erro?, editavel?, autoFocus? })`: código numérico em 6 caixas (`number-pad`, `oneTimeCode`/`sms-otp`); o foco avança ao digitar e volta no backspace; colar ou o preenchimento automático distribuem os 6 dígitos. Para limpar, o pai passa `valor=''`. Usado na recuperação de senha (#62) e na verificação de e-mail (#31).
+- `CampoCodigo({ valor, aoMudar, erro?, autoFocus? })`: código numérico em 6 caixas (`number-pad`, `oneTimeCode`/`sms-otp`); o foco avança ao digitar e volta no backspace; colar ou o preenchimento automático distribuem os 6 dígitos. Para limpar, o pai passa `valor=''`. Usado na recuperação de senha (#62) e na verificação de e-mail (#31).
 
 Formulário padrão (schema do shared, `zodResolver` em modo `onBlur` — convenções §4.3; `useAcaoOnline` e `aplicarErrosDaApi` são da #52):
 

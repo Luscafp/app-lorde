@@ -9,6 +9,7 @@ import {
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client'
 import { ErroNegocio } from '../../common/erros/erro-negocio'
+import { HORA_MS, MINUTO_MS } from '../../common/tempo'
 import { ContextoAtletica } from '../../infra/contexto/contexto-atletica.service'
 import { TransacaoService } from '../../infra/eventos/apos-commit'
 import type { MotivoRevogacao } from '../../infra/eventos/eventos-dominio'
@@ -16,6 +17,7 @@ import { EventosDominioService } from '../../infra/eventos/eventos-dominio.servi
 import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import { SenhaService } from '../../infra/senha/senha.service'
 import { AtleticaPadraoService } from '../atleticas/atletica-padrao.service'
+import { chaveCadastro, chaveLogin } from './chaves-limite'
 import {
   erroContaDesativada,
   erroCredenciaisInvalidas,
@@ -29,8 +31,6 @@ import { RateLimitService, TipoTentativa, type LimiteTentativas } from './rate-l
 import { RespostaSessaoService } from './resposta-sessao.service'
 import { SessaoService, type SessaoDoUsuario } from './sessao.service'
 
-const MINUTO_MS = 60_000
-
 /** RNF06: 5 falhas em 15 min por e-mail + IP bloqueiam por 15 min. */
 export const LIMITE_LOGIN: LimiteTentativas = {
   maximo: 5,
@@ -38,30 +38,11 @@ export const LIMITE_LOGIN: LimiteTentativas = {
   bloqueioMs: 15 * MINUTO_MS,
 }
 /** Mitiga a enumeração de e-mails pelo cadastro (épico #10 §10). */
-export const LIMITE_CADASTRO: LimiteTentativas = { maximo: 10, janelaMs: 60 * MINUTO_MS }
+export const LIMITE_CADASTRO: LimiteTentativas = { maximo: 10, janelaMs: HORA_MS }
 
 export interface OrigemRequisicao {
   ip?: string
   userAgent?: string
-}
-
-const SEM_IP = 'sem-ip'
-
-export function chaveCadastro(ip: string | undefined): string {
-  return ip ?? SEM_IP
-}
-
-export function chaveIp(ip: string | undefined): string {
-  return `ip:${ip ?? SEM_IP}`
-}
-
-/** Todas as chaves de falha de login de um e-mail começam com ele. */
-export function prefixoChaveLogin(email: string): string {
-  return `${email}|`
-}
-
-export function chaveLogin(email: string, ip: string | undefined): string {
-  return `${prefixoChaveLogin(email)}${ip ?? SEM_IP}`
 }
 
 const CAMPOS_USUARIO = { id: true, nome: true, email: true, fotoKey: true } as const

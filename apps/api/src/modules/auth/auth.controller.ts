@@ -9,6 +9,7 @@ import {
   respostaSessaoSchema,
   respostaVerificarCodigoSchema,
   TERMOS_VERSAO,
+  VALIDADE_CODIGO_MS,
   verificarCodigoSchema,
   type RespostaEsqueciSenha,
   type RespostaSessao,
@@ -31,6 +32,7 @@ import {
 import type { Request } from 'express'
 import { createZodDto } from 'nestjs-zod'
 import { RESPOSTA_LIMITE_EXCEDIDO } from '../../common/swagger/respostas'
+import { emMinutos } from '../../common/tempo'
 import { AuthService, LIMITE_CADASTRO, LIMITE_LOGIN, type OrigemRequisicao } from './auth.service'
 import { Publico } from './decorators/publico.decorator'
 import {
@@ -39,7 +41,6 @@ import {
   LIMITE_ENVIO_IP,
   MAXIMO_TENTATIVAS_CODIGO,
   RecuperacaoSenhaService,
-  VALIDADE_CODIGO_MS,
 } from './recuperacao-senha.service'
 import { JANELA_CONCORRENCIA_MS } from './sessao.service'
 
@@ -83,12 +84,9 @@ const EXEMPLO_ESQUECI = { email: 'ana@exemplo.com' }
 const EXEMPLO_VERIFICAR = { ...EXEMPLO_ESQUECI, codigo: '048213' }
 const EXEMPLO_REDEFINIR = { ...EXEMPLO_VERIFICAR, novaSenha: 'novaSenha9' }
 
-const CODIGO_INVALIDO =
+const DESCRICAO_CODIGO_INVALIDO =
   '`CODIGO_INVALIDO`: errado, expirado, já usado, substituído por um mais novo ou e-mail sem ' +
   `código. Cada erro conta uma tentativa; na ${MAXIMO_TENTATIVAS_CODIGO}ª o código é invalidado.`
-
-const MINUTO_MS = 60_000
-const minutos = (ms: number) => ms / MINUTO_MS
 
 function origem(req: Request): OrigemRequisicao {
   return { ip: req.ip, userAgent: req.get('user-agent') }
@@ -113,7 +111,7 @@ export class AuthController {
   @ApiConflictResponse({ description: '`EMAIL_JA_CADASTRADO` ou `TERMOS_DESATUALIZADOS`.' })
   @ApiTooManyRequestsResponse({
     ...RESPOSTA_LIMITE_EXCEDIDO,
-    description: `Mais de ${LIMITE_CADASTRO.maximo} cadastros por IP em ${minutos(LIMITE_CADASTRO.janelaMs)} min.`,
+    description: `Mais de ${LIMITE_CADASTRO.maximo} cadastros por IP em ${emMinutos(LIMITE_CADASTRO.janelaMs)} min.`,
   })
   cadastrar(@Body() dados: CadastroDto, @Req() req: Request): Promise<RespostaSessao> {
     return this.auth.cadastrar(dados, origem(req))
@@ -136,8 +134,8 @@ export class AuthController {
   @ApiTooManyRequestsResponse({
     ...RESPOSTA_LIMITE_EXCEDIDO,
     description:
-      `${LIMITE_LOGIN.maximo} falhas em ${minutos(LIMITE_LOGIN.janelaMs)} min para o mesmo e-mail + IP; ` +
-      `bloqueio de ${minutos(LIMITE_LOGIN.bloqueioMs ?? 0)} min.`,
+      `${LIMITE_LOGIN.maximo} falhas em ${emMinutos(LIMITE_LOGIN.janelaMs)} min para o mesmo e-mail + IP; ` +
+      `bloqueio de ${emMinutos(LIMITE_LOGIN.bloqueioMs ?? 0)} min.`,
   })
   entrar(@Body() dados: LoginDto, @Req() req: Request): Promise<RespostaSessao> {
     return this.auth.entrar(dados, origem(req))
@@ -193,13 +191,13 @@ export class AuthController {
     example: { message: MENSAGEM_RECUPERACAO_ENVIADA },
     description:
       `Sempre a mesma mensagem. Só contas ativas recebem o código (6 dígitos, válido por ` +
-      `${minutos(VALIDADE_CODIGO_MS)} min); um código novo invalida os anteriores.`,
+      `${emMinutos(VALIDADE_CODIGO_MS)} min); um código novo invalida os anteriores.`,
   })
   @ApiBadRequestResponse({ description: '`VALIDATION_ERROR` (formato do e-mail).' })
   @ApiTooManyRequestsResponse({
     ...RESPOSTA_LIMITE_EXCEDIDO,
     description:
-      `${LIMITE_ENVIO_EMAIL.maximo} pedidos por e-mail em ${minutos(LIMITE_ENVIO_EMAIL.janelaMs)} min ` +
+      `${LIMITE_ENVIO_EMAIL.maximo} pedidos por e-mail em ${emMinutos(LIMITE_ENVIO_EMAIL.janelaMs)} min ` +
       `(cadastrado ou não) ou ${LIMITE_ENVIO_IP.maximo} por IP.`,
   })
   esquecerSenha(
@@ -217,10 +215,10 @@ export class AuthController {
   @ApiOperation({ summary: 'Confere o código de recuperação sem consumi-lo' })
   @ApiBody({ type: VerificarCodigoDto, examples: { verificar: { value: EXEMPLO_VERIFICAR } } })
   @ApiOkResponse({ type: RespostaVerificarCodigoDto, example: { valido: true } })
-  @ApiBadRequestResponse({ description: `\`VALIDATION_ERROR\` ou ${CODIGO_INVALIDO}` })
+  @ApiBadRequestResponse({ description: `\`VALIDATION_ERROR\` ou ${DESCRICAO_CODIGO_INVALIDO}` })
   @ApiTooManyRequestsResponse({
     ...RESPOSTA_LIMITE_EXCEDIDO,
-    description: `${LIMITE_CODIGO_IP.maximo} códigos errados por IP em ${minutos(LIMITE_CODIGO_IP.janelaMs)} min.`,
+    description: `${LIMITE_CODIGO_IP.maximo} códigos errados por IP em ${emMinutos(LIMITE_CODIGO_IP.janelaMs)} min.`,
   })
   verificarCodigo(
     @Body() dados: VerificarCodigoDto,
@@ -239,11 +237,11 @@ export class AuthController {
     description: 'Senha trocada; todas as sessões revogadas e falhas de login do e-mail apagadas.',
   })
   @ApiBadRequestResponse({
-    description: `\`VALIDATION_ERROR\` (senha fraca não gasta tentativa do código) ou ${CODIGO_INVALIDO}`,
+    description: `\`VALIDATION_ERROR\` (senha fraca não gasta tentativa do código) ou ${DESCRICAO_CODIGO_INVALIDO}`,
   })
   @ApiTooManyRequestsResponse({
     ...RESPOSTA_LIMITE_EXCEDIDO,
-    description: `${LIMITE_CODIGO_IP.maximo} códigos errados por IP em ${minutos(LIMITE_CODIGO_IP.janelaMs)} min.`,
+    description: `${LIMITE_CODIGO_IP.maximo} códigos errados por IP em ${emMinutos(LIMITE_CODIGO_IP.janelaMs)} min.`,
   })
   redefinirSenha(@Body() dados: RedefinirSenhaDto, @Req() req: Request): Promise<void> {
     return this.recuperacao.redefinir(dados, origem(req))
