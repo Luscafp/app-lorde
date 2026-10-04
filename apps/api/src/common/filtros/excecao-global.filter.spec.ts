@@ -9,6 +9,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common'
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client'
 import { ZodValidationException } from 'nestjs-zod'
 import { z } from 'zod'
 import { ErroNegocio } from '../erros/erro-negocio'
@@ -124,6 +125,94 @@ describe('mapearExcecao', () => {
       message: MENSAGEM_ERRO_INTERNO,
       details: [],
     })
+  })
+})
+
+describe('mapearExcecao — erros do Prisma', () => {
+  const SQL_INTERNO = 'new row for relation "Usuario" violates check constraint "x"'
+
+  /** Erro do adapter `pg` como o Prisma 7 o anexa em `meta.driverAdapterError`. */
+  function erroAdapter(originalCode: string) {
+    return {
+      name: 'DriverAdapterError',
+      cause: { kind: 'postgres', code: originalCode, originalCode, message: SQL_INTERNO },
+    }
+  }
+
+  function erroPrisma(code: string, meta?: Record<string, unknown>) {
+    return new PrismaClientKnownRequestError(`Erro interno: ${SQL_INTERNO}`, {
+      code,
+      clientVersion: '7.10.0',
+      meta,
+    })
+  }
+
+  it('P2002 → 409 REGISTRO_DUPLICADO', () => {
+    expect(
+      mapearExcecao(erroPrisma('P2002', { driverAdapterError: erroAdapter('23505') })),
+    ).toEqual({
+      statusCode: 409,
+      code: 'REGISTRO_DUPLICADO',
+      message: 'Já existe um registro com esses dados.',
+      details: [],
+    })
+  })
+
+  it('P2025 → 404 NOT_FOUND', () => {
+    expect(mapearExcecao(erroPrisma('P2025', { modelName: 'Evento' }))).toEqual({
+      statusCode: 404,
+      code: 'NOT_FOUND',
+      message: 'Recurso não encontrado.',
+      details: [],
+    })
+  })
+
+  it('P2003 → 409 REGISTRO_EM_USO', () => {
+    expect(mapearExcecao(erroPrisma('P2003'))).toEqual({
+      statusCode: 409,
+      code: 'REGISTRO_EM_USO',
+      message: 'O registro está vinculado a outros dados.',
+      details: [],
+    })
+  })
+
+  it('CHECK (23514) via adapter pg (P2039) → 422 ESTADO_INVALIDO', () => {
+    expect(
+      mapearExcecao(erroPrisma('P2039', { driverAdapterError: erroAdapter('23514') })),
+    ).toEqual({
+      statusCode: 422,
+      code: 'ESTADO_INVALIDO',
+      message: 'A operação deixaria os dados em um estado inválido.',
+      details: [],
+    })
+  })
+
+  it('CHECK (23514) em SQL bruto (P2010) → 422 ESTADO_INVALIDO', () => {
+    const erro = erroPrisma('P2010', { driverAdapterError: erroAdapter('23514') })
+    expect(mapearExcecao(erro)).toMatchObject({ statusCode: 422, code: 'ESTADO_INVALIDO' })
+  })
+
+  it('CHECK (23514) do driver solto → 422 ESTADO_INVALIDO', () => {
+    const erroPg = Object.assign(new Error(SQL_INTERNO), { code: '23514', constraint: 'x' })
+    expect(mapearExcecao(erroPg)).toMatchObject({ statusCode: 422, code: 'ESTADO_INVALIDO' })
+    expect(mapearExcecao(erroAdapter('23514'))).toMatchObject({ code: 'ESTADO_INVALIDO' })
+  })
+
+  it('outro erro de banco sem mapeamento → 500 INTERNAL_ERROR', () => {
+    const erro = erroPrisma('P2039', { driverAdapterError: erroAdapter('22001') })
+    expect(mapearExcecao(erro)).toEqual({
+      statusCode: 500,
+      code: 'INTERNAL_ERROR',
+      message: MENSAGEM_ERRO_INTERNO,
+      details: [],
+    })
+  })
+
+  it('nunca expõe SQL nem a mensagem interna no corpo', () => {
+    for (const code of ['P2002', 'P2025', 'P2003', 'P2039']) {
+      const corpo = mapearExcecao(erroPrisma(code, { driverAdapterError: erroAdapter('23514') }))
+      expect(JSON.stringify(corpo)).not.toContain('violates')
+    }
   })
 })
 
