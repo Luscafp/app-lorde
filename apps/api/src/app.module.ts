@@ -11,6 +11,7 @@ import { criarConfigLogger } from './infra/logs/logger.config'
 import { PrismaModule } from './infra/prisma/prisma.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.module'
+import { HealthModule } from './modules/health/health.module'
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.mod
     ContextoModule,
     PrismaModule,
     AuthModule,
+    HealthModule,
     DiagnosticoForaDeProducao,
   ],
   providers: [

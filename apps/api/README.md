@@ -20,6 +20,7 @@ Validadas por `src/config/env.schema.ts` (Zod): a API não sobe com variável fa
 | `JWT_ACCESS_SECRET`         | sim (≥ 32 caracteres)       | Segredo HS256 do access token (#7), distinto por ambiente. Trocar o valor invalida os access tokens em circulação |
 | `SENTRY_DSN`                | não                         | DSN do Sentry da API; ausente ou vazia = Sentry desligado (veja [Observabilidade](#observabilidade))              |
 | `SENTRY_TRACES_SAMPLE_RATE` | não (`0.1`)                 | Fração de traces de 0 a 1: `0.1` em produção, `1.0` em homologação                                                |
+| `GIT_COMMIT_SHA`            | não                         | Commit do build, injetado no `docker build` (veja [Docker](#docker)); fora do schema. Ausente = `desconhecido`    |
 
 ## Testes
 
@@ -313,7 +314,7 @@ Nível: `info`; `warn` para 4xx; `error` para 5xx; `debug` para `GET /api/v1/hea
 ### Sentry
 
 - `src/instrument.ts` é a **primeira linha** do `main.ts` e chama `Sentry.init` só se `SENTRY_DSN` estiver definida (lê o `.env` como o `ConfigModule`). Sem DSN, nada é enviado.
-- `environment` = `APP_ENV`; `release` = `api@<versao>+<commit>` (commit de `RAILWAY_GIT_COMMIT_SHA`, `local` fora da Railway).
+- `environment` = `APP_ENV`; `release` = `api@<versao>+<commit>` (7 primeiros caracteres de `GIT_COMMIT_SHA`, ou de `RAILWAY_GIT_COMMIT_SHA`; `local` sem nenhuma das duas).
 - **Só 5xx** vão ao Sentry, capturados pelo filtro global (`capturarErroHttp`) com tags `requestId`, `route`, `atleticaId` e usuário só com `id`. 4xx nunca.
 - Dados pessoais: `dataCollection` mínimo (sem corpos, cookies, query string, variáveis locais dos frames, dados de usuário automáticos — o SDK 11 substituiu `sendDefaultPii` por essa opção) e `beforeSend` remove `request.data`, cookies e `Authorization`, troca e-mails por `[email]` em `message`, `extra` e na mensagem da exceção e deixa o usuário só com `id`.
 - Jobs (`@nestjs/schedule` #58, pg-boss #86): capture o erro com `capturarErroJob(nome, erro, contexto)` (tag `job=<nome>`); `contexto` vai para `extra`, sem dado pessoal.
@@ -322,3 +323,57 @@ Nível: `info`; `warn` para 4xx; `error` para 5xx; `debug` para `GET /api/v1/hea
 ### Rota de diagnóstico
 
 `GET /api/v1/diagnostico/erro` lança um erro inesperado (`500 INTERNAL_ERROR`) para conferir a chegada do evento ao Sentry (#93). Qualquer usuário autenticado acessa (guard global da #7). O módulo **não é registrado** com `APP_ENV=producao`: lá a rota responde `404`.
+
+## Health, proxy e encerramento (`src/modules/health`, `src/configurar-app.ts`)
+
+### `GET /api/v1/health`
+
+Público (`@Publico()`), usado pelo healthcheck do deploy e pelo monitor de uptime. Executa `SELECT 1` via `prisma.semEscopo` com timeout de **2 s** e responde com `Cache-Control: no-store`:
+
+| Situação         | Status | Corpo                                                                             |
+| ---------------- | ------ | --------------------------------------------------------------------------------- |
+| banco responde   | `200`  | `{ "status": "ok", "versao": "0.0.0", "commit": "a1b2c3d", "banco": "ok" }`       |
+| falha ou timeout | `503`  | `{ "status": "erro", "versao": "...", "commit": "...", "banco": "indisponivel" }` |
+
+- `versao` vem do `package.json` da API; `commit`, dos 7 primeiros caracteres de `GIT_COMMIT_SHA` (`desconhecido` se ausente).
+- O `503` **não** usa o formato de erro padrão (é lido por monitores, não pelo app) e não expõe o motivo da falha, que vai só para o log (`warn`).
+- O log de acesso da rota é `debug` (veja [Log de acesso](#log-de-acesso)).
+
+### `trust proxy`
+
+`configurarApp` liga `trust proxy` com **1 salto** (`SALTOS_PROXY_CONFIAVEIS`): a borda da Railway. `req.ip` é o último IP do `X-Forwarded-For`, o adicionado pelo proxy; IPs que o cliente forjar antes dele são ignorados. Se surgir outro proxy na frente (CDN), aumente o número.
+
+### Encerramento
+
+`enableShutdownHooks()` faz o `SIGTERM` do deploy chamar `app.close()`: o servidor HTTP para de aceitar conexões e o `PrismaService` desconecta (teste em `test/health/health.e2e-spec.ts`; `docker stop` termina com código 0).
+
+## Docker
+
+`apps/api/Dockerfile`, multi-stage, com contexto na **raiz do monorepo** (`.dockerignore` na raiz):
+
+- `build`: `pnpm install --frozen-lockfile` só da API e do shared, client Prisma, build dos dois e `pnpm deploy --prod` para uma árvore enxuta. O `prisma.config.ts` é transpilado para `prisma.config.mjs`.
+- `runtime`: `node:24-slim` + OpenSSL, usuário `node`, `NODE_ENV=production`, `HEALTHCHECK` no `/health`, `CMD ["node", "dist/main.js"]`. Leva `dist/`, as dependências de produção, `prisma/schema.prisma` e `prisma/migrations` — sem fontes `.ts`, devDependencies ou `.env`.
+- `prisma` e `dotenv` são dependências de produção para o `migrate deploy` rodar dentro da imagem (pre-deploy, #47), com o `schema-engine` já incluído (sem download na hora).
+
+```bash
+# na raiz; GIT_COMMIT_SHA vira o "commit" do /health
+docker build -f apps/api/Dockerfile --build-arg GIT_COMMIT_SHA=$(git rev-parse HEAD) -t atletica-api .
+# ou: GIT_COMMIT_SHA=$(git rev-parse HEAD) pnpm --filter api docker:build
+
+# confere não-root, sem .env, sem .ts e sem devDependencies
+pnpm --filter api docker:verificar
+
+# contra o Postgres do compose (pnpm db:up); NODE_ENV=production exige APP_ENV e EMAIL_PROVIDER=resend
+docker run --rm -e DATABASE_URL=postgresql://atletica:atletica@host.docker.internal:5432/atletica_dev \
+  atletica-api node node_modules/prisma/build/index.js migrate deploy
+docker run --rm -p 3000:3000 \
+  -e DATABASE_URL=postgresql://atletica:atletica@host.docker.internal:5432/atletica_dev \
+  -e APP_ENV=homologacao -e EMAIL_PROVIDER=resend -e RESEND_API_KEY=re_ficticia \
+  -e EMAIL_REMETENTE="Atlética <nao-responda@exemplo.com.br>" \
+  -e CODIGO_PEPPER=troque-por-um-segredo-aleatorio-de-32-caracteres-ou-mais \
+  -e JWT_ACCESS_SECRET=troque-por-um-segredo-aleatorio-de-32-caracteres-ou-mais \
+  atletica-api
+curl http://localhost:3000/api/v1/health
+```
+
+No Linux, acrescente `--add-host=host.docker.internal:host-gateway` aos `docker run`.

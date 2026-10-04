@@ -6,7 +6,14 @@ const { version } = JSON.parse(
   readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8'),
 ) as { version: string }
 
-/** `<versao>+<commit>`; o commit vem da Railway (`RAILWAY_GIT_COMMIT_SHA`), `local` fora dela. */
-export function versaoApi(commit = process.env.RAILWAY_GIT_COMMIT_SHA): string {
-  return `${version}+${commit?.slice(0, 7) || 'local'}`
+export const VERSAO_API = version
+
+/** SHA curto do build: `GIT_COMMIT_SHA` (injetada no `docker build`) ou `RAILWAY_GIT_COMMIT_SHA`. */
+export function commitApi(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  return (env.GIT_COMMIT_SHA || env.RAILWAY_GIT_COMMIT_SHA)?.trim().slice(0, 7) || undefined
+}
+
+/** `<versao>+<commit>`, com `local` quando o commit não é conhecido. */
+export function versaoApi(commit = commitApi()): string {
+  return `${version}+${commit || 'local'}`
 }
