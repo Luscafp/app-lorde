@@ -10,6 +10,7 @@ import { ContextoModule } from './infra/contexto/contexto.module'
 import { EventosModule } from './infra/eventos/eventos.module'
 import { criarConfigLogger } from './infra/logs/logger.config'
 import { PrismaModule } from './infra/prisma/prisma.module'
+import { AtleticasModule } from './modules/atleticas/atleticas.module'
 import { AuditoriaModule } from './modules/auditoria/auditoria.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.module'
@@ -31,6 +32,7 @@ import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.mod
     EventosModule,
     AuditoriaModule,
     AuthModule,
+    AtleticasModule,
     DiagnosticoForaDeProducao,
   ],
   providers: [

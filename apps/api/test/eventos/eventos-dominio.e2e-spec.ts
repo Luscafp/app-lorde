@@ -13,6 +13,7 @@ import type { PayloadBase } from '../../src/infra/eventos/eventos-dominio'
 import { EventosDominioService } from '../../src/infra/eventos/eventos-dominio.service'
 import { Publico } from '../../src/modules/auth/decorators/publico.decorator'
 import { aguardarOuvintes, espiarEventos, type EspiaoEventos } from '../eventos'
+import { prepararAtleticaPadrao } from '../fabricas/atletica'
 import { criarUsuario, type UsuarioCriado } from '../fabricas/usuario'
 import { prismaTeste } from '../setup/prisma-teste'
 
@@ -78,6 +79,7 @@ describe('Eventos de domínio e aposCommit (integração)', () => {
   let atleta: UsuarioCriado
 
   beforeAll(async () => {
+    await prepararAtleticaPadrao()
     const modulo = await Test.createTestingModule({
       imports: [AppModule],
       controllers: [EventosController],

@@ -14,6 +14,7 @@ import {
 } from '../../src/modules/auditoria/auditoria.service'
 import { diferenca } from '../../src/modules/auditoria/diferenca'
 import { ErroAuditoria } from '../../src/modules/auditoria/erros'
+import { prepararAtleticaPadrao } from '../fabricas/atletica'
 import { proximaSequencia } from '../fabricas/sequencia'
 import { criarUsuario, type UsuarioCriado } from '../fabricas/usuario'
 import { prismaTeste } from '../setup/prisma-teste'
@@ -53,6 +54,7 @@ describe('AuditoriaService (integração)', () => {
   let diretor: UsuarioCriado
 
   beforeAll(async () => {
+    await prepararAtleticaPadrao()
     const modulo = await Test.createTestingModule({ imports: [AppModule] }).compile()
     app = modulo.createNestApplication({ logger: false })
     await app.init()

@@ -1,3 +1,4 @@
+export * from './atletica'
 export * from './auditoria'
 export * from './auth'
 export * from './enums'
