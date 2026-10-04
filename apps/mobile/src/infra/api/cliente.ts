@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react-native'
 import { accessTokenVencendo, useSessao } from '@/infra/sessao/store'
 import { ehNaoAutenticado, ehSessaoEncerrada } from './api-erro'
 import { caminhoNaApi, enviar, montarUrl, type OpcoesRequisicao } from './http'
@@ -6,13 +7,9 @@ import { renovarSessao } from './renovar-sessao'
 export { ApiErro, CodigoLocal, type DetalheErro } from './api-erro'
 export type { OpcoesRequisicao } from './http'
 
-type Registrador = (mensagem: string, contexto: Record<string, unknown>) => void
-
-let registrar: Registrador = (mensagem, contexto) => console.warn(mensagem, contexto)
-
-/** `iniciarSentry()` troca o registrador padrão (console) pelo Sentry. */
-export function definirRegistrador(registrador: Registrador): void {
-  registrar = registrador
+function avisar(mensagem: string, contexto: Record<string, unknown>): void {
+  if (__DEV__) console.warn(mensagem, contexto)
+  Sentry.captureMessage(mensagem, { level: 'warning', extra: contexto })
 }
 
 function podeRenovarSessao(url: string): boolean {
@@ -49,7 +46,7 @@ export async function requisitar<T>(caminho: string, opcoes: OpcoesRequisicao = 
     return await enviar<T>(url, opcoes, useSessao.getState().accessToken)
   } catch (erro) {
     if (ehNaoAutenticado(erro)) {
-      registrar('401 depois da renovação da sessão', {
+      avisar('401 depois da renovação da sessão', {
         caminho,
         code: erro.code,
         requestId: erro.requestId,

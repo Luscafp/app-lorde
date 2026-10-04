@@ -1,50 +1,41 @@
 import { Papel } from '@atletica/shared'
 import * as Sentry from '@sentry/react-native'
-import { fireEvent, screen } from '@testing-library/react-native'
-import * as Updates from 'expo-updates'
-import { LimiteErro } from '@/components/estado'
-import {
-  acompanharUsuario,
-  beforeBreadcrumb,
-  beforeSend,
-  iniciarSentry,
-  opcoesSentry,
-} from '@/infra/sentry'
+import { ambiente } from '@/config/ambiente'
+import { acompanharUsuario, iniciarSentry, limparBreadcrumb, limparEvento } from '@/infra/sentry'
 import { useSessao } from '@/infra/sessao/store'
-import { renderizar } from '../test-utils/renderizar'
-
-jest.mock('expo-updates', () => ({ reloadAsync: jest.fn(() => Promise.resolve()) }))
 
 const DSN = 'https://chave@o1.ingest.sentry.io/1'
 
 beforeEach(() => jest.clearAllMocks())
+afterEach(() => jest.restoreAllMocks())
 
 describe('iniciarSentry', () => {
   it('sem DSN não inicializa nem envia nada', () => {
-    expect(opcoesSentry(undefined)).toBeUndefined()
-    iniciarSentry(undefined)
+    jest.replaceProperty(ambiente, 'sentryDsn', undefined)
+    iniciarSentry()
     expect(Sentry.init).not.toHaveBeenCalled()
     expect(Sentry.setUser).not.toHaveBeenCalled()
   })
 
   it('com DSN inicializa por ambiente, sem PII e desligado em __DEV__', () => {
-    iniciarSentry(DSN)
+    jest.replaceProperty(ambiente, 'sentryDsn', DSN)
+    iniciarSentry()
     expect(Sentry.init).toHaveBeenCalledWith(
       expect.objectContaining({
         dsn: DSN,
         environment: 'development',
         enabled: false,
         sendDefaultPii: false,
-        beforeBreadcrumb,
-        beforeSend,
+        beforeBreadcrumb: limparBreadcrumb,
+        beforeSend: limparEvento,
       }),
     )
   })
 })
 
-describe('beforeBreadcrumb', () => {
+describe('limparBreadcrumb', () => {
   it('remove Authorization e o corpo das requisições HTTP', () => {
-    const breadcrumb = beforeBreadcrumb({
+    const breadcrumb = limparBreadcrumb({
       category: 'xhr',
       data: {
         method: 'POST',
@@ -64,7 +55,7 @@ describe('beforeBreadcrumb', () => {
   })
 
   it('fora de HTTP remove só Authorization', () => {
-    const breadcrumb = beforeBreadcrumb({
+    const breadcrumb = limparBreadcrumb({
       category: 'navigation',
       data: { body: 'ok', authorization: 'Bearer abc' },
     })
@@ -72,9 +63,9 @@ describe('beforeBreadcrumb', () => {
   })
 })
 
-describe('beforeSend', () => {
+describe('limparEvento', () => {
   it('troca e-mails por [email] em message, extra, breadcrumbs e exceções', () => {
-    const evento = beforeSend({
+    const evento = limparEvento({
       type: undefined,
       message: 'falha para fulano@ufma.br',
       extra: { contato: { email: 'a@b.com' } },
@@ -89,7 +80,7 @@ describe('beforeSend', () => {
   })
 
   it('mantém só o id do usuário', () => {
-    const evento = beforeSend({
+    const evento = limparEvento({
       type: undefined,
       user: { id: 'u1', email: 'a@b.com', username: 'Ana' },
     })
@@ -120,37 +111,5 @@ describe('acompanharUsuario', () => {
     await useSessao.getState().encerrarSessao({ motivo: 'LOGOUT' })
     expect(Sentry.setUser).toHaveBeenLastCalledWith(null)
     parar()
-  })
-})
-
-describe('LimiteErro', () => {
-  function Quebra(): never {
-    throw new Error('erro de renderização')
-  }
-
-  beforeEach(() => jest.spyOn(console, 'error').mockImplementation(() => undefined))
-  afterEach(() => jest.mocked(console.error).mockRestore())
-
-  it('mostra TelaErroFatal e envia o erro ao Sentry', async () => {
-    await renderizar(
-      <LimiteErro>
-        <Quebra />
-      </LimiteErro>,
-    )
-    expect(screen.getByText('Algo deu errado. Tente reabrir o aplicativo.')).toBeOnTheScreen()
-    expect(Sentry.captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'erro de renderização' }),
-      expect.anything(),
-    )
-  })
-
-  it('"Recarregar" chama Updates.reloadAsync', async () => {
-    await renderizar(
-      <LimiteErro>
-        <Quebra />
-      </LimiteErro>,
-    )
-    await fireEvent.press(screen.getByRole('button', { name: 'Recarregar' }))
-    expect(Updates.reloadAsync).toHaveBeenCalled()
   })
 })

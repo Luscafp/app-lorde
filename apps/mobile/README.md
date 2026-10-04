@@ -79,7 +79,7 @@ await api.post('/times/1/solicitacoes', { mensagem }, { consulta: { origem: 'app
 - Base `EXPO_PUBLIC_API_URL` (já com `/api/v1`), JSON, timeout de 15 s. Cabeçalhos `X-Request-Id` (UUID v4), `X-App-Version` e `Authorization` — este **só** para o domínio da API (URLs pré-assinadas vão sem token).
 - Todo erro vira `ApiErro { status, code, message, details, requestId }`. Locais (`status: 0`): `SEM_CONEXAO`, `TEMPO_ESGOTADO`; `SESSAO_ENCERRADA` (`401`) quando o refresh encerrou a sessão.
 - **Regra de ouro**: só `401` de `POST /auth/refresh` encerra a sessão. Rede, timeout, 5xx, `400` (ex.: `SENHA_INCORRETA`) e qualquer outro `401` não.
-- **Single-flight** (`renovar-sessao.ts`): `401` fora de `/auth/*` chama `renovarSessao()`; chamadas simultâneas aguardam a mesma promessa. Refresh `200` grava os tokens (`atualizarTokens`) antes de liberar a fila e atualiza `usuario`; a requisição é refeita **uma** vez. Um segundo `401` falha sem novo refresh e é registrado (`definirRegistrador`, que a #49 liga ao Sentry).
+- **Single-flight** (`renovar-sessao.ts`): `401` fora de `/auth/*` chama `renovarSessao()`; chamadas simultâneas aguardam a mesma promessa. Refresh `200` grava os tokens (`atualizarTokens`) antes de liberar a fila e atualiza `usuario`; a requisição é refeita **uma** vez. Um segundo `401` falha sem novo refresh e é registrado (`Sentry.captureMessage` e, em `__DEV__`, `console.warn`).
 - Refresh `401` (qualquer `code`) → `encerrarSessao`, cache de queries limpo, volta ao `/login` e toast: `CONTA_DESATIVADA` → "Sua conta está desativada. Procure a diretoria."; demais → "Sua sessão expirou. Entre novamente.".
 - **Renovação proativa**: faltando menos de 30 s para `accessTokenExpiraEm`, renova antes de enviar.
 - Rotas `/auth/*` nunca disparam refresh: seus erros vão direto para a tela.
@@ -189,9 +189,9 @@ const { online, mutate, isPending } = useAcaoOnline({
 
 ## Sentry — `src/infra/sentry.ts`
 
-- `iniciarSentry()` no layout raiz: sem `EXPO_PUBLIC_SENTRY_DSN` não inicializa; `environment` = `EXPO_PUBLIC_AMBIENTE`; `release`/`dist` do `expo-application` (`<id>@<versão>+<build>`); `enabled: !__DEV__`; `sendDefaultPii: false`. Liga o registrador do cliente HTTP (`definirRegistrador`) ao Sentry.
-- Scrubbers: `beforeBreadcrumb` remove `Authorization` e o corpo das requisições HTTP; `beforeSend` troca e-mails por `[email]` (message, extra, breadcrumbs e exceções) e deixa o usuário só com `id`. Nada de dado pessoal em `setContext`/`setExtra`.
+- `iniciarSentry()` no layout raiz: sem `EXPO_PUBLIC_SENTRY_DSN` não inicializa; `environment` = `EXPO_PUBLIC_AMBIENTE`; `release`/`dist` do `expo-application` (`<id>@<versão>+<build>`); `enabled: !__DEV__`; `sendDefaultPii: false`.
+- Scrubbers: `limparBreadcrumb` remove `Authorization` e o corpo das requisições HTTP; `limparEvento` troca e-mails por `[email]` (message, extra, breadcrumbs e exceções) e deixa o usuário só com `id`. Nada de dado pessoal em `setContext`/`setExtra`.
 - Usuário: `Sentry.setUser({ id })` ao autenticar e `setUser(null)` ao ficar anônimo (acompanha `useSessao`).
-- Resposta 5xx da API vira breadcrumb `http` com `requestId`, método, rota (sem query) e status, para correlacionar com os logs da API.
-- `LimiteErro` (ErrorBoundary) envolve a navegação: erro de renderização vai ao Sentry e mostra `TelaErroFatal` ("Recarregar" → `Updates.reloadAsync()`). O layout raiz é exportado com `Sentry.wrap` e registra a navegação (rotas do Expo Router como nome de transação).
+- Resposta 5xx da API (só do domínio da API) vira breadcrumb `http` com `requestId`, método, rota (sem query) e status, para correlacionar com os logs da API.
+- `LimiteErro` (ErrorBoundary) envolve a navegação, dentro do `ProvedorTema` (a tela de erro usa o tema): erro de renderização vai ao Sentry e mostra `TelaErroFatal` ("Recarregar" → `Updates.reloadAsync()`). O layout raiz é exportado com `Sentry.wrap` e registra a navegação (rotas do Expo Router como nome de transação).
 - Source maps: plugin `@sentry/react-native/expo` no `app.config.ts` e `getSentryExpoConfig` no `metro.config.js`; o `SENTRY_AUTH_TOKEN` fica só no EAS (#93).

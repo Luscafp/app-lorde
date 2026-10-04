@@ -7,12 +7,14 @@ import { paleta } from '@/features/atletica'
 type Props = {
   mensagem?: string
   icone?: ComponentProps<typeof Ionicons>['name']
+  tituloBotao?: string
   onTentarNovamente: () => void
 }
 
 export function EstadoErro({
   mensagem = 'Não foi possível carregar.',
   icone = 'alert-circle-outline',
+  tituloBotao = 'Tentar novamente',
   onTentarNovamente,
 }: Props) {
   return (
@@ -21,7 +23,7 @@ export function EstadoErro({
       <Texto className="text-center" accessibilityLiveRegion="polite">
         {mensagem}
       </Texto>
-      <Botao titulo="Tentar novamente" variante="secundaria" onPress={onTentarNovamente} />
+      <Botao titulo={tituloBotao} variante="secundaria" onPress={onTentarNovamente} />
     </View>
   )
 }

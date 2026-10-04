@@ -1,8 +1,12 @@
+import * as Sentry from '@sentry/react-native'
 import { onlineManager } from '@tanstack/react-query'
 import { act, fireEvent, screen } from '@testing-library/react-native'
+import * as Updates from 'expo-updates'
 import { Text } from 'react-native'
-import { EstadoErro, EstadoVazio, FaixaOffline, TelaDados } from '@/components/estado'
+import { EstadoErro, EstadoVazio, FaixaOffline, LimiteErro, TelaDados } from '@/components/estado'
 import { renderizar } from '../test-utils/renderizar'
+
+jest.mock('expo-updates', () => ({ reloadAsync: jest.fn(() => Promise.resolve()) }))
 
 const ATUALIZADO_EM = Date.parse('2026-10-01T22:00:00.000Z')
 
@@ -114,5 +118,40 @@ describe('TelaDados', () => {
     expect(screen.getByText(/Modo offline/)).toBeOnTheScreen()
     await act(() => onlineManager.setOnline(true))
     expect(screen.queryByText(/Modo offline/)).toBeNull()
+  })
+})
+
+describe('LimiteErro', () => {
+  function Quebra(): never {
+    throw new Error('erro de renderização')
+  }
+
+  beforeEach(() => {
+    jest.mocked(Sentry.captureException).mockClear()
+    jest.spyOn(console, 'error').mockImplementation(() => undefined)
+  })
+  afterEach(() => jest.mocked(console.error).mockRestore())
+
+  it('mostra TelaErroFatal e envia o erro ao Sentry', async () => {
+    await renderizar(
+      <LimiteErro>
+        <Quebra />
+      </LimiteErro>,
+    )
+    expect(screen.getByText('Algo deu errado. Tente reabrir o aplicativo.')).toBeOnTheScreen()
+    expect(Sentry.captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'erro de renderização' }),
+      expect.anything(),
+    )
+  })
+
+  it('"Recarregar" chama Updates.reloadAsync', async () => {
+    await renderizar(
+      <LimiteErro>
+        <Quebra />
+      </LimiteErro>,
+    )
+    await fireEvent.press(screen.getByRole('button', { name: 'Recarregar' }))
+    expect(Updates.reloadAsync).toHaveBeenCalled()
   })
 })

@@ -2,7 +2,7 @@ import { Papel, type RespostaSessao } from '@atletica/shared'
 import * as Sentry from '@sentry/react-native'
 import * as SecureStore from 'expo-secure-store'
 import { toast } from '@/components/ui/toast'
-import { api, ApiErro, definirRegistrador } from '@/infra/api/cliente'
+import { api, ApiErro } from '@/infra/api/cliente'
 import { MENSAGEM_CONTA_DESATIVADA, MENSAGEM_SESSAO_EXPIRADA } from '@/infra/api/renovar-sessao'
 import { CHAVE_ACCESS_TOKEN, CHAVE_REFRESH_TOKEN, useSessao } from '@/infra/sessao/store'
 
@@ -13,7 +13,6 @@ jest.mock('@/components/ui/toast', () => ({
 const API = 'http://localhost:3000/api/v1'
 const itensSeguros = (SecureStore as unknown as { __itens: Map<string, string> }).__itens
 const fetchMock = jest.fn<Promise<Response>, [string, RequestInit?]>()
-const registrador = jest.fn()
 
 const usuario = {
   id: '0b0f5c0e-6a43-4c55-9d3a-0d7f8d6c4f11',
@@ -82,9 +81,8 @@ beforeEach(async () => {
   global.fetch = fetchMock as unknown as typeof fetch
   fetchMock.mockReset()
   jest.mocked(toast.erro).mockClear()
-  registrador.mockClear()
   jest.mocked(Sentry.addBreadcrumb).mockClear()
-  definirRegistrador(registrador)
+  jest.mocked(Sentry.captureMessage).mockClear()
   itensSeguros.clear()
   await useSessao.getState().iniciarSessao({
     accessToken: 'velho',
@@ -186,6 +184,12 @@ describe('requisição', () => {
   it('4xx não registra breadcrumb', async () => {
     fetchMock.mockResolvedValue(erro(404, 'NAO_ENCONTRADO'))
     await capturar(api.get('/eventos/1'))
+    expect(Sentry.addBreadcrumb).not.toHaveBeenCalled()
+  })
+
+  it('5xx fora da API não registra breadcrumb', async () => {
+    fetchMock.mockResolvedValue(resposta(500))
+    await capturar(api.get('https://bucket.exemplo.com/foto.jpg?X-Amz-Signature=abc'))
     expect(Sentry.addBreadcrumb).not.toHaveBeenCalled()
   })
 
@@ -312,6 +316,7 @@ describe('renovação da sessão', () => {
   })
 
   it('refaz uma única vez: o segundo 401 falha sem novo refresh, sem logout e é registrado', async () => {
+    const aviso = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
     fetchMock.mockImplementation((url) =>
       Promise.resolve(
         url.endsWith('/auth/refresh')
@@ -326,10 +331,14 @@ describe('renovação da sessão', () => {
     expect(chamadasDeRefresh()).toHaveLength(1)
     expect(chamadas()).toHaveLength(3)
     expect(useSessao.getState().status).toBe('autenticado')
-    expect(registrador).toHaveBeenCalledWith(
-      '401 depois da renovação da sessão',
-      expect.objectContaining({ caminho: '/eventos', code: 'UNAUTHENTICATED' }),
-    )
+    const [mensagem, contexto] = jest.mocked(Sentry.captureMessage).mock.calls[0] ?? []
+    expect(mensagem).toBe('401 depois da renovação da sessão')
+    expect(contexto).toMatchObject({
+      level: 'warning',
+      extra: { caminho: '/eventos', code: 'UNAUTHENTICATED' },
+    })
+    expect(aviso).toHaveBeenCalled()
+    aviso.mockRestore()
   })
 
   it('400 SENHA_INCORRETA não dispara refresh', async () => {

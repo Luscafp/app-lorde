@@ -83,7 +83,9 @@ function erroDaResposta(status: number, corpo: CorpoErro | null, requestId: stri
 
 /** Correlação app ↔ API: só `requestId`, método, rota (sem query) e status. */
 function registrarErroServidor(url: string, metodo: Metodo, status: number, requestId: string) {
-  const rota = (caminhoNaApi(url) ?? url).replace(/[?#].*$/, '')
+  const caminho = caminhoNaApi(url)
+  if (caminho === null) return
+  const rota = caminho.replace(/[?#].*$/, '')
   Sentry.addBreadcrumb({
     category: 'http',
     type: 'http',
