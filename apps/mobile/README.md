@@ -185,3 +185,62 @@ const { online, mutate, isPending } = useAcaoOnline({
   onPress={() => void form.handleSubmit((dados) => mutate(dados))()}
 />
 ```
+
+## Imagens e uploads — `src/components/imagem`, `src/features/uploads`
+
+### `Imagem` — exibição com cache
+
+**Toda imagem remota** passa por `Imagem` (convenções §10.8, RNF04): `expo-image` com `cachePolicy="memory-disk"`, transição de 150 ms e fundo neutro enquanto carrega. Sem URL ou com erro ao carregar, mostra o fallback: as iniciais de `nome` (avatar de perfil) ou um ícone neutro.
+
+```tsx
+<Imagem uri={usuario.fotoUrl} nome={usuario.nome} rotulo="Foto de perfil" className="h-12 w-12 rounded-full" />
+<Imagem uri={noticia.imagemCapaUrl} className="aspect-video w-full rounded-xl" />
+```
+
+### `SeletorImagem` — escolher e enviar num formulário
+
+| Prop               | Descrição                                                                 |
+| ------------------ | ------------------------------------------------------------------------- |
+| `finalidade`       | `PERFIL` (recorte 1:1), `NOTICIA` ou `BANNER` (16:9)                      |
+| `valorAtualUrl?`   | URL da imagem já gravada (`fotoUrl`, `imagemCapaUrl`...)                  |
+| `onChange`         | recebe a `key` do upload concluído, ou `null` ao tocar em "Remover"       |
+| `formato`          | `circulo` ou `retangulo`                                                  |
+| `desabilitado?`    | bloqueia a seleção                                                        |
+| `podeRemover?`     | mostra "Remover" quando há imagem (padrão `true`)                         |
+| `rotulo?`, `nome?` | rótulo acessível e iniciais do fallback                                   |
+| `aoMudarEnviando?` | `true` enquanto comprime/envia: o formulário mantém o salvar desabilitado |
+
+O valor do campo no React Hook Form é a **`key`**; o formulário a envia no `PATCH`/`POST` do recurso (ex.: `PUT /me/foto { fotoKey }`).
+
+```tsx
+const [enviandoFoto, setEnviandoFoto] = useState(false)
+
+<Controller
+  control={form.control}
+  name="fotoKey"
+  render={({ field }) => (
+    <SeletorImagem
+      finalidade="PERFIL"
+      formato="circulo"
+      valorAtualUrl={usuario.fotoUrl}
+      nome={usuario.nome}
+      onChange={field.onChange}
+      aoMudarEnviando={setEnviandoFoto}
+    />
+  )}
+/>
+<Botao titulo="Salvar" disabled={!online || isPending || enviandoFoto} ... />
+```
+
+Estados: "Preparando imagem…" (comprimindo), barra de progresso (enviando), pré-visualização local desde a escolha, erro com "Tentar novamente" (pede **novo** presign e reenvia a mesma imagem comprimida). Offline fica desabilitado com "Disponível apenas online". Permissão negada mostra o toast "Permita o acesso às fotos nas configurações do Android." — tocar nele abre as configurações.
+
+### `useUploadImagem(finalidade)` — o fluxo
+
+`{ selecionar('galeria' | 'camera'), estado, progresso, key, uriLocal, erro, podeTentarNovamente, tentarNovamente, limpar }`, `estado` ∈ `ocioso | selecionando | comprimindo | enviando | concluido | erro`.
+
+1. Permissão e seleção com recorte (`expo-image-picker`).
+2. `comprimir(uri)`: JPEG com no máximo 1080 px de largura, qualidade 0,8 → 0,6 → 0,4 até ≤ 5 MB; senão "Imagem muito grande. Escolha outra imagem."; imagem não decodificável → "Formato de imagem não suportado.".
+3. `pedirPresign({ finalidade, contentType: 'image/jpeg', tamanhoBytes })` → `POST /uploads/presign` (cliente HTTP, validado pelo `presignPedidoSchema` do shared).
+4. `PUT` direto ao R2 (`createUploadTask` de `expo-file-system/legacy`, `BINARY_CONTENT`) com `Content-Type`/`Content-Length` iguais aos do presign e **sem** `Authorization`.
+
+Textos de permissão de fotos e câmera: plugin `expo-image-picker` no `app.config.ts`.
