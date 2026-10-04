@@ -3,8 +3,10 @@ import {
   ConflictException,
   ForbiddenException,
   HttpException,
+  InternalServerErrorException,
   NotFoundException,
   PayloadTooLargeException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common'
 import { ZodValidationException } from 'nestjs-zod'
@@ -99,6 +101,19 @@ describe('mapearExcecao', () => {
     expect(mapearExcecao(new HttpException('teapot', 418))).toMatchObject({
       statusCode: 418,
       code: 'HTTP_418',
+    })
+  })
+
+  it('HttpException 5xx sem code → INTERNAL_ERROR sem a mensagem original', () => {
+    expect(mapearExcecao(new InternalServerErrorException('segredo interno'))).toEqual({
+      statusCode: 500,
+      code: 'INTERNAL_ERROR',
+      message: MENSAGEM_ERRO_INTERNO,
+      details: [],
+    })
+    expect(mapearExcecao(new ServiceUnavailableException())).toMatchObject({
+      statusCode: 503,
+      code: 'INTERNAL_ERROR',
     })
   })
 

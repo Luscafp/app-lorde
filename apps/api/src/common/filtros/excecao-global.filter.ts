@@ -30,7 +30,9 @@ const ERROS_BODY_PARSER: Record<string, number> = {
   'entity.parse.failed': HttpStatus.BAD_REQUEST,
 }
 
+/** 5xx sem code próprio nunca expõe detalhe: sai como `INTERNAL_ERROR` (convenções §4.1). */
 function respostaPadrao(statusCode: number): RespostaErro {
+  if (statusCode >= 500) return respostaErroInterno(statusCode)
   const padrao = PADRAO_POR_STATUS[statusCode]
   return {
     statusCode,
@@ -58,6 +60,7 @@ function mapearHttpException(excecao: HttpException): RespostaErro {
   const padrao = respostaPadrao(statusCode)
   const corpo = excecao.getResponse()
   if (!ehObjeto(corpo) || 'statusCode' in corpo) return padrao
+  if (statusCode >= 500 && typeof corpo.code !== 'string') return padrao
 
   return {
     statusCode,
@@ -80,12 +83,11 @@ export function mapearExcecao(excecao: unknown): RespostaErro {
     const statusCode = ERROS_BODY_PARSER[excecao.type]
     if (statusCode) return respostaPadrao(statusCode)
   }
-  return {
-    statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-    code: 'INTERNAL_ERROR',
-    message: MENSAGEM_ERRO_INTERNO,
-    details: [],
-  }
+  return respostaErroInterno(HttpStatus.INTERNAL_SERVER_ERROR)
+}
+
+function respostaErroInterno(statusCode: number): RespostaErro {
+  return { statusCode, code: 'INTERNAL_ERROR', message: MENSAGEM_ERRO_INTERNO, details: [] }
 }
 
 /** Filtro global: toda resposta de erro sai no formato `{ statusCode, code, message, details }`. */
