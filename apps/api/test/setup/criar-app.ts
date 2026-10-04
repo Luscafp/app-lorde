@@ -22,8 +22,7 @@ export interface AppDeTeste {
 /**
  * Sobe o `AppModule` real com a mesma configuração do `main.ts` (`configurarApp`: prefixo
  * `api/v1`, helmet, limite de corpo, Swagger) — o filtro global e o `ZodValidationPipe` vêm do
- * próprio `AppModule`. Feche no `afterAll` com `await app.close()`.
- * Esvazia o banco e cria a atlética padrão antes de subir (`prepararAtleticaPadrao`, #50).
+ * próprio `AppModule`, e a atlética padrão de `prepararAtleticaPadrao`. Feche com `app.close()`.
  */
 export async function criarApp(opcoes: OpcoesCriarApp = {}): Promise<AppDeTeste> {
   await prepararAtleticaPadrao()

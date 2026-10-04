@@ -1,5 +1,7 @@
+import { ErroConfiguracao } from '../../config/env.schema'
+
 /** Zero ou mais de uma atlética com `usaAplicativo = true`: a API não sobe (convenções §6). */
-export class ErroAtleticaPadrao extends Error {
+export class ErroAtleticaPadrao extends ErroConfiguracao {
   override readonly name = 'ErroAtleticaPadrao'
 
   constructor(readonly nomes: string[]) {

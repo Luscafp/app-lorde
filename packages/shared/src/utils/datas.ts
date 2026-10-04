@@ -24,10 +24,28 @@ const formatador = new Intl.DateTimeFormat('en-US', {
 
 const DATA_LOCAL = /^(\d{4})-(\d{2})-(\d{2})$/
 const HORA_LOCAL = /^([01]\d|2[0-3]):([0-5]\d)$/
+const INSTANTE_ISO =
+  /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/
+
+function diaExiste(ano: string, mes: string, dia: string): boolean {
+  const data = new Date(Date.UTC(Number(ano), Number(mes) - 1, Number(dia)))
+  return (
+    data.getUTCFullYear() === Number(ano) &&
+    data.getUTCMonth() === Number(mes) - 1 &&
+    data.getUTCDate() === Number(dia)
+  )
+}
+
+function isoValido(iso: string): boolean {
+  const [, ano, mes, dia] = INSTANTE_ISO.exec(iso) ?? []
+  return !!ano && !!mes && !!dia && diaExiste(ano, mes, dia)
+}
 
 function paraDate(instante: Instante): Date {
   const data = new Date(instante)
-  if (Number.isNaN(data.getTime())) throw new Error(`Data inválida: ${String(instante)}`)
+  if (Number.isNaN(data.getTime()) || (typeof instante === 'string' && !isoValido(instante))) {
+    throw new Error(`Data inválida: ${String(instante)}`)
+  }
   return data
 }
 
@@ -78,13 +96,9 @@ export function localParaUtc(data: string, hora: string): Date {
   const [, ano, mes, dia] = DATA_LOCAL.exec(data) ?? []
   const [, h, min] = HORA_LOCAL.exec(hora) ?? []
   if (!ano || !mes || !dia || !h || !min) throw new Error(`Data ou hora inválida: ${data} ${hora}`)
+  if (!diaExiste(ano, mes, dia)) throw new Error(`Data inválida: ${data}`)
 
   const relogio = Date.UTC(Number(ano), Number(mes) - 1, Number(dia), Number(h), Number(min))
-  const calendario = new Date(relogio)
-  if (calendario.getUTCDate() !== Number(dia) || calendario.getUTCMonth() !== Number(mes) - 1) {
-    throw new Error(`Data inválida: ${data}`)
-  }
-
   const estimativa = relogio - deslocamento(relogio)
   return new Date(relogio - deslocamento(estimativa))
 }

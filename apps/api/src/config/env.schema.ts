@@ -54,9 +54,9 @@ export const envSchema = z
 
 export type Env = z.infer<typeof envSchema>
 
-/** Erro de configuração: a mensagem lista as variáveis com problema, nunca os valores. */
+/** Erro de configuração (env ou dados exigidos na subida): o `main.ts` loga só a mensagem, sem valores. */
 export class ErroConfiguracao extends Error {
-  override readonly name = 'ErroConfiguracao'
+  override readonly name: string = 'ErroConfiguracao'
 }
 
 export function validarEnv(config: Record<string, unknown>): Env {

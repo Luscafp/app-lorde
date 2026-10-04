@@ -7,7 +7,19 @@ import {
   localParaUtc,
 } from './datas'
 
-const INVALIDOS = ['', 'abc', '2026-13-45T25:00:00Z', Number.NaN, new Date('x')]
+const INVALIDOS = [
+  '',
+  'abc',
+  '2026-13-45T25:00:00Z',
+  '2026-02-30T10:00:00Z',
+  '2026-04-31T00:00:00Z',
+  '2026-10-01T24:00:00Z',
+  '2026-10-01',
+  '2026-10-01T10:00:00',
+  'October 1, 2026',
+  Number.NaN,
+  new Date('x'),
+]
 
 describe('FUSO_PADRAO', () => {
   it('é America/Fortaleza', () => {
@@ -29,6 +41,10 @@ describe('formatarDataHora', () => {
     const instante = Date.parse('2026-10-01T22:00:00.000Z')
     expect(formatarDataHora(instante)).toBe('01/10/2026 19:00')
     expect(formatarDataHora(new Date(instante))).toBe('01/10/2026 19:00')
+  })
+
+  it('aceita ISO com offset explícito e sem segundos', () => {
+    expect(formatarDataHora('2026-10-01T22:00+00:00')).toBe('01/10/2026 19:00')
   })
 
   it.each(INVALIDOS)('lança erro para %p', (valor) => {

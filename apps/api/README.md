@@ -227,7 +227,7 @@ Em **produção** o seed é executado uma única vez, por uma pessoa, na implant
 
 ## Atlética padrão (`src/modules/atleticas`)
 
-Enquanto só uma atlética usa o app (seção 8.4), a atlética padrão é a **única** `Atletica` com `usaAplicativo = true`. O `AtleticaPadraoService` a resolve no `onModuleInit` e guarda o `id` em memória; com zero ou mais de uma, a API **não sobe** e o log explica o motivo (`ErroAtleticaPadrao`, convenções §6).
+Enquanto só uma atlética usa o app (seção 8.4), a atlética padrão é a **única** `Atletica` com `usaAplicativo = true`. O `AtleticaPadraoService` a resolve no `onModuleInit` e guarda o `id` em memória; com zero ou mais de uma, a API **não sobe** e o log explica o motivo (`ErroAtleticaPadrao`, convenções §6). A consulta usa `prisma.db`: `Atletica` não tem escopo, e `semEscopo` é proibido em `modules/atleticas` (convenções §3).
 
 Importe `AtleticasModule` e injete `AtleticaPadraoService`:
 

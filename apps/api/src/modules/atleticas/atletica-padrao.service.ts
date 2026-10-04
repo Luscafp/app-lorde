@@ -3,18 +3,9 @@ import { Injectable, type OnModuleInit } from '@nestjs/common'
 import { PrismaService } from '../../infra/prisma/prisma.service'
 import { ErroAtleticaPadrao } from './erros'
 
-const CAMPOS_PUBLICOS = {
-  id: true,
-  nome: true,
-  sigla: true,
-  curso: true,
-  logoUrl: true,
-  corPrimaria: true,
-  corSecundaria: true,
-  contatoEmail: true,
-  contatoInstagram: true,
-  contatoWhatsapp: true,
-} as const
+const CAMPOS_PUBLICOS = Object.fromEntries(
+  Object.keys(atleticaPublicaSchema.shape).map((campo) => [campo, true]),
+) as Record<keyof AtleticaPublica, true>
 
 /**
  * A única `Atletica` com `usaAplicativo = true` (épico #6 §7), resolvida na inicialização.
@@ -32,8 +23,8 @@ export class AtleticaPadraoService implements OnModuleInit {
       select: { id: true, nome: true },
       orderBy: { nome: 'asc' },
     })
-    const [unica] = atleticas
-    if (atleticas.length !== 1 || !unica) throw new ErroAtleticaPadrao(atleticas.map((a) => a.nome))
+    const [unica, ...outras] = atleticas
+    if (!unica || outras.length > 0) throw new ErroAtleticaPadrao(atleticas.map((a) => a.nome))
     this.atleticaId = unica.id
   }
 

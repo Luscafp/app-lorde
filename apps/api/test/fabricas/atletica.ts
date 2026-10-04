@@ -22,10 +22,7 @@ export async function criarAtletica(dados: DadosAtletica = {}): Promise<Atletica
   })
 }
 
-/**
- * Esvazia o banco e deixa uma única atlética com `usaAplicativo = true`, exigida para a API
- * subir (`AtleticaPadraoService`, #50). O `limparBanco` do `beforeEach` a apaga depois.
- */
+/** Esvazia o banco e deixa só a atlética padrão, exigida para a API subir (#50). */
 export async function prepararAtleticaPadrao(dados: DadosAtletica = {}): Promise<Atletica> {
   await limparBanco()
   return criarAtletica(dados)

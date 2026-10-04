@@ -7,7 +7,6 @@ import { Logger } from 'nestjs-pino'
 import { AppModule } from './app.module'
 import { ErroConfiguracao, type Env } from './config/env.schema'
 import { configurarApp, PREFIXO_API } from './configurar-app'
-import { ErroAtleticaPadrao } from './modules/atleticas/erros'
 
 async function bootstrap(): Promise<void> {
   // Env inválida rejeita o ConfigModule.forRoot (assíncrono) e cai no catch abaixo.
@@ -25,11 +24,7 @@ async function bootstrap(): Promise<void> {
 
 bootstrap().catch((erro: unknown) => {
   const texto =
-    erro instanceof ErroConfiguracao || erro instanceof ErroAtleticaPadrao
-      ? erro.message
-      : erro instanceof Error
-        ? erro.stack
-        : erro
+    erro instanceof ErroConfiguracao ? erro.message : erro instanceof Error ? erro.stack : erro
   process.stderr.write(`Falha ao iniciar a API: ${String(texto)}\n`)
   process.exit(1)
 })

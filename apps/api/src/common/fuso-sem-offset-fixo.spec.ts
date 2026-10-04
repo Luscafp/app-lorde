@@ -10,6 +10,7 @@ const PASTAS = [
   'packages/shared/src',
 ]
 const IGNORADAS = ['generated', 'node_modules']
+// Montado em partes para este arquivo não acusar a si mesmo.
 const OFFSET_FIXO = new RegExp(['-03', '00'].join(':'))
 
 function arquivosTs(pasta: string): string[] {

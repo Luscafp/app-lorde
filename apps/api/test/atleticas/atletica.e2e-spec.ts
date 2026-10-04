@@ -96,7 +96,7 @@ describe('GET /atletica (#50)', () => {
     await prismaTeste.atletica.update({ where: { id: padraoId }, data: { corPrimaria: '#000000' } })
     const depois = await request(contexto.http)
       .get(ROTA)
-      .set('If-None-Match', antes.headers.etag as string)
+      .set('If-None-Match', antes.headers.etag ?? '')
 
     expect(depois.status).toBe(200)
     expect(depois.headers.etag).not.toBe(antes.headers.etag)
