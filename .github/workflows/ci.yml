@@ -23,10 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # o gitleaks varre os commits do PR
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: filtro
         with:
           filters: .github/filtros-ci.yml
@@ -52,7 +52,7 @@ jobs:
       # Roda sempre, inclusive em PR só de docs.
       - name: Segredos (gitleaks)
         if: ${{ !cancelled() }}
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: false
@@ -74,8 +74,8 @@ jobs:
       DATABASE_URL: postgresql://atletica:atletica@localhost:5432/atletica_test
       SHADOW_DATABASE_URL: postgresql://atletica:atletica@localhost:5432/shadow
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filtro
         with:
           filters: .github/filtros-ci.yml
@@ -120,8 +120,8 @@ jobs:
       LOG_LEVEL: silent
       JWT_ACCESS_SECRET: ci-only-secret-with-at-least-32-characters
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filtro
         with:
           filters: .github/filtros-ci.yml
@@ -141,7 +141,7 @@ jobs:
         run: node .github/scripts/resumo-cobertura.mjs apps/api/coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY"
       - name: Relatório de cobertura
         if: ${{ !cancelled() && steps.filtro.outputs.api == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cobertura-api
           path: apps/api/coverage/lcov-report
@@ -152,8 +152,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filtro
         with:
           filters: .github/filtros-ci.yml
@@ -173,8 +173,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filtro
         with:
           filters: .github/filtros-ci.yml
@@ -188,8 +188,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filtro
         with:
           filters: .github/filtros-ci.yml
