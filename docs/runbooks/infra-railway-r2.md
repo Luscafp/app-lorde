@@ -2,7 +2,7 @@
 
 Roteiro de provisionamento da infraestrutura da API (épico #4). É executado uma vez pelo responsável humano na **#92**; o código que ele habilita veio da #46 (Dockerfile, `/health`) e da #47 (workflows, scripts, `apps/api/railway.json`). Nenhum segredo vai para o repositório: os valores ficam na Railway, no GitHub e no cofre de senhas.
 
-Titular das contas: decisão pendente na #97 (recomendado: conta institucional da atlética com o desenvolvedor como membro). Registre ao final o inventário de contas e titulares.
+Titular das contas: decisão pendente na #97 (recomendado: conta institucional da atlética com o desenvolvedor como membro). Registre o inventário de contas e titulares na seção 7.
 
 ## Visão geral
 
@@ -27,7 +27,7 @@ restore-test.yml dia 1º 06:00: último backup de prod → Postgres efêmero →
 
 1. Crie **um** projeto (ex.: `atletica`) com dois ambientes: `homologacao` e `producao` (renomeie o `production` padrão). Os nomes precisam ser exatamente esses: o workflow usa `--environment homologacao|producao`.
 2. Em cada ambiente:
-   - **PostgreSQL** gerenciado, **major 16** (a mesma do compose, da CI e do `PG_MAJOR` dos workflows de backup). Se a Railway só oferecer outra major, atualize juntos `PG_MAJOR` e a imagem `postgres:` de `backup-db.yml`/`restore-test.yml`.
+   - **PostgreSQL** gerenciado, **major 16** (a mesma do compose, da CI e do `PG_MAJOR` dos workflows de backup). Se a Railway só oferecer outra major, troque o `default` de `versao-postgres` em `.github/actions/preparar-backup/action.yml`: ele vale para o cliente do backup e para o Postgres efêmero do `restore-test.yml`.
    - Serviço **`api`** (nome exato) criado como _Empty Service_, **sem conectar o repositório do GitHub**. O deploy é feito só pelo `railway up` do workflow; com o repositório conectado, o autodeploy nativo faria deploy duplo e sem aprovação. Se o serviço já estiver conectado, desconecte em _Settings → Source_.
 3. No serviço `api` de cada ambiente, em _Settings → Config-as-code_, aponte o arquivo para **`/apps/api/railway.json`**. Ele define:
    - build pelo `apps/api/Dockerfile` (contexto = raiz do repositório enviada pelo `railway up`);
@@ -59,7 +59,7 @@ Cadastre em _Variables_ de cada ambiente. Segredos **diferentes** por ambiente: 
 - `PORT` é injetada pela Railway; não cadastre.
 - Gere segredos com `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`.
 - A lista completa e as regras de validação estão em `apps/api/README.md` (Variáveis de ambiente). A API não sobe com variável faltando.
-- `GIT_COMMIT_SHA` é variável do serviço porque a Railway passa variáveis como _build args_ ao Dockerfile (`ARG GIT_COMMIT_SHA`). O workflow faz `railway variables --set GIT_COMMIT_SHA=<sha> --skip-deploys` e depois `railway up`.
+- `GIT_COMMIT_SHA` é variável do serviço porque a Railway passa variáveis como _build args_ ao Dockerfile (`ARG GIT_COMMIT_SHA`). O workflow faz `railway variables --set GIT_COMMIT_SHA=<sha> --skip-deploys` e depois `railway up`; se o deploy falhar, devolve o valor anterior.
 
 ### 1.3 Tokens da Railway
 
@@ -184,3 +184,13 @@ Troca da chave: gere um par novo, atualize os dois segredos e os cofres e **mant
 ## 6. Migração para outro host
 
 A imagem de `apps/api/Dockerfile` roda em qualquer host com Docker (ex.: servidor do NCA, 8.5). Precisa das variáveis da tabela 1.2, de rodar `node node_modules/prisma/build/index.js migrate deploy` antes de cada nova versão e de um proxy TLS na frente (ajuste `SALTOS_PROXY_CONFIAVEIS` se houver mais de um). O `deploy-api.yml` é específico da Railway; os workflows de backup só dependem da URL do banco.
+
+## 7. Inventário de contas e titulares
+
+| Serviço              | Conta (e-mail) | Titular | Membros com acesso | Cofre da credencial |
+| -------------------- | -------------- | ------- | ------------------ | ------------------- |
+| Railway              |                |         |                    |                     |
+| Cloudflare (R2)      |                |         |                    |                     |
+| GitHub (organização) |                |         |                    |                     |
+| Domínio / DNS        |                |         |                    |                     |
+| Chave privada `age`  | —              |         |                    |                     |

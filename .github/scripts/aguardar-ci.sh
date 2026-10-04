@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Aguarda a CI (ci.yml) do push do commit terminar e falha se não estiver verde (#47).
+# Aguarda a CI (ci.yml) do push do commit terminar e falha se não estiver verde.
 # Uso: aguardar-ci.sh <commit>. Env: GH_TOKEN, GITHUB_REPOSITORY e, opcional, INTERVALO (s, padrão 30).
 set -euo pipefail
 

@@ -160,7 +160,7 @@ Em _Settings → Branches_ (ou _Rulesets_), para a `main`:
 | ------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `deploy-api.yml`   | push na `main` (e manual), só depois da CI do commit verde  | `railway up` em homologação e espera o `/health` com o commit; produção só após aprovação no environment `producao`. Migrations no pre-deploy da Railway (`apps/api/railway.json`) |
 | `backup-db.yml`    | diário às 03:00 (produção) e domingo às 04:00 (homologação) | `pg_dump` criptografado com `age` no bucket privado `atletica-backups` do R2 (retenção de 30 dias)                                                                                 |
-| `restore-test.yml` | dia 1º às 06:00 (e manual)                                  | restaura o backup de produção mais recente num Postgres efêmero e roda consultas de sanidade                                                                                       |
+| `restore-test.yml` | dia 1º às 06:00 (e manual)                                  | restaura o backup de produção mais recente num Postgres efêmero e roda consultas de sanidade (migration do último deploy de produção)                                              |
 
 A lógica de backup fica em `scripts/backup/` (com teste local em `scripts/backup/README.md`). Provisionamento, variáveis e segredos: `docs/runbooks/infra-railway-r2.md`; restauração manual: `docs/runbooks/restauracao-banco.md`; seed de produção: `docs/runbooks/seed-producao.md`.
 

@@ -5,10 +5,10 @@ inputs:
   ambiente:
     description: Ambiente da Railway (homologacao | producao).
     required: true
-  railway-token:
+  token-railway:
     description: Token de projeto da Railway com escopo só nesse ambiente.
     required: true
-  api-url:
+  url-api:
     description: URL base da API no ambiente (sem /api/v1).
     required: true
 
@@ -18,27 +18,32 @@ runs:
     - name: Railway CLI
       shell: bash
       run: npm install --global --no-fund --no-audit @railway/cli@4
-    # Variável do serviço vira build arg do Dockerfile: é o "commit" que o /health devolve.
-    - name: GIT_COMMIT_SHA
-      shell: bash
-      env:
-        RAILWAY_TOKEN: ${{ inputs.railway-token }}
-        AMBIENTE: ${{ inputs.ambiente }}
-      run: >-
-        railway variables --service api --environment "$AMBIENTE"
-        --set "GIT_COMMIT_SHA=$GITHUB_SHA" --skip-deploys
+    # GIT_COMMIT_SHA do serviço vira build arg do Dockerfile: é o "commit" que o /health devolve.
     - name: Deploy
+      id: deploy
       shell: bash
       env:
-        RAILWAY_TOKEN: ${{ inputs.railway-token }}
+        RAILWAY_TOKEN: ${{ inputs.token-railway }}
         AMBIENTE: ${{ inputs.ambiente }}
-      run: railway up --service api --environment "$AMBIENTE" --detach
+      run: |
+        anterior=$(railway variables --service api --environment "$AMBIENTE" --kv | sed -n 's/^GIT_COMMIT_SHA=//p')
+        echo "commit-anterior=$anterior" >>"$GITHUB_OUTPUT"
+        railway variables --service api --environment "$AMBIENTE" --set "GIT_COMMIT_SHA=$GITHUB_SHA" --skip-deploys
+        railway up --service api --environment "$AMBIENTE" --detach
     - name: Aguardar /health
       shell: bash
       env:
-        API_URL: ${{ inputs.api-url }}
+        API_URL: ${{ inputs.url-api }}
         AMBIENTE: ${{ inputs.ambiente }}
       run: |
         [ -n "$API_URL" ] || { echo "::error::variável API_URL do environment não definida"; exit 1; }
         .github/scripts/aguardar-health.sh "$API_URL" "$GITHUB_SHA"
         echo "Deploy de \`${GITHUB_SHA:0:7}\` em **$AMBIENTE**: $API_URL/api/v1/health" >>"$GITHUB_STEP_SUMMARY"
+    - name: Restaurar GIT_COMMIT_SHA anterior
+      if: ${{ failure() && steps.deploy.outputs.commit-anterior != '' }}
+      shell: bash
+      env:
+        RAILWAY_TOKEN: ${{ inputs.token-railway }}
+        AMBIENTE: ${{ inputs.ambiente }}
+        ANTERIOR: ${{ steps.deploy.outputs.commit-anterior }}
+      run: railway variables --service api --environment "$AMBIENTE" --set "GIT_COMMIT_SHA=$ANTERIOR" --skip-deploys

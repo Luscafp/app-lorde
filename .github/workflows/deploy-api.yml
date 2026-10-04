@@ -1,7 +1,5 @@
 name: Deploy da API
 
-# Homologação automática a cada push na main; produção depois de aprovada no environment
-# `producao`. Só a partir da main e só com a CI do commit verde. Runbook: docs/runbooks/infra-railway-r2.md.
 on:
   push:
     branches: [main]
@@ -42,8 +40,8 @@ jobs:
       - uses: ./.github/actions/deploy-railway
         with:
           ambiente: homologacao
-          railway-token: ${{ secrets.RAILWAY_TOKEN_HML }}
-          api-url: ${{ vars.API_URL }}
+          token-railway: ${{ secrets.RAILWAY_TOKEN_HML }}
+          url-api: ${{ vars.API_URL }}
 
   producao:
     needs: homologacao
@@ -60,5 +58,5 @@ jobs:
       - uses: ./.github/actions/deploy-railway
         with:
           ambiente: producao
-          railway-token: ${{ secrets.RAILWAY_TOKEN_PROD }}
-          api-url: ${{ vars.API_URL }}
+          token-railway: ${{ secrets.RAILWAY_TOKEN_PROD }}
+          url-api: ${{ vars.API_URL }}

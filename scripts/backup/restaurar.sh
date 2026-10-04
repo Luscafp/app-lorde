@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Descriptografa um backup .dump.age e o restaura num banco vazio (#47).
+# Descriptografa um backup .dump.age e o restaura num banco vazio.
 # Uso: scripts/backup/restaurar.sh <arquivo.dump.age>
 # Env: DATABASE_URL (banco de destino) e AGE_PRIVATE_KEY (conteúdo da chave privada age).
 # O dump descriptografado vai direto para o pg_restore, sem passar pelo disco.

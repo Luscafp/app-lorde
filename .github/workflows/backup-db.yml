@@ -1,8 +1,5 @@
 name: Backup do banco
 
-# pg_dump criptografado com age e enviado ao bucket privado atletica-backups (R2).
-# Produção diária em prod/, homologação semanal em hml/. Falha gera e-mail do GitHub aos
-# mantenedores. Runbook: docs/runbooks/infra-railway-r2.md.
 on:
   schedule:
     - cron: '0 6 * * *' # produção: todo dia, 03:00 em São Luís
@@ -18,33 +15,28 @@ on:
 permissions:
   contents: read
 
-env:
-  # Mesma major do Postgres da Railway.
-  PG_MAJOR: '16'
-  BUCKET: atletica-backups
-  AWS_DEFAULT_REGION: auto
-  AWS_REQUEST_CHECKSUM_CALCULATION: when_required
-  AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
-
 jobs:
   backup:
-    name: backup (${{ github.event.schedule == '0 7 * * 0' && 'homologacao' || inputs.ambiente || 'producao' }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      matrix:
+        ambiente:
+          [
+            "${{ github.event.schedule == '0 7 * * 0' && 'homologacao' || inputs.ambiente || 'producao' }}",
+          ]
     concurrency:
-      group: backup-db-${{ github.event.schedule == '0 7 * * 0' && 'homologacao' || inputs.ambiente || 'producao' }}
+      group: backup-db-${{ matrix.ambiente }}
       cancel-in-progress: false
     env:
-      PREFIXO: ${{ (github.event.schedule == '0 7 * * 0' || inputs.ambiente == 'homologacao') && 'hml' || 'prod' }}
+      PREFIXO: ${{ matrix.ambiente == 'homologacao' && 'hml' || 'prod' }}
     steps:
       - uses: actions/checkout@v7
-      - uses: ./.github/actions/ferramentas-backup
-        with:
-          versao-postgres: ${{ env.PG_MAJOR }}
+      - uses: ./.github/actions/preparar-backup
       - name: Dump e criptografia
         id: dump
         env:
-          DATABASE_URL: ${{ env.PREFIXO == 'hml' && secrets.DATABASE_URL_HOMOLOGACAO_BACKUP || secrets.DATABASE_URL_PRODUCAO_BACKUP }}
+          DATABASE_URL: ${{ matrix.ambiente == 'homologacao' && secrets.DATABASE_URL_HOMOLOGACAO_BACKUP || secrets.DATABASE_URL_PRODUCAO_BACKUP }}
           AGE_PUBLIC_KEY: ${{ secrets.AGE_PUBLIC_KEY }}
         run: |
           arquivo=$(scripts/backup/backup.sh "atletica-$PREFIXO" "$RUNNER_TEMP")

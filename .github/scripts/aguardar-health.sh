@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Aguarda o /health responder "ok" com o commit do deploy (#47).
+# Aguarda o /health responder "ok" com o commit do deploy.
 # Uso: aguardar-health.sh <url-base-da-api> <commit>
 # Env opcionais: TENTATIVAS (padrão 10) e INTERVALO (segundos entre tentativas, padrão 60).
 set -euo pipefail

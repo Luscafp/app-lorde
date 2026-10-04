@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Teste local dos scripts de backup e restauração, sem R2 (#47). Uso: scripts/backup/testar-local.sh
+# Teste local dos scripts de backup e restauração, sem R2. Uso: scripts/backup/testar-local.sh
 # Env: DATABASE_URL de um banco com as migrations e o seed aplicados, sem parâmetros na URL.
 # Cria e apaga bancos temporários no mesmo servidor e usa um par de chaves age descartável.
 set -euo pipefail
@@ -41,7 +41,7 @@ echo "3. restauração descriptografada num banco vazio e sanidade"
 DATABASE_URL="$restaurado" "$dir/restaurar.sh" "$arquivo"
 DATABASE_URL="$restaurado" "$dir/sanidade.sh"
 
-echo "4. dump abaixo de 10 kB faz o backup falhar"
+echo "4. backup abaixo de 10 kB falha"
 if DATABASE_URL="$vazio" "$dir/backup.sh" atletica-vazio "$tmp" >/dev/null 2>&1; then
   falhar "backup de banco vazio terminou com sucesso"
 fi

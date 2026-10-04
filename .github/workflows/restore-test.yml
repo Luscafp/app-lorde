@@ -1,48 +1,34 @@
 name: Teste de restauração
 
-# Restaura o backup de produção mais recente num Postgres efêmero do runner e roda as consultas
-# de sanidade (RNF10). A parte manual está em docs/runbooks/restauracao-banco.md.
 on:
   schedule:
     - cron: '0 9 1 * *' # dia 1º, 06:00 em São Luís (depois do backup diário)
   workflow_dispatch:
     inputs:
       migration-esperada:
-        description: Última migration esperada no backup (vazio = a mais recente do repositório)
+        description: Última migration esperada no backup (vazio = a do último deploy de produção)
         type: string
         required: false
 
 permissions:
+  actions: read
   contents: read
-
-env:
-  PG_MAJOR: '16'
-  BUCKET: atletica-backups
-  AWS_DEFAULT_REGION: auto
-  AWS_REQUEST_CHECKSUM_CALCULATION: when_required
-  AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
 
 jobs:
   restauracao:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    services:
-      postgres:
-        image: postgres:16 # mesma major de PG_MAJOR
-        env:
-          POSTGRES_USER: restauracao
-          POSTGRES_PASSWORD: restauracao
-          POSTGRES_DB: restauracao
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U restauracao" --health-interval 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://restauracao:restauracao@localhost:5432/restauracao
     steps:
       - uses: actions/checkout@v7
-      - uses: ./.github/actions/ferramentas-backup
-        with:
-          versao-postgres: ${{ env.PG_MAJOR }}
+      - uses: ./.github/actions/preparar-backup
+      - name: Postgres efêmero
+        run: |
+          docker run -d --name restauracao -p 5432:5432 -e POSTGRES_USER=restauracao \
+            -e POSTGRES_PASSWORD=restauracao -e POSTGRES_DB=restauracao "postgres:$PG_MAJOR"
+          for _ in $(seq 60); do pg_isready -q -d "$DATABASE_URL" && break; sleep 2; done
+          pg_isready -d "$DATABASE_URL"
       - name: Baixar o backup mais recente
         id: baixar
         env:
@@ -60,10 +46,23 @@ jobs:
           AGE_PRIVATE_KEY: ${{ secrets.AGE_PRIVATE_KEY_RESTORE_TEST }}
           NOME: ${{ steps.baixar.outputs.nome }}
         run: scripts/backup/restaurar.sh "$RUNNER_TEMP/$NOME"
+      - name: Migration em produção
+        id: producao
+        if: ${{ inputs.migration-esperada == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          commit=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow deploy-api.yml --branch main \
+            --status success --limit 1 --json headSha --jq '.[0].headSha // empty')
+          [ -n "$commit" ] || { echo "::error::Nenhum deploy de produção concluído."; exit 1; }
+          migration=$(gh api "repos/$GITHUB_REPOSITORY/contents/apps/api/prisma/migrations?ref=$commit" \
+            --jq '[.[] | select(.type == "dir") | .name] | sort | last')
+          echo "Produção em \`${commit:0:7}\`, última migration \`$migration\`." >>"$GITHUB_STEP_SUMMARY"
+          echo "migration=$migration" >>"$GITHUB_OUTPUT"
       - name: Consultas de sanidade
         id: sanidade
         env:
-          MIGRATION_ESPERADA: ${{ inputs.migration-esperada }}
+          MIGRATION_ESPERADA: ${{ inputs.migration-esperada || steps.producao.outputs.migration }}
         run: |
           echo "### Sanidade" >>"$GITHUB_STEP_SUMMARY"
           scripts/backup/sanidade.sh | tee -a "$GITHUB_STEP_SUMMARY"
