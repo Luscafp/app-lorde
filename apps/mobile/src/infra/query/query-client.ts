@@ -1,4 +1,4 @@
-import { MutationCache, QueryClient } from '@tanstack/react-query'
+import { MutationCache, QueryClient, type Mutation } from '@tanstack/react-query'
 import { toast } from '@/components/ui/toast'
 import {
   ApiErro,
@@ -21,9 +21,20 @@ export function mostrarErroDaMutacao(erro: unknown): void {
   toast.erro(erro instanceof ApiErro ? erro.message : MENSAGEM_ERRO_GENERICO)
 }
 
+/** `meta: { toastDeErro: false }`: a própria tela mostra o erro (ex.: abaixo do campo). */
+function aoFalharMutacao(
+  erro: unknown,
+  _variaveis: unknown,
+  _contexto: unknown,
+  mutacao: Mutation<unknown, unknown, unknown>,
+): void {
+  if (mutacao.meta?.toastDeErro === false) return
+  mostrarErroDaMutacao(erro)
+}
+
 export function criarQueryClient(): QueryClient {
   return new QueryClient({
-    mutationCache: new MutationCache({ onError: mostrarErroDaMutacao }),
+    mutationCache: new MutationCache({ onError: aoFalharMutacao }),
     defaultOptions: {
       queries: {
         staleTime: MINUTO,

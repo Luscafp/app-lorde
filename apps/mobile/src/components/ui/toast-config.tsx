@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons'
-import { Text, View } from 'react-native'
-import type { ToastConfig, ToastConfigParams } from 'react-native-toast-message'
+import { Pressable, Text, View } from 'react-native'
+import Toast, { type ToastConfig, type ToastConfigParams } from 'react-native-toast-message'
 import { paleta, useAtletica } from '@/features/atletica'
+import type { AcaoToast } from './toast'
 
 const APARENCIA = {
   sucesso: { icone: 'checkmark-circle', prefixo: 'Sucesso', cor: () => paleta.sucesso },
@@ -15,7 +16,9 @@ const APARENCIA = {
 
 type VarianteToast = keyof typeof APARENCIA
 
-function AvisoToast({ variante, text1 }: { variante: VarianteToast; text1?: string }) {
+type PropsAviso = { variante: VarianteToast; text1?: string; acao?: AcaoToast }
+
+function AvisoToast({ variante, text1, acao }: PropsAviso) {
   const { corPrimaria } = useAtletica()
   const { icone, prefixo, cor: corDaVariante } = APARENCIA[variante]
   const cor = corDaVariante(corPrimaria)
@@ -23,7 +26,8 @@ function AvisoToast({ variante, text1 }: { variante: VarianteToast; text1?: stri
   return (
     <View
       testID={`toast-${variante}`}
-      accessible
+      // Com ação, o botão precisa ser focável separadamente pelo leitor de tela.
+      accessible={!acao}
       accessibilityRole="alert"
       accessibilityLiveRegion="polite"
       accessibilityLabel={`${prefixo}: ${text1 ?? ''}`}
@@ -32,13 +36,32 @@ function AvisoToast({ variante, text1 }: { variante: VarianteToast; text1?: stri
     >
       <Ionicons name={icone} size={22} color={cor} />
       <Text className="flex-1 text-sm font-semibold text-texto">{text1}</Text>
+      {acao && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={acao.titulo}
+          onPress={() => {
+            Toast.hide()
+            acao.onPress()
+          }}
+          className="min-h-[44px] justify-center px-2"
+        >
+          <Text className="text-sm font-semibold" style={{ color: cor }}>
+            {acao.titulo}
+          </Text>
+        </Pressable>
+      )}
     </View>
   )
 }
 
+type PropsToast = { acao?: AcaoToast } | undefined
+
 export const toastConfig: ToastConfig = Object.fromEntries(
   (Object.keys(APARENCIA) as VarianteToast[]).map((variante) => [
     variante,
-    ({ text1 }: ToastConfigParams<unknown>) => <AvisoToast variante={variante} text1={text1} />,
+    ({ text1, props }: ToastConfigParams<PropsToast>) => (
+      <AvisoToast variante={variante} text1={text1} acao={props?.acao} />
+    ),
   ]),
 )

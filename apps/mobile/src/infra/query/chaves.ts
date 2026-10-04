@@ -8,7 +8,9 @@ const me = Object.assign(() => ['me'] as const, {
 export const chaves = {
   atletica: () => ['atletica'] as const,
   me,
-  modalidades: (f?: Filtros) => ['modalidades', f] as const,
+  modalidades: Object.assign((f?: Filtros) => ['modalidades', f] as const, {
+    todas: () => ['modalidades'] as const,
+  }),
   times: {
     todos: () => ['times'] as const,
     lista: (f: Filtros) => ['times', 'lista', f] as const,

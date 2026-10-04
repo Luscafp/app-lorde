@@ -411,6 +411,19 @@ Importe `AtleticasModule` e injete `AtleticaPadraoService`:
 
 Pública (`@Publico()`): a tela de login já usa a marca. Resposta validada por `atleticaPublicaSchema` (todos os campos sempre presentes, nulos como `null`; nunca `usaAplicativo`, datas internas ou vínculos). `Cache-Control: public, max-age=300`; o `ETag` e o `304` com `If-None-Match` vêm do Express. Sem rate limit (convenções §4.6).
 
+## Modalidades (`src/modules/modalidades`)
+
+Catálogo **global** (sem `atleticaId`, convenções §6). Schemas, DTOs e o catálogo de ícones `ICONES_MODALIDADE` (chaves do MaterialCommunityIcons) ficam em `@atletica/shared` (`modalidades/`); o nome é normalizado (`trim` + espaços colapsados, 2–40 caracteres) e único sem diferenciar maiúsculas (índice `modalidade_nome_unico`).
+
+| Rota                                | Papel mínimo         | Resposta                                                                                  |
+| ----------------------------------- | -------------------- | ----------------------------------------------------------------------------------------- |
+| `GET /modalidades?incluirInativas=` | qualquer autenticado | `200 { items }` em ordem alfabética (`pt-BR`); `incluirInativas` só vale para a Diretoria |
+| `POST /modalidades`                 | DIRETOR              | `201`; nasce ativa; `409 MODALIDADE_DUPLICADA`                                            |
+| `PATCH /modalidades/:id`            | DIRETOR              | `200`; ao menos um de `nome`, `icone`, `ativa`; sem mudança não audita                    |
+| `DELETE /modalidades/:id`           | PRESIDENTE           | `204` (exclusão física); com times → `409 MODALIDADE_COM_DEPENDENCIAS`                    |
+
+Toda escrita audita na mesma transação: `MODALIDADE_CRIADA`, `MODALIDADE_ALTERADA` (nome/ícone), `MODALIDADE_ATIVADA`/`MODALIDADE_DESATIVADA` (`ativa`) e `MODALIDADE_EXCLUIDA`. A contagem de times usa `prisma.db` (atlética ativa e adversárias); a FK `Restrict` (`P2003`) cobre os demais. Fábrica de teste: `criarModalidade()` em `test/fabricas/modalidades.ts`.
+
 ## Senhas (`src/infra/senha`)
 
 Importe `SenhaModule` e injete `SenhaService`: `hash(senha)` (Argon2id, `@node-rs/argon2`, parâmetros em `senha.config.ts` — convenções §5) e `verificar(hash, senha)` (`false` também para hash malformado); `precisaRefazerHash(hash)` indica hash gerado com outros parâmetros (refeito no login). Valide a entrada com `senhaSchema` de `@atletica/shared` (política do UC06), sem redefini-la.

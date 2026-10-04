@@ -11,6 +11,7 @@ describe('chaves', () => {
     ['me.preferencias()', chaves.me.preferencias(), ['me', 'preferencias-notificacao']],
     ['modalidades()', chaves.modalidades(), ['modalidades', undefined]],
     ['modalidades(f)', chaves.modalidades(f), ['modalidades', f]],
+    ['modalidades.todas()', chaves.modalidades.todas(), ['modalidades']],
     ['times.todos()', chaves.times.todos(), ['times']],
     ['times.lista(f)', chaves.times.lista(f), ['times', 'lista', f]],
     ['times.detalhe(id)', chaves.times.detalhe('x'), ['times', 'detalhe', 'x']],
