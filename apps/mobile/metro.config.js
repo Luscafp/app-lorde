@@ -2,5 +2,6 @@
 // o que cobre `packages/shared` (garantido por __tests__/metro-config.test.ts). O Metro lê o fonte TS
 // do shared pela condição `react-native`.
 const { getDefaultConfig } = require('expo/metro-config')
+const { withNativeWind } = require('nativewind/metro')
 
-module.exports = getDefaultConfig(__dirname)
+module.exports = withNativeWind(getDefaultConfig(__dirname), { input: './global.css' })
