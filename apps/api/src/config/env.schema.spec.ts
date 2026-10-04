@@ -90,7 +90,18 @@ describe('validarEnv', () => {
       expect(() => validarEnv(config)).toThrow(
         /RESEND_API_KEY: obrigatória com EMAIL_PROVIDER=resend/,
       )
-      expect(() => validarEnv({ ...config, RESEND_API_KEY: '  ' })).toThrow(/RESEND_API_KEY/)
+      for (const RESEND_API_KEY of ['', '  ']) {
+        expect(() => validarEnv({ ...config, RESEND_API_KEY })).toThrow(
+          /RESEND_API_KEY: obrigatória com EMAIL_PROVIDER=resend/,
+        )
+      }
+    })
+
+    it('aceita RESEND_API_KEY vazia (como no .env.example) fora do resend', () => {
+      for (const EMAIL_PROVIDER of ['fake', 'log']) {
+        const env = validarEnv({ ...valida, EMAIL_PROVIDER, RESEND_API_KEY: '' })
+        expect(env.RESEND_API_KEY).toBeUndefined()
+      }
     })
 
     it('exige EMAIL_PROVIDER=resend com NODE_ENV=production', () => {

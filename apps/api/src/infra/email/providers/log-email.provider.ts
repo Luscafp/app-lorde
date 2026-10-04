@@ -4,17 +4,18 @@ import { mascararEmail } from '../mascarar-email'
 
 /**
  * Escreve o e-mail no log em vez de enviar (`EMAIL_PROVIDER=log`, desenvolvimento).
- * O corpo (que pode conter códigos) e o destinatário completo só aparecem com `NODE_ENV=development`.
+ * O corpo (que pode conter códigos) e o destinatário completo só aparecem com `NODE_ENV=development`:
+ * é a única exceção à regra "código nunca vai para log" (issue #61), para testar o fluxo localmente.
  */
 export class LogEmailProvider extends EmailProvider {
   private readonly logger = new Logger(LogEmailProvider.name)
 
-  constructor(private readonly exibirCorpo: boolean) {
+  constructor(private readonly opcoes: { exibirCorpo: boolean }) {
     super()
   }
 
   enviar({ de, para, assunto, texto }: MensagemEmailComRemetente): Promise<void> {
-    const registro = this.exibirCorpo
+    const registro = this.opcoes.exibirCorpo
       ? { de, para, assunto, texto }
       : { de, para: mascararEmail(para), assunto }
     this.logger.log(registro, 'E-mail não enviado (EMAIL_PROVIDER=log)')

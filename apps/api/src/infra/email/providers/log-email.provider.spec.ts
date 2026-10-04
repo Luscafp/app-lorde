@@ -19,7 +19,7 @@ describe('LogEmailProvider', () => {
   afterEach(() => log.mockRestore())
 
   it('em development loga destinatário e corpo em texto (nível info)', async () => {
-    await new LogEmailProvider(true).enviar(mensagem)
+    await new LogEmailProvider({ exibirCorpo: true }).enviar(mensagem)
     expect(log).toHaveBeenCalledWith(
       { de: mensagem.de, para: 'ana@ex.com', assunto: 'Seu código', texto: 'Código 048213' },
       expect.any(String),
@@ -27,7 +27,7 @@ describe('LogEmailProvider', () => {
   })
 
   it('fora de development não loga o corpo nem o e-mail completo', async () => {
-    await new LogEmailProvider(false).enviar(mensagem)
+    await new LogEmailProvider({ exibirCorpo: false }).enviar(mensagem)
     const registro = JSON.stringify(log.mock.calls)
     expect(registro).not.toContain('048213')
     expect(registro).not.toContain('ana@ex.com')

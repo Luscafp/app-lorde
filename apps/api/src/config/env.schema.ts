@@ -20,7 +20,11 @@ export const envSchema = z
     EMAIL_PROVIDER: z.enum(['resend', 'fake', 'log'], {
       error: 'obrigatória (resend | fake | log)',
     }),
-    RESEND_API_KEY: z.string().trim().min(1).optional(),
+    // Vazia conta como ausente: o `.env.example` traz `RESEND_API_KEY=` e o dotenv a lê como ''.
+    RESEND_API_KEY: z.preprocess(
+      (valor) => (typeof valor === 'string' && valor.trim() === '' ? undefined : valor),
+      z.string().trim().optional(),
+    ),
     EMAIL_REMETENTE: z
       .string()
       .trim()

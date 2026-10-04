@@ -13,7 +13,8 @@ export interface MensagemEmailComRemetente extends MensagemEmail {
 
 /**
  * Provider de envio, escolhido por `EMAIL_PROVIDER`. Também é o token de injeção:
- * nos testes, `app.get(EmailProvider)` devolve o `FakeEmailProvider`.
+ * nos testes de um módulo que importa `EmailModule`, `app.get(EmailProvider)` devolve o
+ * `FakeEmailProvider`.
  */
 export abstract class EmailProvider {
   /** Rejeita a promessa quando o envio falha; o `EmailService` loga e reporta. */

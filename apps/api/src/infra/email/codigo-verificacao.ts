@@ -6,18 +6,12 @@ import type { Env } from '../../config/env.schema'
 /** Quantidade de dígitos do código enviado por e-mail (UC09). */
 export const DIGITOS_CODIGO = 6
 
-/** Código numérico de 6 dígitos (`000000`–`999999`), com zeros à esquerda. */
-export function gerarCodigo(): string {
-  return randomInt(0, 10 ** DIGITOS_CODIGO)
-    .toString()
-    .padStart(DIGITOS_CODIGO, '0')
-}
-
 /**
  * Códigos de verificação de e-mail (recuperação de senha #62, verificação de e-mail #31).
  * No banco vai só o hash: `HMAC-SHA256(CODIGO_PEPPER, usuarioId + ":" + codigo)` em hex — com
  * 10⁶ combinações, um SHA-256 puro seria revertido em segundos se o banco vazasse (épico #11 §10).
- * O código nunca vai para log, URL, resposta ou Sentry.
+ * O código nunca vai para log, URL, resposta ou Sentry — exceto o corpo do e-mail escrito pelo
+ * `LogEmailProvider` com `NODE_ENV=development`.
  */
 @Injectable()
 export class CodigoVerificacaoService {
@@ -27,8 +21,11 @@ export class CodigoVerificacaoService {
     this.pepper = config.get('CODIGO_PEPPER', { infer: true })
   }
 
+  /** Código numérico de 6 dígitos (`000000`–`999999`), com zeros à esquerda. */
   gerarCodigo(): string {
-    return gerarCodigo()
+    return randomInt(0, 10 ** DIGITOS_CODIGO)
+      .toString()
+      .padStart(DIGITOS_CODIGO, '0')
   }
 
   hashCodigo(usuarioId: string, codigo: string): string {

@@ -10,10 +10,14 @@ type ConfigEmail = Pick<Env, 'NODE_ENV' | 'EMAIL_PROVIDER' | 'RESEND_API_KEY'>
 export function criarEmailProvider(env: ConfigEmail): EmailProvider {
   switch (env.EMAIL_PROVIDER) {
     case 'resend':
-      return new ResendEmailProvider(env.RESEND_API_KEY ?? '')
+      // O schema garante a chave com resend; o tipo não estreita, então o invariante é conferido aqui.
+      if (env.RESEND_API_KEY === undefined) {
+        throw new Error('RESEND_API_KEY ausente com EMAIL_PROVIDER=resend')
+      }
+      return new ResendEmailProvider(env.RESEND_API_KEY)
     case 'fake':
       return new FakeEmailProvider()
     case 'log':
-      return new LogEmailProvider(env.NODE_ENV === 'development')
+      return new LogEmailProvider({ exibirCorpo: env.NODE_ENV === 'development' })
   }
 }
