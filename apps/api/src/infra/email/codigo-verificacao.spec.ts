@@ -1,7 +1,7 @@
 import { createHmac, randomInt } from 'node:crypto'
 import type { ConfigService } from '@nestjs/config'
 import type { Env } from '../../config/env.schema'
-import { CodigoVerificacaoService, gerarCodigo } from './codigo-verificacao'
+import { CodigoVerificacaoService } from './codigo-verificacao'
 
 jest.mock('node:crypto', () => {
   const real = jest.requireActual<typeof import('node:crypto')>('node:crypto')
@@ -18,7 +18,7 @@ describe('gerarCodigo', () => {
 
   it('preenche com zeros à esquerda (randomInt 48213 → "048213")', () => {
     jest.mocked(randomInt).mockReturnValueOnce(48213 as never)
-    expect(gerarCodigo()).toBe('048213')
+    expect(servico.gerarCodigo()).toBe('048213')
     expect(randomInt).toHaveBeenCalledWith(0, 1_000_000)
   })
 
@@ -31,7 +31,7 @@ describe('gerarCodigo', () => {
   })
 
   it('gera sempre 6 dígitos', () => {
-    for (let i = 0; i < 200; i++) expect(gerarCodigo()).toMatch(/^\d{6}$/)
+    for (let i = 0; i < 200; i++) expect(servico.gerarCodigo()).toMatch(/^\d{6}$/)
   })
 })
 

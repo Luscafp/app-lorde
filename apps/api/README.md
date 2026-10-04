@@ -14,7 +14,7 @@ Validadas por `src/config/env.schema.ts` (Zod): a API não sobe com variável fa
 | `DATABASE_URL`    | sim                         | `postgresql://...`                                                                                                |
 | `LOG_LEVEL`       | não (`info`)                | Nível do pino                                                                                                     |
 | `EMAIL_PROVIDER`  | sim                         | `resend` (homologação/produção — obrigatório com `NODE_ENV=production`), `fake` (testes), `log` (desenvolvimento) |
-| `RESEND_API_KEY`  | com `EMAIL_PROVIDER=resend` | Chave da API do Resend                                                                                            |
+| `RESEND_API_KEY`  | com `EMAIL_PROVIDER=resend` | Chave da API do Resend (vazia conta como ausente)                                                                 |
 | `EMAIL_REMETENTE` | sim                         | Remetente, ex.: `"Atlética Lorde <nao-responda@dominio>"` (domínio verificado no Resend)                          |
 | `CODIGO_PEPPER`   | sim (≥ 32 caracteres)       | Segredo do HMAC dos códigos de verificação. Trocar o valor invalida os códigos pendentes                          |
 
@@ -71,4 +71,4 @@ email.simularFalha() // próximos envios rejeitam (limpar() desfaz)
 - `hashCodigo(usuarioId, codigo)` — `HMAC-SHA256(CODIGO_PEPPER, usuarioId + ":" + codigo)` em hex; é isto que vai para `CodigoVerificacao.codigoHash`.
 - `codigoConfere(hash, usuarioId, codigo)` — comparação em tempo constante (`timingSafeEqual`).
 
-O código em claro só existe no e-mail: nunca em log, URL, resposta ou Sentry.
+O código em claro só existe no e-mail: nunca em log, URL, resposta ou Sentry. A única exceção é `EMAIL_PROVIDER=log` com `NODE_ENV=development`, que escreve o corpo do e-mail (com o código) no log para testar o fluxo localmente.

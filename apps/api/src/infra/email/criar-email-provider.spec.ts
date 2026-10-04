@@ -18,4 +18,10 @@ describe('criarEmailProvider', () => {
     })
     expect(provider).toBeInstanceOf(classe)
   })
+
+  it('recusa EMAIL_PROVIDER=resend sem RESEND_API_KEY', () => {
+    expect(() => criarEmailProvider({ NODE_ENV: 'development', EMAIL_PROVIDER: 'resend' })).toThrow(
+      /RESEND_API_KEY/,
+    )
+  })
 })
