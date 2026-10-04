@@ -131,9 +131,8 @@ jobs:
       - name: Build do shared
         if: steps.filtro.outputs.api == 'true'
         run: pnpm --filter @atletica/shared build
-      - name: Migrations
-        if: steps.filtro.outputs.api == 'true' && hashFiles('apps/api/prisma/schema.prisma') != ''
-        run: pnpm --filter api exec prisma migrate deploy
+      # As migrations são aplicadas pelo globalSetup do projeto `integration` (#42), que também
+      # recusa banco cujo nome não termine em `_test`.
       - name: Testes com cobertura
         if: steps.filtro.outputs.api == 'true'
         run: pnpm --filter api test:cov

@@ -1,13 +1,11 @@
 import { ConfigService } from '@nestjs/config'
 import type { NestExpressApplication } from '@nestjs/platform-express'
-import { Test } from '@nestjs/testing'
 import { PARAMS_PROVIDER_TOKEN } from 'nestjs-pino'
 import request from 'supertest'
 import type { App } from 'supertest/types'
-import { AppModule } from '../src/app.module'
 import { validarEnv, type Env } from '../src/config/env.schema'
-import { configurarApp } from '../src/configurar-app'
 import { criarConfigLogger } from '../src/infra/logs/logger.config'
+import { criarApp } from './setup/criar-app'
 import { ExemploController } from './suporte/exemplo.controller'
 
 /** Recebe as linhas JSON escritas pelo pino, para inspecionar o log nos testes. */
@@ -20,24 +18,19 @@ async function criarAppPlataforma(
   linhasDeLog?: Record<string, unknown>[],
 ): Promise<NestExpressApplication> {
   const config = { ...validarEnv(process.env), ...env }
-  let construtor = Test.createTestingModule({
-    imports: [AppModule],
+  const { app } = await criarApp({
     controllers: [ExemploController],
+    ajustar: (modulo) => {
+      const ajustado = modulo
+        .overrideProvider(ConfigService)
+        .useValue({ get: (chave: keyof Env) => config[chave] })
+      if (!linhasDeLog) return ajustado
+      const params = criarConfigLogger({ NODE_ENV: 'test', LOG_LEVEL: 'warn' })
+      return ajustado
+        .overrideProvider(PARAMS_PROVIDER_TOKEN)
+        .useValue({ ...params, pinoHttp: [params.pinoHttp, destinoDeLog(linhasDeLog)] })
+    },
   })
-    .overrideProvider(ConfigService)
-    .useValue({ get: (chave: keyof Env) => config[chave] })
-
-  if (linhasDeLog) {
-    const params = criarConfigLogger({ NODE_ENV: 'test', LOG_LEVEL: 'warn' })
-    construtor = construtor
-      .overrideProvider(PARAMS_PROVIDER_TOKEN)
-      .useValue({ ...params, pinoHttp: [params.pinoHttp, destinoDeLog(linhasDeLog)] })
-  }
-  const modulo = await construtor.compile()
-
-  const app = modulo.createNestApplication<NestExpressApplication>({ bodyParser: false })
-  configurarApp(app)
-  await app.init()
   return app
 }
 

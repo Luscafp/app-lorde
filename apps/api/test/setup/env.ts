@@ -1,7 +1,9 @@
-// Env dos testes: o `.env` é ignorado quando NODE_ENV=test (config.module.ts).
+import { join } from 'node:path'
+import { config } from 'dotenv'
+
+// Env dos testes, carregado pelo `setupFiles` do Jest e pelo `globalSetup`. Precedência: variáveis
+// já definidas (CI) > `.env.test` (local, fora do Git) > `.env.test.example` (versionado).
+// O `.env` de desenvolvimento é ignorado quando NODE_ENV=test (config.module.ts).
+const raiz = join(__dirname, '..', '..')
+config({ path: [join(raiz, '.env.test'), join(raiz, '.env.test.example')], quiet: true })
 process.env.NODE_ENV = 'test'
-process.env.DATABASE_URL ??= 'postgresql://atletica:atletica@localhost:5433/atletica_test'
-process.env.LOG_LEVEL ??= 'silent'
-process.env.EMAIL_PROVIDER ??= 'fake'
-process.env.EMAIL_REMETENTE ??= 'Atlética Teste <nao-responda@teste.local>'
-process.env.CODIGO_PEPPER ??= 'pepper-de-teste-com-pelo-menos-32-caracteres'

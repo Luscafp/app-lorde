@@ -19,12 +19,15 @@ const comum = {
 module.exports = {
   projects: [
     { ...comum, displayName: 'unit', roots: ['<rootDir>/src'], testRegex: String.raw`\.spec\.ts$` },
-    // Testes de plataforma da #1; a #42 acrescenta globalSetup, limpeza do banco e fábricas.
+    // Postgres real (#42): migrations no globalSetup e banco vazio antes de cada teste. Rode com
+    // --runInBand: os arquivos compartilham o mesmo banco.
     {
       ...comum,
       displayName: 'integration',
       roots: ['<rootDir>/test'],
       testRegex: String.raw`\.e2e-spec\.ts$`,
+      globalSetup: '<rootDir>/test/setup/global-setup.ts',
+      setupFilesAfterEnv: ['<rootDir>/test/setup/integracao.ts'],
     },
   ],
   // Cobertura medida sobre a soma dos projetos, só nos services de regra de negócio (RNF11).
