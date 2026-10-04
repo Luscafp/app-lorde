@@ -1,0 +1,200 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Um push novo no PR cancela a execução anterior; na main cada commit é validado até o fim.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Menor privilégio. pull-requests: read só para o paths-filter e o gitleaks listarem
+# arquivos e commits do PR. A CI não usa nenhum segredo.
+permissions:
+  contents: read
+  pull-requests: read
+
+# Os nomes dos jobs são os checks obrigatórios da main (README, seção CI). Não renomeie.
+jobs:
+  qualidade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # o gitleaks varre os commits do PR
+      - uses: dorny/paths-filter@v4
+        id: filtro
+        with:
+          filters: .github/filtros-ci.yml
+      - if: steps.filtro.outputs.qualidade == 'true'
+        id: preparar
+        uses: ./.github/actions/preparar
+      # Formatação, lint e tipos rodam mesmo que um anterior falhe, para o PR ver todos os erros.
+      - name: Formatação
+        if: ${{ !cancelled() && steps.preparar.outcome == 'success' }}
+        run: pnpm format:check
+      # O lint com tipos e o typecheck resolvem @atletica/shared pelo dist.
+      - name: Build do shared
+        id: shared
+        if: ${{ !cancelled() && steps.preparar.outcome == 'success' }}
+        run: pnpm --filter @atletica/shared build
+      - name: Lint
+        if: ${{ !cancelled() && steps.shared.outcome == 'success' }}
+        run: pnpm lint --max-warnings=0
+      - name: Tipos
+        if: ${{ !cancelled() && steps.shared.outcome == 'success' }}
+        run: pnpm typecheck
+      # Por último: a action grava results.sarif no workspace, que o Prettier acusaria.
+      # Roda sempre, inclusive em PR só de docs.
+      - name: Segredos (gitleaks)
+        if: ${{ !cancelled() }}
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: false
+
+  prisma:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: atletica
+          POSTGRES_PASSWORD: atletica
+          POSTGRES_DB: atletica_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U atletica" --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://atletica:atletica@localhost:5432/atletica_test
+      SHADOW_DATABASE_URL: postgresql://atletica:atletica@localhost:5432/shadow
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filtro
+        with:
+          filters: .github/filtros-ci.yml
+      # Antes da #43 não há schema: o job termina com sucesso sem rodar o Prisma.
+      - name: Sem schema do Prisma
+        if: hashFiles('apps/api/prisma/schema.prisma') == ''
+        run: echo "::notice::apps/api/prisma/schema.prisma não existe; verificações do Prisma puladas."
+      - if: steps.filtro.outputs.prisma == 'true' && hashFiles('apps/api/prisma/schema.prisma') != ''
+        uses: ./.github/actions/preparar
+      - name: Criar banco sombra
+        if: steps.filtro.outputs.prisma == 'true' && hashFiles('apps/api/prisma/schema.prisma') != ''
+        run: psql "$DATABASE_URL" -c 'CREATE DATABASE shadow'
+      - name: Validar schema
+        if: steps.filtro.outputs.prisma == 'true' && hashFiles('apps/api/prisma/schema.prisma') != ''
+        run: pnpm --filter api exec prisma validate
+      - name: Schema e migrations sincronizados
+        if: steps.filtro.outputs.prisma == 'true' && hashFiles('apps/api/prisma/schema.prisma') != ''
+        run: >-
+          pnpm --filter api exec prisma migrate diff
+          --from-migrations prisma/migrations
+          --to-schema-datamodel prisma/schema.prisma
+          --shadow-database-url "$SHADOW_DATABASE_URL"
+          --exit-code
+
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: atletica
+          POSTGRES_PASSWORD: atletica
+          POSTGRES_DB: atletica_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U atletica" --health-interval 5s --health-retries 10
+    # Valores fictícios, só para a CI.
+    env:
+      DATABASE_URL: postgresql://atletica:atletica@localhost:5432/atletica_test
+      NODE_ENV: test
+      LOG_LEVEL: silent
+      JWT_ACCESS_SECRET: ci-only-secret-with-at-least-32-characters
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filtro
+        with:
+          filters: .github/filtros-ci.yml
+      - if: steps.filtro.outputs.api == 'true'
+        uses: ./.github/actions/preparar
+      - name: Build do shared
+        if: steps.filtro.outputs.api == 'true'
+        run: pnpm --filter @atletica/shared build
+      - name: Migrations
+        if: steps.filtro.outputs.api == 'true' && hashFiles('apps/api/prisma/schema.prisma') != ''
+        run: pnpm --filter api exec prisma migrate deploy
+      - name: Testes com cobertura
+        if: steps.filtro.outputs.api == 'true'
+        run: pnpm --filter api test:cov
+      - name: Resumo da cobertura
+        if: ${{ !cancelled() && steps.filtro.outputs.api == 'true' }}
+        run: node .github/scripts/resumo-cobertura.mjs apps/api/coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Relatório de cobertura
+        if: ${{ !cancelled() && steps.filtro.outputs.api == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: cobertura-api
+          path: apps/api/coverage/lcov-report
+          if-no-files-found: ignore
+          retention-days: 14
+
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filtro
+        with:
+          filters: .github/filtros-ci.yml
+      - if: steps.filtro.outputs.mobile == 'true'
+        uses: ./.github/actions/preparar
+      - name: Testes
+        if: steps.filtro.outputs.mobile == 'true'
+        run: pnpm --filter mobile test
+      # Alerta sobre dependências incompatíveis com o SDK do Expo; não bloqueia o PR.
+      - name: expo-doctor (não bloqueante)
+        if: steps.filtro.outputs.mobile == 'true'
+        continue-on-error: true
+        working-directory: apps/mobile
+        run: npx --yes expo-doctor
+
+  shared:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filtro
+        with:
+          filters: .github/filtros-ci.yml
+      - if: steps.filtro.outputs.shared == 'true'
+        uses: ./.github/actions/preparar
+      - name: Testes
+        if: steps.filtro.outputs.shared == 'true'
+        run: pnpm --filter @atletica/shared test
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filtro
+        with:
+          filters: .github/filtros-ci.yml
+      - if: steps.filtro.outputs.api == 'true'
+        uses: ./.github/actions/preparar
+      - name: Build do shared e da API
+        if: steps.filtro.outputs.api == 'true'
+        run: pnpm --filter @atletica/shared build && pnpm --filter api build
