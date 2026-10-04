@@ -6,10 +6,11 @@ Development build (não Expo Go). Comandos na raiz do monorepo: `pnpm dev:mobile
 
 Copie `.env.example` para `.env`. Variáveis `EXPO_PUBLIC_*` são embutidas no bundle: nunca coloque segredos nelas.
 
-| Variável               | Exemplo                           | Uso                                                                                       |
-| ---------------------- | --------------------------------- | ----------------------------------------------------------------------------------------- |
-| `EXPO_PUBLIC_API_URL`  | `http://192.168.0.10:3000/api/v1` | URL base da API, **já com `/api/v1`**. No aparelho, use o IP da máquina, não `localhost`. |
-| `EXPO_PUBLIC_AMBIENTE` | `development`                     | `development \| homologacao \| producao` (convenções §11.11)                              |
+| Variável                 | Exemplo                           | Uso                                                                                       |
+| ------------------------ | --------------------------------- | ----------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_API_URL`    | `http://192.168.0.10:3000/api/v1` | URL base da API, **já com `/api/v1`**. No aparelho, use o IP da máquina, não `localhost`. |
+| `EXPO_PUBLIC_AMBIENTE`   | `development`                     | `development \| homologacao \| producao` (convenções §11.11)                              |
+| `EXPO_PUBLIC_SENTRY_DSN` | vazio                             | DSN do projeto `atletica-app` (#93). Vazio = Sentry desligado.                            |
 
 Novas variáveis entram em `env.d.ts` (tipagem) e em `src/config/ambiente.ts`.
 
@@ -80,7 +81,7 @@ await api.post('/times/1/solicitacoes', { mensagem }, { consulta: { origem: 'app
 - Base `EXPO_PUBLIC_API_URL` (já com `/api/v1`), JSON, timeout de 15 s. Cabeçalhos `X-Request-Id` (UUID v4), `X-App-Version` e `Authorization` — este **só** para o domínio da API (URLs pré-assinadas vão sem token).
 - Todo erro vira `ApiErro { status, code, message, details, requestId, segundosParaNovaTentativa }` (o último vem do `Retry-After` do `429`). Locais (`status: 0`): `SEM_CONEXAO`, `TEMPO_ESGOTADO`; `SESSAO_ENCERRADA` (`401`) quando o refresh encerrou a sessão.
 - **Regra de ouro**: só `401` de `POST /auth/refresh` encerra a sessão. Rede, timeout, 5xx, `400` (ex.: `SENHA_INCORRETA`) e qualquer outro `401` não.
-- **Single-flight** (`renovar-sessao.ts`): `401` fora de `/auth/*` chama `renovarSessao()`; chamadas simultâneas aguardam a mesma promessa. Refresh `200` grava os tokens (`atualizarTokens`) antes de liberar a fila e atualiza `usuario`; a requisição é refeita **uma** vez. Um segundo `401` falha sem novo refresh e é registrado (`definirRegistrador`, que a #49 liga ao Sentry).
+- **Single-flight** (`renovar-sessao.ts`): `401` fora de `/auth/*` chama `renovarSessao()`; chamadas simultâneas aguardam a mesma promessa. Refresh `200` grava os tokens (`atualizarTokens`) antes de liberar a fila e atualiza `usuario`; a requisição é refeita **uma** vez. Um segundo `401` falha sem novo refresh e é registrado (`Sentry.captureMessage` e, em `__DEV__`, `console.warn`).
 - Refresh `401` (qualquer `code`) → `encerrarSessao`, cache de queries limpo, volta ao `/login` e toast: `CONTA_DESATIVADA` → "Sua conta está desativada. Procure a diretoria."; demais → "Sua sessão expirou. Entre novamente.".
 - **Renovação proativa**: faltando menos de 30 s para `accessTokenExpiraEm`, renova antes de enviar.
 - Rotas `/auth/*` nunca disparam refresh: seus erros vão direto para a tela.
@@ -194,3 +195,12 @@ const { online, mutate, isPending } = useAcaoOnline({
   onPress={() => void form.handleSubmit((dados) => mutate(dados))()}
 />
 ```
+
+## Sentry — `src/infra/sentry.ts`
+
+- `iniciarSentry()` no layout raiz: sem `EXPO_PUBLIC_SENTRY_DSN` não inicializa; `environment` = `EXPO_PUBLIC_AMBIENTE`; `release`/`dist` do `expo-application` (`<id>@<versão>+<build>`); `enabled: !__DEV__`; `sendDefaultPii: false`.
+- Scrubbers: `limparBreadcrumb` remove `Authorization` e o corpo das requisições HTTP; `limparEvento` troca e-mails por `[email]` (message, extra, breadcrumbs e exceções) e deixa o usuário só com `id`. Nada de dado pessoal em `setContext`/`setExtra`.
+- Usuário: `Sentry.setUser({ id })` ao autenticar e `setUser(null)` ao ficar anônimo (acompanha `useSessao`).
+- Resposta 5xx da API (só do domínio da API) vira breadcrumb `http` com `requestId`, método, rota (sem query) e status, para correlacionar com os logs da API.
+- `LimiteErro` (ErrorBoundary) envolve a navegação, dentro do `ProvedorTema` (a tela de erro usa o tema): erro de renderização vai ao Sentry e mostra `TelaErroFatal` ("Recarregar" → `Updates.reloadAsync()`). O layout raiz é exportado com `Sentry.wrap` e registra a navegação (rotas do Expo Router como nome de transação).
+- Source maps: plugin `@sentry/react-native/expo` no `app.config.ts` e `getSentryExpoConfig` no `metro.config.js`; o `SENTRY_AUTH_TOKEN` fica só no EAS (#93).
