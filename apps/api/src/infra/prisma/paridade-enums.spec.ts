@@ -5,6 +5,9 @@ import * as prisma from '../../generated/prisma/enums'
  * Paridade dos enums de domínio entre o shared e o Prisma (épico #3, critério 15).
  * As asserções de tipo quebram o `pnpm typecheck` se um valor existir só de um lado;
  * o teste em tempo de execução cobre o mesmo pelo `pnpm test`.
+ *
+ * A lista de enums se repete de propósito (união, objeto e `it.each`): asserção de tipo não
+ * itera sobre uma tabela. Enum de domínio novo entra nos três blocos.
  */
 type Igual<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false

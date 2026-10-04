@@ -147,6 +147,11 @@ describe('mapearExcecao — erros do Prisma', () => {
     })
   }
 
+  /** Violação de `CHECK` como o Prisma 7 + adapter `pg` a entrega. */
+  function erroCheck(code: string) {
+    return erroPrisma(code, { driverAdapterError: erroAdapter('23514') })
+  }
+
   it('P2002 → 409 REGISTRO_DUPLICADO', () => {
     expect(
       mapearExcecao(erroPrisma('P2002', { driverAdapterError: erroAdapter('23505') })),
@@ -177,9 +182,7 @@ describe('mapearExcecao — erros do Prisma', () => {
   })
 
   it('CHECK (23514) via adapter pg (P2039) → 422 ESTADO_INVALIDO', () => {
-    expect(
-      mapearExcecao(erroPrisma('P2039', { driverAdapterError: erroAdapter('23514') })),
-    ).toEqual({
+    expect(mapearExcecao(erroCheck('P2039'))).toEqual({
       statusCode: 422,
       code: 'ESTADO_INVALIDO',
       message: 'A operação deixaria os dados em um estado inválido.',
@@ -188,8 +191,10 @@ describe('mapearExcecao — erros do Prisma', () => {
   })
 
   it('CHECK (23514) em SQL bruto (P2010) → 422 ESTADO_INVALIDO', () => {
-    const erro = erroPrisma('P2010', { driverAdapterError: erroAdapter('23514') })
-    expect(mapearExcecao(erro)).toMatchObject({ statusCode: 422, code: 'ESTADO_INVALIDO' })
+    expect(mapearExcecao(erroCheck('P2010'))).toMatchObject({
+      statusCode: 422,
+      code: 'ESTADO_INVALIDO',
+    })
   })
 
   it('CHECK (23514) do driver solto → 422 ESTADO_INVALIDO', () => {
@@ -208,10 +213,15 @@ describe('mapearExcecao — erros do Prisma', () => {
     })
   })
 
-  it('nunca expõe SQL nem a mensagem interna no corpo', () => {
-    for (const code of ['P2002', 'P2025', 'P2003', 'P2039']) {
-      const corpo = mapearExcecao(erroPrisma(code, { driverAdapterError: erroAdapter('23514') }))
-      expect(JSON.stringify(corpo)).not.toContain('violates')
+  it.each([
+    ['P2002', erroPrisma('P2002', { driverAdapterError: erroAdapter('23505') })],
+    ['P2025', erroPrisma('P2025', { modelName: 'Evento' })],
+    ['P2003', erroPrisma('P2003', { driverAdapterError: erroAdapter('23503') })],
+    ['CHECK', erroCheck('P2039')],
+  ])('%s nunca expõe SQL nem a mensagem interna no corpo', (_caso, erro) => {
+    const corpo = JSON.stringify(mapearExcecao(erro))
+    for (const interno of [SQL_INTERNO, 'Erro interno', 'Usuario', 'constraint', 'Evento']) {
+      expect(corpo).not.toContain(interno)
     }
   })
 })

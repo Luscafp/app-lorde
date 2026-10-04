@@ -52,11 +52,14 @@ function ehObjeto(valor: unknown): valor is Record<string, unknown> {
   return typeof valor === 'object' && valor !== null
 }
 
+/** Erro de banco mapeado; sai sempre com `details: []` para não vazar dado interno. */
+type RespostaErroBanco = Omit<RespostaErro, 'details'>
+
 /**
  * Rede de segurança para erros do Prisma (convenções §4.1). Os services devem capturar e
  * relançar com `code` específico; aqui só sai o code genérico, nunca SQL nem mensagem interna.
  */
-const ERROS_PRISMA: Record<string, Omit<RespostaErro, 'details'>> = {
+const ERROS_PRISMA: Record<string, RespostaErroBanco> = {
   P2002: {
     statusCode: HttpStatus.CONFLICT,
     code: 'REGISTRO_DUPLICADO',
@@ -74,14 +77,14 @@ const ERROS_PRISMA: Record<string, Omit<RespostaErro, 'details'>> = {
   },
 }
 
-const VIOLACAO_CHECK: Omit<RespostaErro, 'details'> = {
+const RESPOSTA_VIOLACAO_CHECK: RespostaErroBanco = {
   statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
   code: 'ESTADO_INVALIDO',
   message: 'A operação deixaria os dados em um estado inválido.',
 }
 
 /** SQLSTATE de violação de `CHECK` no PostgreSQL. */
-const PG_VIOLACAO_CHECK = '23514'
+const SQLSTATE_VIOLACAO_CHECK = '23514'
 
 /**
  * Com o adapter `pg` (Prisma 7), a violação de `CHECK` não tem código próprio do Prisma: chega
@@ -90,19 +93,18 @@ const PG_VIOLACAO_CHECK = '23514'
  */
 function ehViolacaoCheck(erro: unknown): boolean {
   if (!ehObjeto(erro)) return false
-  if (erro.code === PG_VIOLACAO_CHECK) return true
-  const adapter = ehObjeto(erro.meta) ? erro.meta.driverAdapterError : erro
+  if (erro.code === SQLSTATE_VIOLACAO_CHECK) return true
+  const erroAdaptador = ehObjeto(erro.meta) ? erro.meta.driverAdapterError : erro
   return (
-    ehObjeto(adapter) && ehObjeto(adapter.cause) && adapter.cause.originalCode === PG_VIOLACAO_CHECK
+    ehObjeto(erroAdaptador) &&
+    ehObjeto(erroAdaptador.cause) &&
+    erroAdaptador.cause.originalCode === SQLSTATE_VIOLACAO_CHECK
   )
 }
 
-function mapearErroBanco(erro: unknown): RespostaErro | undefined {
-  if (ehViolacaoCheck(erro)) return { ...VIOLACAO_CHECK, details: [] }
-  if (erro instanceof PrismaClientKnownRequestError) {
-    const mapeado = ERROS_PRISMA[erro.code]
-    if (mapeado) return { ...mapeado, details: [] }
-  }
+function mapearErroBanco(erro: unknown): RespostaErroBanco | undefined {
+  if (ehViolacaoCheck(erro)) return RESPOSTA_VIOLACAO_CHECK
+  if (erro instanceof PrismaClientKnownRequestError) return ERROS_PRISMA[erro.code]
   return undefined
 }
 
@@ -135,7 +137,7 @@ export function mapearExcecao(excecao: unknown): RespostaErro {
   }
   if (excecao instanceof HttpException) return mapearHttpException(excecao)
   const erroBanco = mapearErroBanco(excecao)
-  if (erroBanco) return erroBanco
+  if (erroBanco) return { ...erroBanco, details: [] }
   if (ehObjeto(excecao) && typeof excecao.type === 'string') {
     const statusCode = ERROS_BODY_PARSER[excecao.type]
     if (statusCode) return respostaPadrao(statusCode)
