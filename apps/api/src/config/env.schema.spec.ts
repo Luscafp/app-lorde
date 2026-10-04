@@ -27,6 +27,7 @@ describe('validarEnv', () => {
       EMAIL_PROVIDER: 'log',
       EMAIL_REMETENTE: valida.EMAIL_REMETENTE,
       CODIGO_PEPPER: valida.CODIGO_PEPPER,
+      SENTRY_TRACES_SAMPLE_RATE: 0.1,
     })
   })
 
@@ -122,6 +123,28 @@ describe('validarEnv', () => {
       const curto = { ...valida, CODIGO_PEPPER: 'segredo-curto-31-caracteres-xxx' }
       expect(() => validarEnv(curto)).toThrow(/CODIGO_PEPPER: obrigatória, com ao menos 32/)
       expect(() => validarEnv(curto)).not.toThrow(/segredo-curto/)
+    })
+  })
+
+  describe('Sentry (#48)', () => {
+    it('SENTRY_DSN é opcional e vazia conta como ausente', () => {
+      expect(validarEnv(valida).SENTRY_DSN).toBeUndefined()
+      expect(validarEnv({ ...valida, SENTRY_DSN: '' }).SENTRY_DSN).toBeUndefined()
+    })
+
+    it('aceita SENTRY_DSN com URL e rejeita outro valor', () => {
+      const dsn = 'https://chave@o1.ingest.sentry.io/1'
+      expect(validarEnv({ ...valida, SENTRY_DSN: dsn }).SENTRY_DSN).toBe(dsn)
+      expect(() => validarEnv({ ...valida, SENTRY_DSN: 'nao-e-url' })).toThrow(/SENTRY_DSN/)
+    })
+
+    it('SENTRY_TRACES_SAMPLE_RATE de 0 a 1, padrão 0.1', () => {
+      const taxa = (valor: string) => validarEnv({ ...valida, SENTRY_TRACES_SAMPLE_RATE: valor })
+      expect(taxa('').SENTRY_TRACES_SAMPLE_RATE).toBe(0.1)
+      expect(taxa('1').SENTRY_TRACES_SAMPLE_RATE).toBe(1)
+      for (const invalido of ['1.5', '-0.1', 'abc']) {
+        expect(() => taxa(invalido)).toThrow(/SENTRY_TRACES_SAMPLE_RATE/)
+      }
     })
   })
 })

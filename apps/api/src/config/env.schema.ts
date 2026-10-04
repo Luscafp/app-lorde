@@ -1,5 +1,13 @@
 import { z } from 'zod'
 
+/** Vazia conta como ausente: o `.env.example` traz variáveis opcionais vazias e o dotenv as lê como ''. */
+function vaziaComoAusente<T extends z.ZodType>(schema: T) {
+  return z.preprocess(
+    (valor) => (typeof valor === 'string' && valor.trim() === '' ? undefined : valor),
+    schema,
+  )
+}
+
 /**
  * Schema único das variáveis de ambiente da API (convenções §4.3).
  * Cada issue que cria uma variável a acrescenta aqui.
@@ -20,17 +28,18 @@ export const envSchema = z
     EMAIL_PROVIDER: z.enum(['resend', 'fake', 'log'], {
       error: 'obrigatória (resend | fake | log)',
     }),
-    // Vazia conta como ausente: o `.env.example` traz `RESEND_API_KEY=` e o dotenv a lê como ''.
-    RESEND_API_KEY: z.preprocess(
-      (valor) => (typeof valor === 'string' && valor.trim() === '' ? undefined : valor),
-      z.string().trim().optional(),
-    ),
+    RESEND_API_KEY: vaziaComoAusente(z.string().trim().optional()),
     EMAIL_REMETENTE: z
       .string()
       .trim()
       .min(3, { error: 'obrigatória (ex.: "Nome <email@dominio>")' }),
     // Segredo do HMAC dos códigos de verificação (#61, usado pela #62 e #31).
     CODIGO_PEPPER: z.string().min(32, { error: 'obrigatória, com ao menos 32 caracteres' }),
+    // Sentry da API (#48): ausente = desligado (local e testes).
+    SENTRY_DSN: vaziaComoAusente(z.url({ error: 'deve ser uma URL' }).optional()),
+    SENTRY_TRACES_SAMPLE_RATE: vaziaComoAusente(
+      z.coerce.number({ error: 'deve ser um número de 0 a 1' }).min(0).max(1).default(0.1),
+    ),
   })
   // Com NODE_ENV=production, APP_ENV é obrigatória: um deploy sem ela não pode subir como `local`.
   .refine(
