@@ -108,7 +108,7 @@ O workflow `.github/workflows/ci.yml` (GitHub Actions) roda em todo PR para `mai
 
 | Job         | Verifica                                                                                                                                              | Falha quando                                          |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `qualidade` | `gitleaks` nos commits do PR, `pnpm format:check`, `pnpm lint --max-warnings=0`, `pnpm typecheck`                                                     | segredo commitado, erro ou aviso de lint/formato/tipo |
+| `qualidade` | `pnpm format:check`, `pnpm lint --max-warnings=0`, `pnpm typecheck` (todos reportam, mesmo que um falhe) e `gitleaks` nos commits do PR               | segredo commitado, erro ou aviso de lint/formato/tipo |
 | `prisma`    | `prisma validate` e `prisma migrate diff --exit-code` contra um banco sombra (pulado enquanto `apps/api/prisma/schema.prisma` não existir, até a #43) | schema alterado sem migration correspondente          |
 | `api`       | Postgres 16 como serviço, `prisma migrate deploy`, `pnpm --filter api test:cov` (projetos Jest `unit` e `integration`) e resumo da cobertura no job   | teste falhando ou cobertura abaixo do limite          |
 | `mobile`    | Jest do app (`jest-expo`) e `expo-doctor` (só alerta, não bloqueia)                                                                                   | teste falhando                                        |

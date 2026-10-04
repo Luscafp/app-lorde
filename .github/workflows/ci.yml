@@ -26,30 +26,36 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # o gitleaks varre os commits do PR
-      - name: Segredos (gitleaks)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_COMMENTS: false
       - uses: dorny/paths-filter@v3
         id: filtro
         with:
           filters: .github/filtros-ci.yml
       - if: steps.filtro.outputs.qualidade == 'true'
+        id: preparar
         uses: ./.github/actions/preparar
+      # Formatação, lint e tipos rodam mesmo que um anterior falhe, para o PR ver todos os erros.
       - name: Formatação
-        if: steps.filtro.outputs.qualidade == 'true'
+        if: ${{ !cancelled() && steps.preparar.outcome == 'success' }}
         run: pnpm format:check
       # O lint com tipos e o typecheck resolvem @atletica/shared pelo dist.
       - name: Build do shared
-        if: steps.filtro.outputs.qualidade == 'true'
+        id: shared
+        if: ${{ !cancelled() && steps.preparar.outcome == 'success' }}
         run: pnpm --filter @atletica/shared build
       - name: Lint
-        if: steps.filtro.outputs.qualidade == 'true'
+        if: ${{ !cancelled() && steps.shared.outcome == 'success' }}
         run: pnpm lint --max-warnings=0
       - name: Tipos
-        if: steps.filtro.outputs.qualidade == 'true'
+        if: ${{ !cancelled() && steps.shared.outcome == 'success' }}
         run: pnpm typecheck
+      # Por último: a action grava results.sarif no workspace, que o Prettier acusaria.
+      # Roda sempre, inclusive em PR só de docs.
+      - name: Segredos (gitleaks)
+        if: ${{ !cancelled() }}
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: false
 
   prisma:
     runs-on: ubuntu-latest
