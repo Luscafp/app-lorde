@@ -9,6 +9,7 @@ import type { Env } from './config/env.schema'
 import { ContextoModule } from './infra/contexto/contexto.module'
 import { criarConfigLogger } from './infra/logs/logger.config'
 import { PrismaModule } from './infra/prisma/prisma.module'
+import { AuthModule } from './modules/auth/auth.module'
 import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.module'
 
 @Module({
@@ -25,6 +26,7 @@ import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.mod
     }),
     ContextoModule,
     PrismaModule,
+    AuthModule,
     DiagnosticoForaDeProducao,
   ],
   providers: [

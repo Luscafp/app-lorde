@@ -17,6 +17,7 @@ Validadas por `src/config/env.schema.ts` (Zod): a API não sobe com variável fa
 | `RESEND_API_KEY`            | com `EMAIL_PROVIDER=resend` | Chave da API do Resend (vazia conta como ausente)                                                                 |
 | `EMAIL_REMETENTE`           | sim                         | Remetente, ex.: `"Atlética Lorde <nao-responda@dominio>"` (domínio verificado no Resend)                          |
 | `CODIGO_PEPPER`             | sim (≥ 32 caracteres)       | Segredo do HMAC dos códigos de verificação. Trocar o valor invalida os códigos pendentes                          |
+| `JWT_ACCESS_SECRET`         | sim (≥ 32 caracteres)       | Segredo HS256 do access token (#7), distinto por ambiente. Trocar o valor invalida os access tokens em circulação |
 | `SENTRY_DSN`                | não                         | DSN do Sentry da API; ausente ou vazia = Sentry desligado (veja [Observabilidade](#observabilidade))              |
 | `SENTRY_TRACES_SAMPLE_RATE` | não (`0.1`)                 | Fração de traces de 0 a 1: `0.1` em produção, `1.0` em homologação                                                |
 
@@ -79,13 +80,75 @@ describe('GET /api/v1/...', () => {
 - `criarAtletica(dados?)` — atlética que usa o app, com `slug`, `sigla` e cores válidas (`CHECK atletica_dados_app`). `criarAtletica({ usaAplicativo: false })` cria uma adversária só com o nome. Qualquer campo pode ser sobrescrito.
 - `criarUsuario({ papel = 'ATLETA', atleticaId?, nome?, email?, ativo?, vinculoAtivo?, senhaHash? })` — cria o `Usuario` (e-mail único, gravado em minúsculas) e o `VinculoAtletica` com o papel. Sem `atleticaId`, cria uma atlética. Devolve o usuário com `atleticaId` e `vinculo`. `senhaHash` padrão é `SENHA_HASH_FICTICIO`, que não corresponde a nenhuma senha: para login real, passe um hash do `SenhaService` (#45).
 - `proximaSequencia()` — número crescente para valores únicos nas fábricas.
-- Cada issue de domínio cria as suas em `test/fabricas/<dominio>.ts` (ex.: `eventos.ts` na #70). `tokenPara(usuario, ...)` é da #7.
+- `tokenPara(usuario, { atleticaId?, sessao? })` (`auth.ts`) — cria uma `Sessao` ativa (ou usa a informada) e devolve um access token assinado com `token.config.ts` (`iss`/`aud` incluídos), igual ao que a #10 emitirá. `atleticaId` padrão: a do `criarUsuario`. Use em todo teste de rota protegida:
+
+  ```ts
+  const diretor = await criarUsuario({ papel: 'DIRETOR' })
+  await request(http)
+    .get('/api/v1/...')
+    .set('Authorization', `Bearer ${await tokenPara(diretor)}`)
+  ```
+
+- `criarSessao({ usuarioId, atleticaId, ...campos })` (`auth.ts`) e `assinarToken(payload, opcoes?)` (`token.ts`, sem banco; serve também aos unitários) — para cenários de sessão revogada/expirada e de tokens inválidos (`{ secret }`, `{ algorithm }`; `{ issuer: undefined }` assina sem `iss`).
+- Cada issue de domínio cria as suas em `test/fabricas/<dominio>.ts` (ex.: `eventos.ts` na #70).
 
 ### Suítes de infraestrutura
 
 - `test/infraestrutura/` — testes dos próprios utilitários (`limparBanco`, fábricas, `criarApp`, proteção do `globalSetup`).
 - `test/prisma/constraints.e2e-spec.ts` — um caso aceito e um rejeitado para cada constraint da migration `init` (épico #3 §8.3), conferindo o nome da constraint violada, e a estrutura da migration (tabelas, enums, índices e `CHECK`). Toda constraint nova em SQL entra aqui.
 - `test/prisma/extensao-atletica.e2e-spec.ts` — extensão multi-atlética: cada operação com contexto A e dados de A e B, regra de `Time`, transações, falta de contexto e o `500` numa rota.
+
+## Autenticação e autorização (`src/modules/auth`)
+
+Toda rota exige access token por padrão (RN03). Dois guards globais, nesta ordem:
+
+1. **`JwtAuthGuard`** — lê `Authorization: Bearer <token>`, verifica HS256 com `iss`/`aud` (`token.config.ts`) e faz **uma** consulta via `semEscopo` (sessão + usuário + vínculo da atlética `atl`), sem cache: logout, desativação e troca de papel valem na requisição seguinte. Em caso de sucesso preenche `request.usuario` e chama `contexto.definir({ atleticaId, usuarioId })`, ativando o filtro do `prisma.db`.
+2. **`PapelGuard`** — confere `@PapelMinimo` com o papel lido pelo guard anterior.
+
+| Falha                                                                                                                                                             | Resposta               |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| sem token, token inválido, `iss`/`aud`/payload errados, sessão revogada/expirada/de outro usuário, conta excluída ou `Usuario.ativo=false`, sem vínculo com `atl` | `401 UNAUTHENTICATED`  |
+| `exp` vencido há 10 s ou mais                                                                                                                                     | `401 TOKEN_EXPIRED`    |
+| `VinculoAtletica.ativo = false`                                                                                                                                   | `401 CONTA_DESATIVADA` |
+| papel abaixo do `@PapelMinimo`                                                                                                                                    | `403 FORBIDDEN`        |
+
+### Decorators
+
+| Decorator                     | Uso                                                                                                                           |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `@Publico()`                  | Rota (ou controller) sem token e **sem** contexto de atlética. Só para as rotas públicas da convenção §4.7; justifique no PR. |
+| `@PapelMinimo(Papel.DIRETOR)` | Nível mínimo; a hierarquia libera os superiores (`PRESIDENTE` inclui o Vice). Sem ele, qualquer autenticado.                  |
+| `@UsuarioAtual()`             | Parâmetro `UsuarioAutenticado`; `@UsuarioAtual('id')` devolve um campo. `undefined` em rota pública.                          |
+| `@AtleticaAtual()`            | Parâmetro com o `atleticaId` do contexto da requisição. Em rota pública é erro de programação (500).                          |
+
+```ts
+interface UsuarioAutenticado {
+  id: string
+  nome: string
+  email: string
+  atleticaId: string // `atl` do token
+  sessaoId: string // `sid` do token
+  papel: Papel // lido do VinculoAtletica a cada requisição
+  nivel: 1 | 2 | 3 | 4
+}
+```
+
+```ts
+@Controller('eventos')
+export class EventosController {
+  @Get() // qualquer autenticado
+  listar() {}
+
+  @Post()
+  @PapelMinimo(Papel.DIRETOR)
+  criar(@Body() dto: CriarEventoDto, @UsuarioAtual() usuario: UsuarioAutenticado) {}
+}
+```
+
+- Regras que dependem do recurso (posse, `podeAgirSobre` do shared) ficam no **service**; os guards só tratam autenticação e nível mínimo.
+- `401` é exclusivo da autenticação do token: senha atual errada numa rota autenticada é `400 SENHA_INCORRETA`.
+- Hierarquia e rótulos (`NIVEL_PAPEL`, `temNivelMinimo`, `podeAgirSobre`, `ehDiretoria`, `ehPresidencia`, `ehAdministrador`, `ROTULO_PAPEL`) ficam em `@atletica/shared` (`src/auth/papeis.ts`).
+- Swagger: toda rota não pública recebe o cadeado e a resposta 401 (`swagger.ts`); `@PapelMinimo` acrescenta a 403.
 
 ## Banco de dados e multi-atlética (`src/infra/prisma`, `src/infra/contexto`)
 

@@ -6,6 +6,7 @@ const valida = {
   EMAIL_PROVIDER: 'log',
   EMAIL_REMETENTE: 'Atlética <nao-responda@exemplo.com.br>',
   CODIGO_PEPPER: 'p'.repeat(32),
+  JWT_ACCESS_SECRET: 'j'.repeat(32),
 }
 
 const producao = {
@@ -27,6 +28,7 @@ describe('validarEnv', () => {
       EMAIL_PROVIDER: 'log',
       EMAIL_REMETENTE: valida.EMAIL_REMETENTE,
       CODIGO_PEPPER: valida.CODIGO_PEPPER,
+      JWT_ACCESS_SECRET: valida.JWT_ACCESS_SECRET,
       SENTRY_TRACES_SAMPLE_RATE: 0.1,
     })
   })
@@ -122,6 +124,14 @@ describe('validarEnv', () => {
       expect(() => validarEnv(semPepper)).toThrow(/CODIGO_PEPPER/)
       const curto = { ...valida, CODIGO_PEPPER: 'segredo-curto-31-caracteres-xxx' }
       expect(() => validarEnv(curto)).toThrow(/CODIGO_PEPPER: obrigatória, com ao menos 32/)
+      expect(() => validarEnv(curto)).not.toThrow(/segredo-curto/)
+    })
+
+    it('rejeita JWT_ACCESS_SECRET ausente ou com menos de 32 caracteres, sem imprimir o valor', () => {
+      const { JWT_ACCESS_SECRET: _, ...semSegredo } = valida
+      expect(() => validarEnv(semSegredo)).toThrow(/JWT_ACCESS_SECRET/)
+      const curto = { ...valida, JWT_ACCESS_SECRET: 'segredo-curto-31-caracteres-xxx' }
+      expect(() => validarEnv(curto)).toThrow(/JWT_ACCESS_SECRET: obrigatória, com ao menos 32/)
       expect(() => validarEnv(curto)).not.toThrow(/segredo-curto/)
     })
   })

@@ -5,12 +5,10 @@ import request from 'supertest'
 import type { App } from 'supertest/types'
 import { criarConfigLogger } from '../src/infra/logs/logger.config'
 import { UUID_V4 } from '../src/infra/logs/request-id.middleware'
+import { tokenPara } from './fabricas/auth'
+import { criarUsuario } from './fabricas/usuario'
 import { criarApp } from './setup/criar-app'
-import {
-  ATLETICA_TESTE,
-  ObservabilidadeController,
-  USUARIO_TESTE,
-} from './suporte/observabilidade.controller'
+import { ObservabilidadeController } from './suporte/observabilidade.controller'
 
 jest.mock('@sentry/nestjs', () => ({ captureException: jest.fn() }))
 
@@ -22,6 +20,17 @@ describe('Observabilidade da API (#48)', () => {
   let http: App
 
   const acessos = () => linhas.filter((linha) => linha.msg === 'Requisição concluída')
+
+  /** 500 numa rota autenticada pelo `JwtAuthGuard` (#7) com token real. */
+  async function erroAutenticado() {
+    const usuario = await criarUsuario()
+    const token = await tokenPara(usuario)
+    linhas.length = 0
+    const resposta = await request(http)
+      .get('/api/v1/suporte/autenticada/erro')
+      .set('Authorization', `Bearer ${token}`)
+    return { usuario, resposta }
+  }
 
   beforeAll(async () => {
     const params = criarConfigLogger({ NODE_ENV: 'test', LOG_LEVEL: 'debug', APP_ENV: 'local' })
@@ -106,14 +115,13 @@ describe('Observabilidade da API (#48)', () => {
       await request(http).get('/api/v1/suporte/conflito')
       expect(acessos()[0]).toMatchObject({ level: 40, statusCode: 409 })
 
-      linhas.length = 0
-      await request(http).get('/api/v1/suporte/autenticada/erro')
+      const { usuario } = await erroAutenticado()
       expect(acessos()[0]).toMatchObject({
         level: 50,
         statusCode: 500,
         route: '/api/v1/suporte/autenticada/erro',
-        usuarioId: USUARIO_TESTE,
-        atleticaId: ATLETICA_TESTE,
+        usuarioId: usuario.id,
+        atleticaId: usuario.atleticaId,
       })
     })
 
@@ -139,19 +147,20 @@ describe('Observabilidade da API (#48)', () => {
 
   describe('Sentry', () => {
     it('500 → captureException com tags requestId/route e usuário só com id', async () => {
-      const resposta = await request(http).get('/api/v1/suporte/autenticada/erro')
+      const { usuario, resposta } = await erroAutenticado()
       expect(Sentry.captureException).toHaveBeenCalledTimes(1)
       expect(Sentry.captureException).toHaveBeenCalledWith(expect.any(Error), {
-        user: { id: USUARIO_TESTE },
+        user: { id: usuario.id },
         tags: {
           requestId: resposta.headers['x-request-id'],
           route: '/api/v1/suporte/autenticada/erro',
-          atleticaId: ATLETICA_TESTE,
+          atleticaId: usuario.atleticaId,
         },
       })
     })
 
-    it('404 e 409 → não vão ao Sentry', async () => {
+    it('401, 404 e 409 → não vão ao Sentry', async () => {
+      await request(http).get('/api/v1/suporte/autenticada/erro')
       await request(http).get('/api/v1/nao-existe')
       await request(http).get('/api/v1/suporte/conflito')
       expect(Sentry.captureException).not.toHaveBeenCalled()

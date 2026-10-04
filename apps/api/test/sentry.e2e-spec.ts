@@ -3,12 +3,10 @@ import * as Sentry from '@sentry/nestjs'
 import request from 'supertest'
 import type { App } from 'supertest/types'
 import { opcoesSentry } from '../src/infra/sentry/sentry'
+import { tokenPara } from './fabricas/auth'
+import { criarUsuario } from './fabricas/usuario'
 import { criarApp } from './setup/criar-app'
-import {
-  ATLETICA_TESTE,
-  ObservabilidadeController,
-  USUARIO_TESTE,
-} from './suporte/observabilidade.controller'
+import { ObservabilidadeController } from './suporte/observabilidade.controller'
 
 type Linha = Record<string, unknown>
 
@@ -48,20 +46,22 @@ describe('Sentry com o SDK real (#48, critério 5 do épico #5)', () => {
   })
 
   it('500 → environment, tags e usuário só com id; sem corpo, Authorization nem e-mail', async () => {
+    const usuario = await criarUsuario()
+    const token = await tokenPara(usuario)
     const resposta = await request(http)
       .get('/api/v1/suporte/autenticada/erro')
-      .set('Authorization', 'Bearer token-do-cliente')
+      .set('Authorization', `Bearer ${token}`)
       .set('Cookie', 'sessao=segredo')
     await Sentry.flush()
 
     const evento = eventoEnviado()
     expect(evento).toMatchObject({
       environment: 'homologacao',
-      user: { id: USUARIO_TESTE },
+      user: { id: usuario.id },
       tags: {
         requestId: resposta.headers['x-request-id'],
         route: '/api/v1/suporte/autenticada/erro',
-        atleticaId: ATLETICA_TESTE,
+        atleticaId: usuario.atleticaId,
       },
     })
     expect(Object.keys(evento?.user ?? {})).toEqual(['id'])
@@ -70,7 +70,7 @@ describe('Sentry com o SDK real (#48, critério 5 do épico #5)', () => {
     expect(evento?.request?.headers).not.toHaveProperty('cookie')
     expect(evento?.exception?.values?.[0]?.value).toBe('falha de [email]')
     const texto = envelopes.join('\n')
-    for (const sensivel of ['token-do-cliente', 'segredo']) {
+    for (const sensivel of [token, 'segredo']) {
       expect(texto).not.toContain(sensivel)
     }
   })

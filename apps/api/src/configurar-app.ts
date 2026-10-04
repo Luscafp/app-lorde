@@ -6,6 +6,7 @@ import { Logger } from 'nestjs-pino'
 import { cleanupOpenApiDoc } from 'nestjs-zod'
 import type { Env } from './config/env.schema'
 import { requestIdMiddleware } from './infra/logs/request-id.middleware'
+import { documentarAutenticacao } from './modules/auth/swagger'
 
 export const PREFIXO_API = 'api/v1'
 export const ROTA_DOCS = 'api/docs'
@@ -32,6 +33,6 @@ export function configurarApp(app: NestExpressApplication): void {
       app,
       new DocumentBuilder().setTitle('API Atlética').setVersion('1.0').addBearerAuth().build(),
     )
-    SwaggerModule.setup(ROTA_DOCS, app, cleanupOpenApiDoc(documento))
+    SwaggerModule.setup(ROTA_DOCS, app, cleanupOpenApiDoc(documentarAutenticacao(documento)))
   }
 }
