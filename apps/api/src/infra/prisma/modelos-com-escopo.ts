@@ -1,10 +1,6 @@
 import type { Prisma } from '../../generated/prisma/client'
 
-/**
- * Classificação de **todos** os modelos (épico #3 §3 item 5; convenções §6). `true` = com escopo:
- * a extensão filtra por `atleticaId` do contexto. O `satisfies` obriga a classificar todo modelo
- * novo do schema — sem isso, `pnpm typecheck` falha.
- */
+/** `true` = filtrado por atlética; o `satisfies` obriga a classificar todo modelo novo. */
 const TEM_ESCOPO = {
   VinculoAtletica: true,
   MembroTime: true,

@@ -1,11 +1,13 @@
 import { Prisma } from '../../generated/prisma/client'
 import type { ContextoAtletica } from '../contexto/contexto-atletica.service'
-import { AtleticaContextoAusenteError, ErroAtleticaDivergente } from '../contexto/erros'
+import { ErroAtleticaContextoAusente, ErroAtleticaDivergente } from '../contexto/erros'
 import { MODELOS_COM_ESCOPO } from './modelos-com-escopo'
 
 type Objeto = Record<string, unknown>
 
-/** Operações com `where` comum: o filtro entra num `AND` com o `where` original. */
+/** Exceção do épico #3 §3 item 6: inclui times de adversárias sem app e não confere `data`. */
+const MODELO_TIME = 'Time'
+
 const OPERACOES_WHERE = new Set([
   'findMany',
   'findFirst',
@@ -18,10 +20,7 @@ const OPERACOES_WHERE = new Set([
   'deleteMany',
 ])
 
-/**
- * Operações com `where` único: o filtro entra no `AND` do próprio `where`, mantendo os campos
- * únicos no topo (`extendedWhereUnique`, Prisma 5+). Registro de outra atlética = "não encontrado".
- */
+/** O filtro entra no `AND` do `where` único (Prisma 5+): outra atlética = "não encontrado". */
 const OPERACOES_WHERE_UNICO = new Set([
   'findUnique',
   'findUniqueOrThrow',
@@ -32,16 +31,18 @@ const OPERACOES_WHERE_UNICO = new Set([
 
 const OPERACOES_CRIACAO = new Set(['create', 'createMany', 'createManyAndReturn'])
 
-/** Operações com `data` de alteração (em `upsert`, o `update`). */
 const OPERACOES_ALTERACAO = new Set(['update', 'updateMany', 'updateManyAndReturn'])
+
+const ESCRITAS_DE_RELACAO = ['connect', 'connectOrCreate', 'create']
 
 function ehObjeto(valor: unknown): valor is Objeto {
   return typeof valor === 'object' && valor !== null && !Array.isArray(valor)
 }
 
-/** `Time`: times próprios e de adversárias sem app ficam visíveis (épico #3 §3 item 6). */
 function filtroAtletica(modelo: string, atleticaId: string): Objeto {
-  if (modelo === 'Time') return { OR: [{ atleticaId }, { atletica: { usaAplicativo: false } }] }
+  if (modelo === MODELO_TIME) {
+    return { OR: [{ atleticaId }, { atletica: { usaAplicativo: false } }] }
+  }
   return { atleticaId }
 }
 
@@ -62,48 +63,53 @@ interface Alvo {
   atleticaId: string
 }
 
-/** Forma com relação (`atletica: { connect: { id } }`): só aceita a atlética do contexto. */
-function conferirRelacaoAtletica(dados: Objeto, alvo: Alvo): void {
-  const relacao = dados.atletica
-  const connect = ehObjeto(relacao) ? relacao.connect : undefined
-  if (!ehObjeto(connect) || connect.id !== alvo.atleticaId) {
-    throw new ErroAtleticaDivergente(alvo.modelo, alvo.operacao)
-  }
+function divergente(alvo: Alvo): ErroAtleticaDivergente {
+  return new ErroAtleticaDivergente(alvo.modelo, alvo.operacao)
 }
 
-/** Criação: preenche `atleticaId` ausente; diferente do contexto é bug de programação. */
+/** Forma com relações (input "checked"): o Prisma não aceita `atleticaId` escalar junto. */
+function usaFormaComRelacao(dados: Objeto): boolean {
+  return Object.values(dados).some(
+    (valor) => ehObjeto(valor) && ESCRITAS_DE_RELACAO.some((chave) => chave in valor),
+  )
+}
+
+/** Só aceita `connect`; sem `id`, o `id` do contexto vira filtro e outra atlética não é achada. */
+function restringirRelacaoAtletica(relacao: unknown, alvo: Alvo): Objeto {
+  if (!ehObjeto(relacao) || Object.keys(relacao).some((chave) => chave !== 'connect')) {
+    throw divergente(alvo)
+  }
+  const { connect } = relacao
+  if (!ehObjeto(connect)) throw divergente(alvo)
+  if (connect.id !== undefined && connect.id !== alvo.atleticaId) throw divergente(alvo)
+  return { connect: { ...connect, id: alvo.atleticaId } }
+}
+
 function preencherAtletica(dados: unknown, alvo: Alvo): unknown {
   if (!ehObjeto(dados)) return dados
-  if ('atletica' in dados) {
-    conferirRelacaoAtletica(dados, alvo)
-    return dados
+  if (dados.atletica !== undefined) {
+    return { ...dados, atletica: restringirRelacaoAtletica(dados.atletica, alvo) }
   }
-  if (dados.atleticaId === undefined) return { ...dados, atleticaId: alvo.atleticaId }
-  if (dados.atleticaId !== alvo.atleticaId) {
-    throw new ErroAtleticaDivergente(alvo.modelo, alvo.operacao)
+  if (dados.atleticaId === undefined) {
+    return usaFormaComRelacao(dados)
+      ? { ...dados, atletica: { connect: { id: alvo.atleticaId } } }
+      : { ...dados, atleticaId: alvo.atleticaId }
   }
+  if (dados.atleticaId !== alvo.atleticaId) throw divergente(alvo)
   return dados
 }
 
-/** Alteração: impede mover o registro para outra atlética. */
-function conferirAlteracao(dados: unknown, alvo: Alvo): void {
-  if (!ehObjeto(dados)) return
-  if ('atletica' in dados) conferirRelacaoAtletica(dados, alvo)
+/** Impede mover o registro para outra atlética. */
+function restringirAlteracao(dados: unknown, alvo: Alvo): unknown {
+  if (!ehObjeto(dados)) return dados
   const valor = dados.atleticaId
   const novo = ehObjeto(valor) ? valor.set : valor
-  if (novo !== undefined && novo !== alvo.atleticaId) {
-    throw new ErroAtleticaDivergente(alvo.modelo, alvo.operacao)
-  }
+  if (novo !== undefined && novo !== alvo.atleticaId) throw divergente(alvo)
+  if (dados.atletica === undefined) return dados
+  return { ...dados, atletica: restringirRelacaoAtletica(dados.atletica, alvo) }
 }
 
-/**
- * Devolve os argumentos de uma operação sobre um modelo **com escopo** restritos à atlética do
- * contexto (tabela do épico #3 §3 item 5). Não altera `args`. Operação desconhecida é rejeitada
- * (falha fechada).
- *
- * `Time` (item 6): o filtro de leitura/escrita por `where` inclui times de adversárias sem app, e
- * `create`/`data` não são preenchidos nem conferidos — o service da #16 valida a atlética.
- */
+/** Restringe os `args` de um modelo com escopo à atlética do contexto, sem alterá-los. */
 export function aplicarEscopo(
   modelo: string,
   operacao: string,
@@ -113,7 +119,6 @@ export function aplicarEscopo(
   const original: Objeto = ehObjeto(args) ? args : {}
   const alvo: Alvo = { modelo, operacao, atleticaId }
   const filtro = filtroAtletica(modelo, atleticaId)
-  const conferirDados = modelo !== 'Time'
   const resultado: Objeto = { ...original }
 
   if (OPERACOES_WHERE.has(operacao)) {
@@ -124,29 +129,24 @@ export function aplicarEscopo(
     throw new Error(`Operação ${modelo}.${operacao} não suportada pela extensão multi-atlética.`)
   }
 
-  if (conferirDados) {
-    if (OPERACOES_CRIACAO.has(operacao)) {
-      const { data } = original
-      resultado.data = Array.isArray(data)
-        ? data.map((item) => preencherAtletica(item, alvo))
-        : preencherAtletica(data, alvo)
-    }
-    if (OPERACOES_ALTERACAO.has(operacao)) conferirAlteracao(original.data, alvo)
-    if (operacao === 'upsert') {
-      resultado.create = preencherAtletica(original.create, alvo)
-      conferirAlteracao(original.update, alvo)
-    }
+  if (modelo === MODELO_TIME) return resultado
+
+  if (OPERACOES_CRIACAO.has(operacao)) {
+    const { data } = original
+    resultado.data = Array.isArray(data)
+      ? data.map((item) => preencherAtletica(item, alvo))
+      : preencherAtletica(data, alvo)
+  }
+  if (OPERACOES_ALTERACAO.has(operacao)) resultado.data = restringirAlteracao(original.data, alvo)
+  if (operacao === 'upsert') {
+    resultado.create = preencherAtletica(original.create, alvo)
+    resultado.update = restringirAlteracao(original.update, alvo)
   }
 
   return resultado
 }
 
-/**
- * Extensão do Prisma que aplica o filtro por atlética (RNF20) aos modelos com escopo, com falha
- * fechada: sem atlética no contexto, lança `AtleticaContextoAusenteError` antes de ir ao banco.
- * Também vale dentro de `$transaction`. Não filtra `include`, escritas aninhadas nem `$queryRaw`
- * (limitações no README).
- */
+/** Filtro por atlética (RNF20) com falha fechada; vale também dentro de `$transaction`. */
 export function extensaoAtletica(contexto: Pick<ContextoAtletica, 'atleticaId'>) {
   return Prisma.defineExtension({
     name: 'atletica',
@@ -155,7 +155,7 @@ export function extensaoAtletica(contexto: Pick<ContextoAtletica, 'atleticaId'>)
         async $allOperations({ model, operation, args, query }) {
           if (!MODELOS_COM_ESCOPO.has(model)) return query(args)
           const atleticaId = contexto.atleticaId()
-          if (!atleticaId) throw new AtleticaContextoAusenteError(model, operation)
+          if (!atleticaId) throw new ErroAtleticaContextoAusente(model, operation)
           return query(aplicarEscopo(model, operation, args, atleticaId))
         },
       },

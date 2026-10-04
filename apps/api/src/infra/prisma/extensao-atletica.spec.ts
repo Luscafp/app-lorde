@@ -124,6 +124,29 @@ describe('aplicarEscopo', () => {
         aplicarEscopo('Evento', 'create', { data: { atletica: { create: { nome: 'x' } } } }, A),
       ).toThrow(ErroAtleticaDivergente)
     })
+
+    it('forma com relação sem atletica: preenche com connect, não com atleticaId', () => {
+      const data = { evento: { connect: { id: 'e' } }, usuario: { connect: { id: 'u' } } }
+      expect(aplicarEscopo('Participacao', 'create', { data }, A).data).toEqual({
+        ...data,
+        atletica: { connect: { id: A } },
+      })
+    })
+
+    it('connect de atletica por outra chave única recebe o id do contexto como filtro', () => {
+      const data = { local: 'x', atletica: { connect: { slug: 'lorde' } } }
+      expect(aplicarEscopo('Evento', 'create', { data }, A).data).toEqual({
+        local: 'x',
+        atletica: { connect: { slug: 'lorde', id: A } },
+      })
+    })
+
+    it('connectOrCreate de atletica → ErroAtleticaDivergente', () => {
+      const atletica = { connectOrCreate: { where: { id: A }, create: { nome: 'x' } } }
+      expect(() =>
+        aplicarEscopo('Evento', 'create', { data: { local: 'x', atletica } }, A),
+      ).toThrow(ErroAtleticaDivergente)
+    })
   })
 
   describe.each(['createMany', 'createManyAndReturn'])('%s', (operacao) => {
@@ -182,7 +205,12 @@ describe('aplicarEscopo', () => {
     })
 
     it('aceita data sem atleticaId ou com a atlética do contexto', () => {
-      for (const data of [{ local: 'y' }, { atleticaId: A }, { atleticaId: { set: A } }]) {
+      for (const data of [
+        { local: 'y' },
+        { atleticaId: A },
+        { atleticaId: { set: A } },
+        { atletica: { connect: { id: A } } },
+      ]) {
         expect(aplicarEscopo('Evento', operacao, { where: { id: 'x' }, data }, A).data).toEqual(
           data,
         )

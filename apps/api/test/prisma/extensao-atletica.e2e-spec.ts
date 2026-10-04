@@ -4,12 +4,10 @@ import { mapearExcecao } from '../../src/common/filtros/excecao-global.filter'
 import { ConfiguracaoModule } from '../../src/config/config.module'
 import { ContextoAtletica } from '../../src/infra/contexto/contexto-atletica.service'
 import { ContextoModule } from '../../src/infra/contexto/contexto.module'
-import {
-  AtleticaContextoAusenteError,
-  ErroAtleticaDivergente,
-} from '../../src/infra/contexto/erros'
+import { ErroAtleticaContextoAusente, ErroAtleticaDivergente } from '../../src/infra/contexto/erros'
 import { PrismaModule } from '../../src/infra/prisma/prisma.module'
 import { PrismaService } from '../../src/infra/prisma/prisma.service'
+import type { Prisma } from '../../src/generated/prisma/client'
 import { criarAtletica } from '../fabricas/atletica'
 import { proximaSequencia } from '../fabricas/sequencia'
 import { criarUsuario } from '../fabricas/usuario'
@@ -17,11 +15,7 @@ import { criarApp } from '../setup/criar-app'
 import { prismaTeste } from '../setup/prisma-teste'
 import { EscopoController } from '../suporte/escopo.controller'
 
-/**
- * Extensão multi-atlética (épico #3 §3 itens 3–6; critérios 3 a 8): cada operação da tabela do
- * item 5 com contexto A e dados de A e B, a regra especial de `Time` e as transações interativas.
- * Os dados são preparados com `prismaTeste` (cliente base, sem filtro).
- */
+/** Critérios 3 a 8 do épico #3, com dados preparados pelo `prismaTeste` (sem filtro). */
 
 // TODO: trocar pelas fábricas de domínio quando existirem (times → #63, eventos → #70).
 function criarModalidade() {
@@ -47,10 +41,7 @@ async function montarAtletica(modalidadeId: string) {
   return { atletica, time, diretor, evento }
 }
 
-/**
- * Os tipos gerados do Prisma exigem `atleticaId` na criação; a extensão o preenche em runtime.
- * O cast só existe para testar esse preenchimento (o código da API informa `atleticaId`).
- */
+/** Cast para testar o preenchimento: os tipos gerados exigem `atleticaId`. */
 function semAtleticaId<T extends object>(dados: T): T & { atleticaId: string } {
   return dados as T & { atleticaId: string }
 }
@@ -287,14 +278,34 @@ describe('Extensão multi-atlética (#44)', () => {
       expect(criadas).toEqual([expect.objectContaining({ atleticaId: c.a.atletica.id })])
       expect(await prismaTeste.tag.count({ where: { atleticaId: c.a.atletica.id } })).toBe(3)
     })
+
+    it('create na forma com relações preenche a atlética com connect', async () => {
+      const data = {
+        evento: { connect: { id: c.a.evento.id } },
+        usuario: { connect: { id: c.a.diretor.id } },
+      } as Prisma.ParticipacaoCreateInput
+      const participacao = await emA(() => prisma.db.participacao.create({ data }))
+      expect(participacao.atleticaId).toBe(c.a.atletica.id)
+    })
+
+    it('connect de atletica por slug de outra atlética → P2025', async () => {
+      const slug = c.b.atletica.slug ?? ''
+      const erro: unknown = await emA(() =>
+        prisma.db.tag.create({
+          data: { nome: 'X', nomeNormalizado: 'x', atletica: { connect: { slug } } },
+        }),
+      ).catch((e: unknown) => e)
+      expect(erro).toMatchObject({ code: 'P2025' })
+      expect(await prismaTeste.tag.count()).toBe(0)
+    })
   })
 
   describe('sem contexto (critério 6)', () => {
-    it('modelo com escopo → AtleticaContextoAusenteError, sem ir ao banco', async () => {
-      await expect(prisma.db.evento.findMany()).rejects.toBeInstanceOf(AtleticaContextoAusenteError)
+    it('modelo com escopo → ErroAtleticaContextoAusente, sem ir ao banco', async () => {
+      await expect(prisma.db.evento.findMany()).rejects.toBeInstanceOf(ErroAtleticaContextoAusente)
       await expect(
         prisma.db.evento.create({ data: semAtleticaId(dadosTreino(c.a.time.id, c.a.diretor.id)) }),
-      ).rejects.toBeInstanceOf(AtleticaContextoAusenteError)
+      ).rejects.toBeInstanceOf(ErroAtleticaContextoAusente)
       expect(await prismaTeste.evento.count()).toBe(2)
     })
 
@@ -376,7 +387,7 @@ describe('Extensão multi-atlética (#44)', () => {
 })
 
 describe('Rota sem atlética no contexto (#44)', () => {
-  it('AtleticaContextoAusenteError → 500 INTERNAL_ERROR com a mensagem genérica', async () => {
+  it('ErroAtleticaContextoAusente → 500 INTERNAL_ERROR com a mensagem genérica', async () => {
     const { app, http } = await criarApp({ controllers: [EscopoController] })
     try {
       const resposta = await request(http).get('/api/v1/escopo/eventos')
