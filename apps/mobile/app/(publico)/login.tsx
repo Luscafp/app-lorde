@@ -5,16 +5,21 @@ import { useEffect } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { View } from 'react-native'
 import { TelaRolavel } from '@/components/tela-rolavel'
-import { Alerta, Botao, Campo, CampoSenha, Texto } from '@/components/ui'
+import { Alerta, AvisoOffline, Botao, CampoSenha, Texto } from '@/components/ui'
 import { useAtletica } from '@/features/atletica'
 import {
   CabecalhoAuth,
+  CampoEmail,
   formatarMinutosSegundos,
+  LinkAuth,
   useContagemRegressiva,
   useLogin,
 } from '@/features/auth'
 import { CodigoApi, type ApiErro } from '@/infra/api/api-erro'
-import { MENSAGEM_ACAO_OFFLINE } from '@/infra/query/use-acao-online'
+
+function segundosDeBloqueio(erro: ApiErro | null): number | null {
+  return erro?.code === CodigoApi.RATE_LIMITED ? erro.segundosParaNovaTentativa : null
+}
 
 function AvisoDeErro({ erro }: { erro: ApiErro | null }) {
   const { contatoEmail } = useAtletica()
@@ -27,8 +32,8 @@ function AvisoDeErro({ erro }: { erro: ApiErro | null }) {
       </Alerta>
     )
   }
-  const semContagem = erro?.code === CodigoApi.RATE_LIMITED && !erro.segundosParaNovaTentativa
-  if (erro?.code === CodigoApi.CREDENCIAIS_INVALIDAS || semContagem) {
+  const limiteSemRetryAfter = erro?.code === CodigoApi.RATE_LIMITED && !segundosDeBloqueio(erro)
+  if (erro?.code === CodigoApi.CREDENCIAIS_INVALIDAS || limiteSemRetryAfter) {
     return <Alerta>{erro.message}</Alerta>
   }
   return null
@@ -40,6 +45,8 @@ export default function Login() {
   const bloqueio = useContagemRegressiva()
   const form = useForm({
     resolver: zodResolver(loginSchema),
+    mode: 'onBlur',
+    reValidateMode: 'onChange',
     defaultValues: { email: emailRecebido ?? '', senha: '' },
   })
   const email = useWatch({ control: form.control, name: 'email' })
@@ -51,9 +58,8 @@ export default function Login() {
   const enviar = form.handleSubmit((dados) =>
     login.mutate(dados, {
       onError: (erro) => {
-        if (erro.code === CodigoApi.RATE_LIMITED && erro.segundosParaNovaTentativa) {
-          bloqueio.iniciar(erro.segundosParaNovaTentativa)
-        }
+        const segundos = segundosDeBloqueio(erro)
+        if (segundos) bloqueio.iniciar(segundos)
       },
     }),
   )
@@ -70,17 +76,7 @@ export default function Login() {
         <AvisoDeErro erro={login.error} />
       )}
 
-      <Campo
-        controle={form.control}
-        nome="email"
-        rotulo="E-mail"
-        placeholder="seu@email.com"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoComplete="email"
-        autoCorrect={false}
-        editable={!bloqueio.ativa}
-      />
+      <CampoEmail controle={form.control} nome="email" editable={!bloqueio.ativa} />
       <CampoSenha
         controle={form.control}
         nome="senha"
@@ -101,23 +97,14 @@ export default function Login() {
       <Botao
         titulo="Entrar"
         carregando={login.isPending}
-        disabled={!login.online || bloqueio.ativa}
+        disabled={!login.online || login.isPending || bloqueio.ativa}
         onPress={() => void enviar()}
       />
-      {!login.online && (
-        <Texto variante="legenda" className="text-center" accessibilityLiveRegion="polite">
-          {MENSAGEM_ACAO_OFFLINE}
-        </Texto>
-      )}
+      <AvisoOffline online={login.online} />
 
       <View className="flex-row items-center justify-center gap-1">
         <Texto variante="legenda">Não tem conta?</Texto>
-        <Link
-          href={{ pathname: '/cadastro', params: { email } }}
-          className="min-h-[44px] py-3 text-sm font-semibold text-secundaria underline"
-        >
-          Criar conta
-        </Link>
+        <LinkAuth href={{ pathname: '/cadastro', params: { email } }}>Criar conta</LinkAuth>
       </View>
     </TelaRolavel>
   )

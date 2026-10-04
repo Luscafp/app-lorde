@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons'
-import { TERMOS_VERSAO, type DocumentoLegal } from '@atletica/shared'
+import type { DocumentoLegal } from '@atletica/shared'
 import { useRouter } from 'expo-router'
 import { Pressable, View } from 'react-native'
 import { TelaRolavel } from '@/components/tela-rolavel'
@@ -22,7 +22,6 @@ export function TelaDocumentoLegal({ documento }: { documento: DocumentoLegal })
         </Pressable>
       )}
       <Texto variante="titulo">{documento.titulo}</Texto>
-      <Texto variante="legenda">{`Versão ${TERMOS_VERSAO}`}</Texto>
       {documento.provisorio && (
         <Alerta variante="alerta" titulo="Texto provisório">
           Este texto ainda não é a versão definitiva e pode mudar antes do lançamento.

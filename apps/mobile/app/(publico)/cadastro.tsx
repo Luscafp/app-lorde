@@ -5,11 +5,10 @@ import { useState } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { View } from 'react-native'
 import { TelaRolavel } from '@/components/tela-rolavel'
-import { Botao, CaixaSelecao, Campo, CampoSenha, Texto } from '@/components/ui'
-import { CabecalhoAuth, useCadastro } from '@/features/auth'
+import { AvisoOffline, Botao, CaixaSelecao, Campo, CampoSenha, Texto } from '@/components/ui'
+import { CabecalhoAuth, CampoEmail, LinkAuth, useCadastro } from '@/features/auth'
 import { CodigoApi } from '@/infra/api/api-erro'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
-import { MENSAGEM_ACAO_OFFLINE } from '@/infra/query/use-acao-online'
 
 const ROTULO_ACEITE = 'Li e aceito os Termos de Uso e a Política de Privacidade'
 
@@ -52,16 +51,7 @@ export default function Cadastro() {
         autoComplete="name"
         autoCapitalize="words"
       />
-      <Campo
-        controle={form.control}
-        nome="email"
-        rotulo="E-mail"
-        placeholder="seu@email.com"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoComplete="email"
-        autoCorrect={false}
-      />
+      <CampoEmail controle={form.control} nome="email" />
       {emailJaCadastrado && (
         <View className="flex-row gap-2">
           <Botao
@@ -122,23 +112,15 @@ export default function Cadastro() {
       <Botao
         titulo="Criar conta"
         carregando={cadastro.isPending}
-        disabled={!cadastro.online || aceite !== true}
+        disabled={!cadastro.online || cadastro.isPending || aceite !== true}
         onPress={() => void enviar()}
       />
-      {!cadastro.online && (
-        <Texto variante="legenda" className="text-center" accessibilityLiveRegion="polite">
-          {MENSAGEM_ACAO_OFFLINE}
-        </Texto>
-      )}
+      <AvisoOffline online={cadastro.online} />
 
       <View className="items-center">
-        <Link
-          href={{ pathname: '/login', params: { email } }}
-          dismissTo
-          className="min-h-[44px] py-3 text-sm font-semibold text-secundaria underline"
-        >
+        <LinkAuth href={{ pathname: '/login', params: { email } }} dismissTo>
           Já tenho conta
-        </Link>
+        </LinkAuth>
       </View>
     </TelaRolavel>
   )

@@ -84,10 +84,11 @@ const erroApi = (
   status: number,
   code: string,
   message: string,
+  details: { field: string; message: string }[] = [],
   extras: Partial<Resposta> = {},
 ) => ({
   status,
-  corpo: { statusCode: status, code, message, details: [] },
+  corpo: { statusCode: status, code, message, details },
   ...extras,
 })
 
@@ -178,7 +179,9 @@ describe('login', () => {
   it('RATE_LIMITED mostra a contagem regressiva a partir do Retry-After e desabilita os campos', async () => {
     respostasAuth.set(
       '/auth/login',
-      erroApi(429, 'RATE_LIMITED', 'Muitas tentativas.', { cabecalhos: { 'retry-after': '900' } }),
+      erroApi(429, 'RATE_LIMITED', 'Muitas tentativas.', [], {
+        cabecalhos: { 'retry-after': '900' },
+      }),
     )
     await abrir('/login')
 
@@ -264,15 +267,10 @@ describe('cadastro', () => {
 
   it('409 EMAIL_JA_CADASTRADO mostra o erro no campo e as ações "Entrar" e "Esqueci minha senha"', async () => {
     const mensagem = 'Este e-mail já está cadastrado.'
-    respostasAuth.set('/auth/cadastro', {
-      status: 409,
-      corpo: {
-        statusCode: 409,
-        code: 'EMAIL_JA_CADASTRADO',
-        message: mensagem,
-        details: [{ field: 'email', message: mensagem }],
-      },
-    })
+    respostasAuth.set(
+      '/auth/cadastro',
+      erroApi(409, 'EMAIL_JA_CADASTRADO', mensagem, [{ field: 'email', message: mensagem }]),
+    )
     const caminho = await abrir('/cadastro')
     await preencherCadastro()
     await fireEvent.press(screen.getByRole('checkbox'))

@@ -1,4 +1,5 @@
 export { Alerta, type VarianteAlerta } from './alerta'
+export { AvisoOffline } from './aviso-offline'
 export { Botao, type VarianteBotao } from './botao'
 export { CaixaSelecao } from './caixa-selecao'
 export { Campo } from './campo'
