@@ -1,0 +1,66 @@
+name: Backup do banco
+
+# pg_dump criptografado com age e enviado ao bucket privado atletica-backups (R2).
+# Produção diária em prod/, homologação semanal em hml/. Falha gera e-mail do GitHub aos
+# mantenedores. Runbook: docs/runbooks/infra-railway-r2.md.
+on:
+  schedule:
+    - cron: '0 6 * * *' # produção: todo dia, 03:00 em São Luís
+    - cron: '0 7 * * 0' # homologação: domingo, 04:00 em São Luís
+  workflow_dispatch:
+    inputs:
+      ambiente:
+        description: Banco a copiar
+        type: choice
+        options: [producao, homologacao]
+        default: producao
+
+permissions:
+  contents: read
+
+env:
+  # Mesma major do Postgres da Railway.
+  PG_MAJOR: '16'
+  BUCKET: atletica-backups
+  AWS_DEFAULT_REGION: auto
+  AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+  AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+
+jobs:
+  backup:
+    name: backup (${{ github.event.schedule == '0 7 * * 0' && 'homologacao' || inputs.ambiente || 'producao' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: backup-db-${{ github.event.schedule == '0 7 * * 0' && 'homologacao' || inputs.ambiente || 'producao' }}
+      cancel-in-progress: false
+    env:
+      PREFIXO: ${{ (github.event.schedule == '0 7 * * 0' || inputs.ambiente == 'homologacao') && 'hml' || 'prod' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/ferramentas-backup
+        with:
+          versao-postgres: ${{ env.PG_MAJOR }}
+      - name: Dump e criptografia
+        id: dump
+        env:
+          DATABASE_URL: ${{ env.PREFIXO == 'hml' && secrets.DATABASE_URL_HOMOLOGACAO_BACKUP || secrets.DATABASE_URL_PRODUCAO_BACKUP }}
+          AGE_PUBLIC_KEY: ${{ secrets.AGE_PUBLIC_KEY }}
+        run: |
+          arquivo=$(scripts/backup/backup.sh "atletica-$PREFIXO" "$RUNNER_TEMP")
+          echo "arquivo=$arquivo" >>"$GITHUB_OUTPUT"
+      - name: Envio ao R2
+        env:
+          ARQUIVO: ${{ steps.dump.outputs.arquivo }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: https://${{ secrets.R2_BACKUP_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          chave="$PREFIXO/$(basename "$ARQUIVO")"
+          aws s3 cp "$ARQUIVO" "s3://$BUCKET/$chave" --no-progress
+          enviado=$(aws s3api head-object --bucket "$BUCKET" --key "$chave" --query ContentLength --output text)
+          if [ "$enviado" != "$(wc -c <"$ARQUIVO")" ]; then
+            echo "::error::Objeto $chave com $enviado bytes no R2, diferente do arquivo local."
+            exit 1
+          fi
+          echo "Enviado para \`$BUCKET/$chave\`." >>"$GITHUB_STEP_SUMMARY"

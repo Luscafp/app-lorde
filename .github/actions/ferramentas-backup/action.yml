@@ -1,0 +1,25 @@
+name: Ferramentas de backup
+description: postgresql-client da major do servidor (repositório PGDG) e age, para os scripts de scripts/backup.
+
+inputs:
+  versao-postgres:
+    description: Major do PostgreSQL do servidor (o pg_dump precisa ser da mesma major ou mais novo).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Instalar postgresql-client e age
+      shell: bash
+      env:
+        PG_MAJOR: ${{ inputs.versao-postgres }}
+      run: |
+        sudo install -d /usr/share/postgresql-common/pgdg
+        sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+          https://www.postgresql.org/media/keys/ACCC4CF8.asc
+        echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" |
+          sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq "postgresql-client-$PG_MAJOR" age
+        # O runner pode ter outras majors instaladas; fixa os binários da pedida.
+        echo "/usr/lib/postgresql/$PG_MAJOR/bin" >>"$GITHUB_PATH"

@@ -1,0 +1,83 @@
+name: Teste de restauração
+
+# Restaura o backup de produção mais recente num Postgres efêmero do runner e roda as consultas
+# de sanidade (RNF10). A parte manual está em docs/runbooks/restauracao-banco.md.
+on:
+  schedule:
+    - cron: '0 9 1 * *' # dia 1º, 06:00 em São Luís (depois do backup diário)
+  workflow_dispatch:
+    inputs:
+      migration-esperada:
+        description: Última migration esperada no backup (vazio = a mais recente do repositório)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  PG_MAJOR: '16'
+  BUCKET: atletica-backups
+  AWS_DEFAULT_REGION: auto
+  AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+  AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+
+jobs:
+  restauracao:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16 # mesma major de PG_MAJOR
+        env:
+          POSTGRES_USER: restauracao
+          POSTGRES_PASSWORD: restauracao
+          POSTGRES_DB: restauracao
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U restauracao" --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://restauracao:restauracao@localhost:5432/restauracao
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/ferramentas-backup
+        with:
+          versao-postgres: ${{ env.PG_MAJOR }}
+      - name: Baixar o backup mais recente
+        id: baixar
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: https://${{ secrets.R2_BACKUP_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          echo "INICIO=$(date +%s)" >>"$GITHUB_ENV"
+          nome=$(aws s3 ls "s3://$BUCKET/prod/" | awk '{print $4}' | { grep '\.dump\.age$' || true; } | sort | tail -n1)
+          [ -n "$nome" ] || { echo "::error::Nenhum backup em $BUCKET/prod/."; exit 1; }
+          aws s3 cp "s3://$BUCKET/prod/$nome" "$RUNNER_TEMP/$nome" --no-progress
+          echo "nome=$nome" >>"$GITHUB_OUTPUT"
+      - name: Restaurar
+        env:
+          AGE_PRIVATE_KEY: ${{ secrets.AGE_PRIVATE_KEY_RESTORE_TEST }}
+          NOME: ${{ steps.baixar.outputs.nome }}
+        run: scripts/backup/restaurar.sh "$RUNNER_TEMP/$NOME"
+      - name: Consultas de sanidade
+        id: sanidade
+        env:
+          MIGRATION_ESPERADA: ${{ inputs.migration-esperada }}
+        run: |
+          echo "### Sanidade" >>"$GITHUB_STEP_SUMMARY"
+          scripts/backup/sanidade.sh | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Resumo
+        if: ${{ !cancelled() }}
+        env:
+          NOME: ${{ steps.baixar.outputs.nome }}
+          RESULTADO: ${{ steps.sanidade.outcome == 'success' && 'sucesso' || 'falha' }}
+        run: |
+          duracao=$(( $(date +%s) - ${INICIO:-$(date +%s)} ))
+          {
+            echo "### Teste de restauração: $RESULTADO"
+            echo
+            echo "| Backup | Duração |"
+            echo "| --- | --- |"
+            echo "| \`${NOME:-nenhum}\` | $((duracao / 60)) min $((duracao % 60)) s |"
+          } >>"$GITHUB_STEP_SUMMARY"

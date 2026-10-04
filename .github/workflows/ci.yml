@@ -48,6 +48,15 @@ jobs:
       - name: Tipos
         if: ${{ !cancelled() && steps.shared.outcome == 'success' }}
         run: pnpm typecheck
+      # A imagem do actionlint traz o shellcheck, que também valida os `run:` dos workflows.
+      - name: Workflows (actionlint)
+        if: ${{ !cancelled() && steps.filtro.outputs.qualidade == 'true' }}
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color
+      - name: Scripts shell (shellcheck)
+        if: ${{ !cancelled() && steps.filtro.outputs.qualidade == 'true' }}
+        run: shellcheck scripts/backup/*.sh .github/scripts/*.sh apps/api/scripts/*.sh
       # Por último: a action grava results.sarif no workspace, que o Prettier acusaria.
       # Roda sempre, inclusive em PR só de docs.
       - name: Segredos (gitleaks)
