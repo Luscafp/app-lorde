@@ -7,8 +7,10 @@ import { ExcecaoGlobalFilter } from './common/filtros/excecao-global.filter'
 import { ConfiguracaoModule } from './config/config.module'
 import type { Env } from './config/env.schema'
 import { ContextoModule } from './infra/contexto/contexto.module'
+import { EventosModule } from './infra/eventos/eventos.module'
 import { criarConfigLogger } from './infra/logs/logger.config'
 import { PrismaModule } from './infra/prisma/prisma.module'
+import { AuditoriaModule } from './modules/auditoria/auditoria.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.module'
 
@@ -26,6 +28,8 @@ import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.mod
     }),
     ContextoModule,
     PrismaModule,
+    EventosModule,
+    AuditoriaModule,
     AuthModule,
     DiagnosticoForaDeProducao,
   ],

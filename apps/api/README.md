@@ -97,6 +97,12 @@ describe('GET /api/v1/...', () => {
 - `test/infraestrutura/` — testes dos próprios utilitários (`limparBanco`, fábricas, `criarApp`, proteção do `globalSetup`).
 - `test/prisma/constraints.e2e-spec.ts` — um caso aceito e um rejeitado para cada constraint da migration `init` (épico #3 §8.3), conferindo o nome da constraint violada, e a estrutura da migration (tabelas, enums, índices e `CHECK`). Toda constraint nova em SQL entra aqui.
 - `test/prisma/extensao-atletica.e2e-spec.ts` — extensão multi-atlética: cada operação com contexto A e dados de A e B, regra de `Time`, transações, falta de contexto e o `500` numa rota.
+- `test/auditoria/auditoria.e2e-spec.ts` e `test/eventos/eventos-dominio.e2e-spec.ts` — atomicidade da auditoria, lotes, imutabilidade (extensão e trigger) e eventos só após o commit.
+
+### Eventos (`test/eventos.ts`)
+
+- `espiarEventos(app)` — spy no `EventEmitter2`; chame no `beforeEach` (reaproveita o spy e o limpa). `emitidos()` devolve `{ nome, payload }[]` na ordem; `nomes()`, só os nomes. Use para conferir "emitido só após o commit" e "nada emitido em rollback/4xx" (convenções §9).
+- `aguardarOuvintes()` — uma volta do event loop, para ouvintes `{ async: true }` sem I/O. Se o ouvinte consulta o banco, espere uma promessa resolvida pelo próprio ouvinte de teste (ver `test/eventos/eventos-dominio.e2e-spec.ts`).
 
 ## Autenticação e autorização (`src/modules/auth`)
 
@@ -223,6 +229,72 @@ Idempotente: pode rodar quantas vezes quiser, sem duplicar nem sobrescrever o qu
 4. **Demonstração** (`SEED_DEMO=true`): adversária, dois times, eventos, notícias e um usuário por papel (`<papel>@demo.exemplo.com.br`, senha `lorde2026`). Recusado com `APP_ENV=producao`.
 
 Em **produção** o seed é executado uma única vez, por uma pessoa, na implantação (#92) — nunca no deploy automático.
+
+## Auditoria (`src/modules/auditoria`)
+
+`AuditoriaService` (global) é o **único** meio de gravar `RegistroAuditoria`, sempre **na mesma transação** da alteração (convenções §7): se a auditoria falha, a alteração é desfeita, e vice-versa.
+
+```ts
+await this.transacao.executar(async (tx) => {
+  const antes = await tx.evento.findUniqueOrThrow({ where: { id } })
+  const depois = await tx.evento.update({ where: { id }, data: dto })
+  const diff = diferenca(antes, depois, ['inicio', 'local', 'observacoes', 'timeAdversarioId'])
+  if (!diff) return // sem mudança: 200 sem auditoria nem evento
+  await this.auditoria.registrar(tx, {
+    acao: 'EVENTO_ALTERADO',
+    entidade: 'Evento',
+    entidadeId: id,
+    dados: diff,
+  })
+  this.eventos.emitirAposCommit('evento.alterado', {
+    atleticaId,
+    eventoIds: [id],
+    timeId,
+    campos,
+    autorId,
+  })
+})
+```
+
+- **`registrar(tx, { acao, entidade, entidadeId, dados, usuarioId? })`** — `tx` é obrigatório. `acao` e `entidade` vêm do catálogo `ACOES_POR_ENTIDADE` de `@atletica/shared` (`src/auditoria/acoes.ts`): combinação fora dele não compila. `atleticaId` e `requestId` vêm do contexto; o ator (`usuarioId`) também, e sem usuário no contexto é obrigatório passar `usuarioId: null` (ação do sistema, jobs) — senão lança `ErroAuditoria`.
+- **`registrarVarios(tx, entradas)`** — mesmas regras, um `createMany` (um `INSERT`) por lote de 500. Use em operações sobre muitos registros (ex.: "esta e as seguintes" numa série).
+- **`dados = { antes, depois, contexto? }`**: criação → `antes: null`; exclusão → `depois: null`; alteração → só os campos alterados, calculados por `diferenca(antes, depois, campos?)` (datas por `getTime()`, arrays e objetos por igualdade profunda, ignora `criadoEm`/`atualizadoEm`; `null` se nada mudou). `contexto` guarda ids auxiliares (`{ serieId, escopo }`, `{ timeId, usuarioId, ... }`).
+- **Só ids e valores de domínio.** `sanitizar` remove, em qualquer nível e com `warn` no log (só os caminhos), `senhaHash`, `refreshTokenHash`, `refreshTokenAnteriorHash`, `codigoHash`, `tokenPush`, `email`, `nome`, `fotoKey`, `ip`, `userAgent`, `accessToken`, `refreshToken` e qualquer `*Hash`. `nome` é mantido em `Modalidade`, `Atletica` e `Time`, onde é dado de domínio. Pessoas sempre por `usuarioId`.
+- **Máximo de 16 KB** por registro serializado (`ErroAuditoria` acima disso): para textos longos (notícias), registre indicadores como `{ conteudoAlterado: true }`.
+- **Imutável:** a extensão `extensao-imutavel.ts` (nos dois clientes do `PrismaService`) rejeita `update*`, `upsert` e `delete*` com `ErroAuditoriaImutavel`, e o trigger `registro_auditoria_imutavel` (migration `auditoria_imutavel`) bloqueia `UPDATE`/`DELETE` em SQL cru. `TRUNCATE` (limpeza dos testes) não é afetado.
+- **Nova ação:** PR alterando `ACOES_POR_ENTIDADE` e a convenção §7 (sem migration: as colunas são `VARCHAR(40)`), com o rótulo correspondente (#39).
+
+### Operações obrigatórias
+
+Toda ação do catálogo é gravada pela issue indicada na convenção §7, e o teste da issue confere o registro: modalidades (#15), adversárias, times e capitão (#16), elenco (#16, #18, #12, #34), solicitações avaliadas (#18), eventos (#19, #21), séries (#20), presenças (#35), notícias (#26), banners (#33), desativação, reativação e cargo (#27, #28), exclusão de conta (#12, um registro por atlética) e avisos (#38, entidade `Aviso` com UUID gerado).
+
+**Sem auditoria:** perfil (#13), participação do atleta (#24), preferências (#37), consulta (#39) e criação/cancelamento de solicitação pelo atleta (#18). Operação sem mudança responde 200 sem registro.
+
+## Eventos de domínio (`src/infra/eventos`)
+
+`EventosModule` (global) registra o `EventEmitterModule` uma única vez e exporta `TransacaoService` e `EventosDominioService` (convenções §8).
+
+- **`TransacaoService.executar(fn)`** — wrapper de `prisma.db.$transaction` que abre uma unidade no CLS. **Toda operação que emite evento ou agenda efeito externo usa `executar`**, não `$transaction` direto. Dentro de outro `executar` (ex.: `ElencoService.encerrarVinculo` na exclusão de conta), reutiliza a transação e a fila externas: nada roda antes do commit externo.
+- **`aposCommit(callback)`** — agenda o callback para depois do commit (ex.: remover arquivo do R2, enviar e-mail). Os callbacks rodam na ordem de registro, antes de `executar` retornar; erro em um é logado (`logger.error`) e não impede os seguintes nem afeta a resposta. Em rollback, a fila é descartada. Fora de `executar`, lança `ErroForaDeTransacao`.
+- **`EventosDominioService.emitirAposCommit(nome, payload)`** — único meio de emitir evento de domínio (usa `aposCommit`). Um evento por operação, mesmo em lote. Nada é emitido em rollback, 4xx ou operação sem mudança.
+- **Ouvintes:** `@OnEvent('evento.alterado', { async: true })`. Erros são capturados e logados pelo `@nestjs/event-emitter`, sem afetar a requisição. Perda em queda do processo é aceita (sem outbox).
+
+### Acrescentar um evento
+
+Cada issue emissora acrescenta o seu ao mapa `EventosDominio` (`eventos-dominio.ts`), conforme a tabela da convenção §8. Todo payload estende `PayloadBase` (`autorId: string | null`, `null` = sistema; `atleticaId` quando aplicável):
+
+```ts
+export interface EventosDominio {
+  'evento.alterado': PayloadBase & {
+    atleticaId: string
+    eventoIds: string[]
+    timeId: string
+    campos: ('inicio' | 'local' | 'status')[]
+  }
+}
+```
+
+Nome fora do mapa ou payload com tipo errado (ou sem `autorId`) falha no `pnpm typecheck`.
 
 ## Senhas (`src/infra/senha`)
 

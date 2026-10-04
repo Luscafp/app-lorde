@@ -4,16 +4,19 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import type { ITXClientDenyList } from '@prisma/client/runtime/client'
 import type { Env } from '../../config/env.schema'
 import { PrismaClient } from '../../generated/prisma/client'
+import { extensaoAuditoriaImutavel } from '../../modules/auditoria/extensao-imutavel'
 import { ContextoAtletica } from '../contexto/contexto-atletica.service'
 import { extensaoConsultasLentas } from './consultas-lentas'
 import { extensaoAtletica } from './extensao-atletica'
 
 function criarClienteBase(connectionString: string) {
   const cliente = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
-  return cliente.$extends(extensaoConsultasLentas(new Logger('Prisma')))
+  return cliente
+    .$extends(extensaoConsultasLentas(new Logger('Prisma')))
+    .$extends(extensaoAuditoriaImutavel)
 }
 
-/** Cliente sem filtro por atlética, com o log de consultas lentas. */
+/** Cliente sem filtro por atlética, com o log de consultas lentas e a auditoria imutável. */
 export type ClienteBase = ReturnType<typeof criarClienteBase>
 
 function criarClienteComEscopo(base: ClienteBase, contexto: ContextoAtletica) {
