@@ -31,6 +31,14 @@ describe('Log de erros (#1)', () => {
     })
   })
 
+  it('o cabeçalho Authorization é redigido no log', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/exemplo/erro')
+      .set('Authorization', 'Bearer token-secreto')
+    expect(linhas.length).toBeGreaterThan(0)
+    expect(JSON.stringify(linhas)).not.toContain('token-secreto')
+  })
+
   it('erro 4xx → log warn sem o corpo da requisição', async () => {
     await request(app.getHttpServer()).post('/api/v1/exemplo/validacao').send({ page: 0 })
     const registro = linhas.find((linha) => linha.code === 'VALIDATION_ERROR')

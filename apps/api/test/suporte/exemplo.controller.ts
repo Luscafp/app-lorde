@@ -2,10 +2,12 @@ import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common'
 import { paginacaoQuerySchema } from '@atletica/shared'
 import { createZodDto } from 'nestjs-zod'
 import { ErroNegocio } from '../../src/common/erros/erro-negocio'
+import { Publico } from '../../src/modules/auth/decorators/publico.decorator'
 
 class ExemploDto extends createZodDto(paginacaoQuerySchema) {}
 
 /** Controller usado só nos testes de integração da plataforma (#1). */
+@Publico()
 @Controller('exemplo')
 export class ExemploController {
   @Post('validacao')
