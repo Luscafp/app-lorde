@@ -46,11 +46,11 @@ pnpm --filter api test:unit                # só unitários, sem banco
 
 ### Utilitários (`test/setup/`)
 
-| Utilitário                           | Uso                                                                                                                                                                                                                   |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `prismaTeste` (`prisma-teste.ts`)    | Cliente Prisma **base** (sem a extensão multi-atlética): enxerga todas as atléticas. Para preparar dados e conferir o banco; o código da API usa o `PrismaService` (#44).                                             |
-| `limparBanco()` (`limpar-banco.ts`)  | `TRUNCATE ... RESTART IDENTITY CASCADE` em todas as tabelas do `public`, menos `_prisma_migrations` (lista lida de `pg_tables`). Já roda no `beforeEach`; chame direto só para limpar no meio de um teste.            |
-| `criarApp(opcoes?)` (`criar-app.ts`) | Sobe o `AppModule` real com o `configurarApp` do `main.ts` e devolve `{ app, http }`. `opcoes.controllers` acrescenta controllers de teste; `opcoes.ajustar` recebe o `TestingModuleBuilder` (`overrideProvider`...). |
+| Utilitário                           | Uso                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `prismaTeste` (`prisma-teste.ts`)    | Cliente Prisma **base** (sem a extensão multi-atlética): enxerga todas as atléticas. Para preparar dados e conferir o banco; o código da API usa o `PrismaService` (#44).                                                                                                                                                                        |
+| `limparBanco()` (`limpar-banco.ts`)  | `TRUNCATE ... RESTART IDENTITY CASCADE` em todas as tabelas do `public`, menos `_prisma_migrations` (lista lida de `pg_tables`). Já roda no `beforeEach`; chame direto só para limpar no meio de um teste.                                                                                                                                       |
+| `criarApp(opcoes?)` (`criar-app.ts`) | Sobe o `AppModule` real com o `configurarApp` do `main.ts` e devolve `{ app, http }`. `opcoes.controllers` acrescenta controllers de teste; `opcoes.ajustar` recebe o `TestingModuleBuilder` (`overrideProvider`...). Antes de subir, esvazia o banco e cria a atlética padrão (`prepararAtleticaPadrao`), exigida pelo `AtleticaPadraoService`. |
 
 ```ts
 import request from 'supertest'
@@ -79,6 +79,7 @@ describe('GET /api/v1/...', () => {
 ### Fábricas (`test/fabricas/`)
 
 - `criarAtletica(dados?)` — atlética que usa o app, com `slug`, `sigla` e cores válidas (`CHECK atletica_dados_app`). `criarAtletica({ usaAplicativo: false })` cria uma adversária só com o nome. Qualquer campo pode ser sobrescrito.
+- `prepararAtleticaPadrao(dados?)` — esvazia o banco e cria uma única atlética que usa o app (já chamado pelo `criarApp`). Como o `beforeEach` a apaga, testes que dependem dela a recriam com o id resolvido na subida: `criarAtletica({ id: app.get(AtleticaPadraoService).id() })`.
 - `criarUsuario({ papel = 'ATLETA', atleticaId?, nome?, email?, ativo?, vinculoAtivo?, senhaHash? })` — cria o `Usuario` (e-mail único, gravado em minúsculas) e o `VinculoAtletica` com o papel. Sem `atleticaId`, cria uma atlética. Devolve o usuário com `atleticaId` e `vinculo`. `senhaHash` padrão é `SENHA_HASH_FICTICIO`, que não corresponde a nenhuma senha: para login real, passe um hash do `SenhaService` (#45).
 - `proximaSequencia()` — número crescente para valores únicos nas fábricas.
 - `tokenPara(usuario, { atleticaId?, sessao? })` (`auth.ts`) — cria uma `Sessao` ativa (ou usa a informada) e devolve um access token assinado com `token.config.ts` (`iss`/`aud` incluídos), igual ao que a #10 emitirá. `atleticaId` padrão: a do `criarUsuario`. Use em todo teste de rota protegida:
@@ -98,6 +99,12 @@ describe('GET /api/v1/...', () => {
 - `test/infraestrutura/` — testes dos próprios utilitários (`limparBanco`, fábricas, `criarApp`, proteção do `globalSetup`).
 - `test/prisma/constraints.e2e-spec.ts` — um caso aceito e um rejeitado para cada constraint da migration `init` (épico #3 §8.3), conferindo o nome da constraint violada, e a estrutura da migration (tabelas, enums, índices e `CHECK`). Toda constraint nova em SQL entra aqui.
 - `test/prisma/extensao-atletica.e2e-spec.ts` — extensão multi-atlética: cada operação com contexto A e dados de A e B, regra de `Time`, transações, falta de contexto e o `500` numa rota.
+- `test/auditoria/auditoria.e2e-spec.ts` e `test/eventos/eventos-dominio.e2e-spec.ts` — atomicidade da auditoria, lotes, imutabilidade (extensão e trigger) e eventos só após o commit.
+
+### Eventos (`test/eventos.ts`)
+
+- `espiarEventos(app)` — spy no `EventEmitter2`; chame no `beforeEach` (reaproveita o spy e o limpa). `emitidos()` devolve `{ nome, payload }[]` na ordem; `nomes()`, só os nomes. Use para conferir "emitido só após o commit" e "nada emitido em rollback/4xx" (convenções §9).
+- `aguardarOuvintes()` — uma volta do event loop, para ouvintes `{ async: true }` sem I/O. Se o ouvinte consulta o banco, espere uma promessa resolvida pelo próprio ouvinte de teste (ver `test/eventos/eventos-dominio.e2e-spec.ts`).
 
 ## Autenticação e autorização (`src/modules/auth`)
 
@@ -224,6 +231,85 @@ Idempotente: pode rodar quantas vezes quiser, sem duplicar nem sobrescrever o qu
 4. **Demonstração** (`SEED_DEMO=true`): adversária, dois times, eventos, notícias e um usuário por papel (`<papel>@demo.exemplo.com.br`, senha `lorde2026`). Recusado com `APP_ENV=producao`.
 
 Em **produção** o seed é executado uma única vez, por uma pessoa, na implantação (#92) — nunca no deploy automático.
+
+## Auditoria (`src/modules/auditoria`)
+
+`AuditoriaService` (global) é o **único** meio de gravar `RegistroAuditoria`, sempre **na mesma transação** da alteração (convenções §7): se a auditoria falha, a alteração é desfeita, e vice-versa.
+
+```ts
+await this.transacao.executar(async (tx) => {
+  const antes = await tx.evento.findUniqueOrThrow({ where: { id } })
+  const depois = await tx.evento.update({ where: { id }, data: dto })
+  const diff = diferenca(antes, depois, ['inicio', 'local', 'observacoes', 'timeAdversarioId'])
+  if (!diff) return // sem mudança: 200 sem auditoria nem evento
+  await this.auditoria.registrar(tx, {
+    acao: 'EVENTO_ALTERADO',
+    entidade: 'Evento',
+    entidadeId: id,
+    dados: diff,
+  })
+  this.eventos.emitirAposCommit('evento.alterado', {
+    atleticaId,
+    eventoIds: [id],
+    timeId,
+    campos,
+    autorId,
+  })
+})
+```
+
+- **`registrar(tx, { acao, entidade, entidadeId, dados, usuarioId? })`** — `tx` é obrigatório e precisa ser o cliente da transação (`prisma.db` não compila). `acao` e `entidade` vêm do catálogo `ACOES_POR_ENTIDADE` de `@atletica/shared` (`src/auditoria/acoes.ts`): combinação fora dele não compila. `atleticaId` e `requestId` vêm do contexto; o ator (`usuarioId`) também, e sem usuário no contexto é obrigatório passar `usuarioId: null` (ação do sistema, jobs) — senão lança `ErroAuditoria`.
+- **`registrarVarios(tx, entradas)`** — mesmas regras, um `createMany` (um `INSERT`) por lote de 500. Use em operações sobre muitos registros (ex.: "esta e as seguintes" numa série).
+- **`dados = { antes, depois, contexto? }`**: criação → `antes: null`; exclusão → `depois: null`; alteração → só os campos alterados, calculados por `diferenca(antes, depois, campos?)` (datas por `getTime()`, arrays e objetos por igualdade profunda, ignora `criadoEm`/`atualizadoEm`; `null` se nada mudou). Alteração com `antes` e `depois` vazios (inclusive depois de sanitizar) não grava; criação e exclusão sempre gravam. `contexto` guarda ids auxiliares (`{ serieId, escopo }`, `{ timeId, usuarioId, ... }`).
+- **Só ids e valores de domínio.** `sanitizar` remove, em qualquer nível e com `warn` no log (só os caminhos), `senhaHash`, `refreshTokenHash`, `refreshTokenAnteriorHash`, `codigoHash`, `tokenPush`, `email`, `nome`, `fotoKey`, `ip`, `userAgent`, `accessToken`, `refreshToken` e qualquer `*Hash`. `nome` é mantido só em `antes.nome`/`depois.nome` de `Modalidade`, `Atletica` e `Time`, onde é dado da própria entidade; em `contexto` ou aninhado, é removido. Pessoas sempre por `usuarioId`.
+- **Máximo de 16 KB** por registro serializado (`ErroAuditoria` acima disso): para textos longos (notícias), registre indicadores como `{ conteudoAlterado: true }`.
+- **Imutável:** a extensão `src/infra/prisma/extensao-auditoria-imutavel.ts` (nos dois clientes do `PrismaService`) rejeita `update*`, `upsert` e `delete*` com `ErroAuditoriaImutavel`, e o trigger `registro_auditoria_imutavel` (migration `auditoria_imutavel`) bloqueia `UPDATE`/`DELETE` em SQL cru. `TRUNCATE` (limpeza dos testes) não é afetado.
+- **Nova ação:** PR alterando `ACOES_POR_ENTIDADE` e a convenção §7 (sem migration: as colunas são `VARCHAR(40)`), com o rótulo correspondente (#39).
+
+### Operações obrigatórias
+
+Toda ação do catálogo é gravada pela issue indicada na convenção §7, e o teste da issue confere o registro: modalidades (#15), adversárias, times e capitão (#16), elenco (#16, #18, #12, #34), solicitações avaliadas (#18), eventos (#19, #21), séries (#20), presenças (#35), notícias (#26), banners (#33), desativação, reativação e cargo (#27, #28), exclusão de conta (#12, um registro por atlética) e avisos (#38, entidade `Aviso` com UUID gerado).
+
+**Sem auditoria:** perfil (#13), participação do atleta (#24), preferências (#37), consulta (#39) e criação/cancelamento de solicitação pelo atleta (#18). Operação sem mudança responde 200 sem registro.
+
+## Eventos de domínio (`src/infra/eventos`)
+
+`EventosModule` (global) registra o `EventEmitterModule` uma única vez e exporta `TransacaoService` e `EventosDominioService` (convenções §8).
+
+- **`TransacaoService.executar(fn)`** — wrapper de `prisma.db.$transaction` que abre uma unidade no CLS. **Toda operação que emite evento ou agenda efeito externo usa `executar`**, não `$transaction` direto. Dentro de outro `executar` (ex.: `ElencoService.encerrarVinculo` na exclusão de conta), reutiliza a transação externa com uma fila própria: se a `fn` interna lança, os callbacks dela são descartados (mesmo que a externa capture o erro e confirme); se conclui, entram na fila externa e só rodam no commit externo.
+- **`aposCommit(callback)`** — agenda o callback para depois do commit (ex.: remover arquivo do R2, enviar e-mail). Os callbacks rodam em segundo plano, na ordem de registro, sem atrasar o retorno de `executar` nem a resposta; erro em um é logado (`logger.error`) e não impede os seguintes. Nos testes, espere o efeito (ex.: `aguardarOuvintes()` ou uma promessa resolvida pelo próprio callback). Em rollback, a fila é descartada. Fora de `executar`, lança `ErroForaDeTransacao`.
+- **`EventosDominioService.emitirAposCommit(nome, payload)`** — único meio de emitir evento de domínio (usa `aposCommit`). Um evento por operação, mesmo em lote. Nada é emitido em rollback, 4xx ou operação sem mudança.
+- **Ouvintes:** `@OnEvent('evento.alterado', { async: true })`. Erros são capturados e logados pelo `@nestjs/event-emitter`, sem afetar a requisição. Perda em queda do processo é aceita (sem outbox).
+
+### Acrescentar um evento
+
+Cada issue emissora acrescenta o seu ao mapa `EventosDominio` (`eventos-dominio.ts`), conforme a tabela da convenção §8. Todo payload estende `PayloadBase` (`autorId: string | null`, `null` = sistema; `atleticaId` quando aplicável):
+
+```ts
+export interface EventosDominio {
+  'evento.alterado': PayloadBase & {
+    atleticaId: string
+    eventoIds: string[]
+    timeId: string
+    campos: ('inicio' | 'local' | 'status')[]
+  }
+}
+```
+
+Nome fora do mapa ou payload com tipo errado (ou sem `autorId`) falha no `pnpm typecheck`.
+
+## Atlética padrão (`src/modules/atleticas`)
+
+Enquanto só uma atlética usa o app (seção 8.4), a atlética padrão é a **única** `Atletica` com `usaAplicativo = true`. O `AtleticaPadraoService` a resolve no `onModuleInit` e guarda o `id` em memória; com zero ou mais de uma, a API **não sobe** e o log explica o motivo (`ErroAtleticaPadrao`, convenções §6). A consulta usa `prisma.db`: `Atletica` não tem escopo, e `semEscopo` é proibido em `modules/atleticas` (convenções §3).
+
+Importe `AtleticasModule` e injete `AtleticaPadraoService`:
+
+- `id()` — id da atlética padrão. Usado pelo cadastro/login (#57) para criar o `VinculoAtletica` e definir o `atl` do token, e por rotas públicas que leem modelos com escopo: `contexto.executarComAtletica(atleticaPadrao.id(), () => ...)`.
+- `obter()` — marca e contato público (`AtleticaPublica` de `@atletica/shared`), lidos do banco a cada chamada: mudanças valem sem reiniciar a API.
+
+### `GET /api/v1/atletica`
+
+Pública (`@Publico()`): a tela de login já usa a marca. Resposta validada por `atleticaPublicaSchema` (todos os campos sempre presentes, nulos como `null`; nunca `usaAplicativo`, datas internas ou vínculos). `Cache-Control: public, max-age=300`; o `ETag` e o `304` com `If-None-Match` vêm do Express. Sem rate limit (convenções §4.6).
 
 ## Senhas (`src/infra/senha`)
 
