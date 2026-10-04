@@ -32,6 +32,8 @@ export const envSchema = z
       .min(3, { error: 'obrigatória (ex.: "Nome <email@dominio>")' }),
     // Segredo do HMAC dos códigos de verificação (#61, usado pela #62 e #31).
     CODIGO_PEPPER: z.string().min(32, { error: 'obrigatória, com ao menos 32 caracteres' }),
+    // Segredo HS256 do access token (#7 verifica, #10 assina); distinto por ambiente (#92).
+    JWT_ACCESS_SECRET: z.string().min(32, { error: 'obrigatória, com ao menos 32 caracteres' }),
   })
   .refine(...appEnvExigidaEmProducao)
   .refine((env) => env.EMAIL_PROVIDER !== 'resend' || env.RESEND_API_KEY !== undefined, {
