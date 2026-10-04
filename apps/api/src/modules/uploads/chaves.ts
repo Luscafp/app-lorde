@@ -48,6 +48,10 @@ export function gerarChave(
   return preencher(FORMATO_CHAVE_UPLOAD[finalidade], { usuarioId, atleticaId, uuid, ext })
 }
 
+/** Segue o formato de alguma finalidade (convenções §11.5). */
+export const ehChaveDeUpload = (key: string) =>
+  Object.values(FinalidadeUpload).some((finalidade) => lerChave(key, finalidade) !== null)
+
 /** Dono gravado no caminho, ou `null` se a chave não segue o formato da finalidade. */
 export function lerChave(key: string, finalidade: FinalidadeUpload): DonoChave | null {
   const grupos = PADRAO_CHAVE[finalidade].exec(key)?.groups

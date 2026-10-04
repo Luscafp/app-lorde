@@ -5,6 +5,8 @@ import { ConfigService } from '@nestjs/config'
 import type { Env } from '../../config/env.schema'
 import { AuthModule } from '../auth/auth.module'
 import { ASSINAR_URL, criarClienteS3 } from './armazenamento'
+import { LimpezaOrfaosJob } from './limpeza-orfaos.job'
+import { LimpezaOrfaosService } from './limpeza-orfaos.service'
 import { UploadsController } from './uploads.controller'
 import { UploadsService } from './uploads.service'
 
@@ -25,6 +27,8 @@ import { UploadsService } from './uploads.service'
     },
     { provide: ASSINAR_URL, useValue: getSignedUrl },
     UploadsService,
+    LimpezaOrfaosService,
+    LimpezaOrfaosJob,
   ],
   exports: [UploadsService],
 })
