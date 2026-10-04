@@ -208,7 +208,7 @@ const { online, mutate, isPending } = useAcaoOnline({
 | `desabilitado?`    | bloqueia a seleção                                                        |
 | `podeRemover?`     | mostra "Remover" quando há imagem (padrão `true`)                         |
 | `rotulo?`, `nome?` | rótulo acessível e iniciais do fallback                                   |
-| `aoMudarEnviando?` | `true` enquanto comprime/envia: o formulário mantém o salvar desabilitado |
+| `onMudarEnviando?` | `true` enquanto comprime/envia: o formulário mantém o salvar desabilitado |
 
 O valor do campo no React Hook Form é a **`key`**; o formulário a envia no `PATCH`/`POST` do recurso (ex.: `PUT /me/foto { fotoKey }`).
 
@@ -225,14 +225,14 @@ const [enviandoFoto, setEnviandoFoto] = useState(false)
       valorAtualUrl={usuario.fotoUrl}
       nome={usuario.nome}
       onChange={field.onChange}
-      aoMudarEnviando={setEnviandoFoto}
+      onMudarEnviando={setEnviandoFoto}
     />
   )}
 />
 <Botao titulo="Salvar" disabled={!online || isPending || enviandoFoto} ... />
 ```
 
-Estados: "Preparando imagem…" (comprimindo), barra de progresso (enviando), pré-visualização local desde a escolha, erro com "Tentar novamente" (pede **novo** presign e reenvia a mesma imagem comprimida). Offline fica desabilitado com "Disponível apenas online". Permissão negada mostra o toast "Permita o acesso às fotos nas configurações do Android." — tocar nele abre as configurações.
+Estados: "Preparando imagem…" (comprimindo), barra de progresso (enviando), pré-visualização local desde a escolha, erro com "Tentar novamente" (pede **novo** presign e reenvia a mesma imagem comprimida). Offline fica desabilitado com "Disponível apenas online". Permissão negada mostra o toast "Permita o acesso às fotos nas configurações do Android." (ou "…à câmera…") — tocar nele abre as configurações.
 
 ### `useUploadImagem(finalidade)` — o fluxo
 
@@ -240,7 +240,7 @@ Estados: "Preparando imagem…" (comprimindo), barra de progresso (enviando), pr
 
 1. Permissão e seleção com recorte (`expo-image-picker`).
 2. `comprimir(uri)`: JPEG com no máximo 1080 px de largura, qualidade 0,8 → 0,6 → 0,4 até ≤ 5 MB; senão "Imagem muito grande. Escolha outra imagem."; imagem não decodificável → "Formato de imagem não suportado.".
-3. `pedirPresign({ finalidade, contentType: 'image/jpeg', tamanhoBytes })` → `POST /uploads/presign` (cliente HTTP, validado pelo `presignPedidoSchema` do shared).
+3. `pedirPresign({ finalidade, contentType: 'image/jpeg', tamanhoBytes })` → `POST /uploads/presign` via `useAcaoOnline` (convenções §10.5), com pedido e resposta validados pelos schemas do shared.
 4. `PUT` direto ao R2 (`createUploadTask` de `expo-file-system/legacy`, `BINARY_CONTENT`) com `Content-Type`/`Content-Length` iguais aos do presign e **sem** `Authorization`.
 
 Textos de permissão de fotos e câmera: plugin `expo-image-picker` no `app.config.ts`.

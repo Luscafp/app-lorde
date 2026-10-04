@@ -42,8 +42,8 @@ async function tamanhoDoArquivo(uri: string): Promise<number> {
 /** RNF04: JPEG com no máximo 1080 px de largura e 5 MB (qualidade 0,8 → 0,6 → 0,4). */
 export async function comprimir(uri: string): Promise<ImagemComprimida> {
   const imagem = await decodificar(uri)
-  for (const compress of QUALIDADES) {
-    const salva = await imagem.saveAsync({ compress, format: SaveFormat.JPEG })
+  for (const qualidade of QUALIDADES) {
+    const salva = await imagem.saveAsync({ compress: qualidade, format: SaveFormat.JPEG })
     const tamanhoBytes = await tamanhoDoArquivo(salva.uri)
     if (tamanhoBytes <= TAMANHO_MAXIMO_IMAGEM) {
       return { uri: salva.uri, largura: salva.width, altura: salva.height, tamanhoBytes }

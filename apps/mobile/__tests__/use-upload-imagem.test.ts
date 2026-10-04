@@ -1,16 +1,20 @@
+import { onlineManager } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react-native'
 import { Linking } from 'react-native'
 import { toast } from '@/components/ui/toast'
 import { ApiErro, api } from '@/infra/api/cliente'
+import { MENSAGEM_ACAO_OFFLINE } from '@/infra/query/use-acao-online'
 import { pedirPresign } from '@/features/uploads/api'
 import { ErroImagem, MENSAGEM_IMAGEM_GRANDE } from '@/features/uploads/comprimir'
 import {
   ACAO_ABRIR_CONFIGURACOES,
   MENSAGEM_FALHA_ENVIO,
+  MENSAGEM_PERMISSAO_CAMERA_NEGADA,
   MENSAGEM_PERMISSAO_NEGADA,
   useUploadImagem,
   type OrigemImagem,
 } from '@/features/uploads/use-upload-imagem'
+import { comQuery } from '../test-utils/renderizar'
 import {
   IMAGEM_COMPRIMIDA,
   URI_ESCOLHIDA,
@@ -33,7 +37,7 @@ jest.mock(
   'expo-file-system/legacy',
   () =>
     jest.requireActual<typeof import('../test-utils/upload-falso')>('../test-utils/upload-falso')
-      .arquivosFalso,
+      .arquivosFalsos,
 )
 jest.mock('@/features/uploads/comprimir', () => ({
   ...jest.requireActual<object>('@/features/uploads/comprimir'),
@@ -50,6 +54,8 @@ jest.mock('@/components/ui/toast', () => ({
 }))
 
 const presign = jest.mocked(api.post)
+
+afterEach(() => onlineManager.setOnline(true))
 
 beforeEach(() => {
   prepararUploadFalso()
@@ -73,11 +79,18 @@ describe('pedirPresign', () => {
     expect(presign).toHaveBeenCalledWith('/uploads/presign', pedido)
   })
 
-  it('não chama a API com tamanho acima de 5 MB', () => {
-    expect(() =>
+  it('não chama a API com tamanho acima de 5 MB', async () => {
+    await expect(
       pedirPresign({ finalidade: 'PERFIL', contentType: 'image/jpeg', tamanhoBytes: 5_242_881 }),
-    ).toThrow()
+    ).rejects.toThrow()
     expect(presign).not.toHaveBeenCalled()
+  })
+
+  it('rejeita resposta fora do contrato do shared', async () => {
+    presign.mockResolvedValue({ key: 'usuarios/u1/perfil/a.jpg' })
+    await expect(
+      pedirPresign({ finalidade: 'PERFIL', contentType: 'image/jpeg', tamanhoBytes: 1000 }),
+    ).rejects.toThrow()
   })
 })
 
@@ -89,7 +102,7 @@ describe('useUploadImagem', () => {
       resolverCompressao(imagem)
       return Promise.resolve()
     }
-    const { result } = await renderHook(() => useUploadImagem('PERFIL'))
+    const { result } = await renderHook(() => useUploadImagem('PERFIL'), { wrapper: comQuery() })
     expect(result.current.estado).toBe('ocioso')
 
     await act(() => {
@@ -116,7 +129,7 @@ describe('useUploadImagem', () => {
   })
 
   it('pede presign com image/jpeg e o tamanho real, e faz PUT sem Authorization', async () => {
-    const { result } = await renderHook(() => useUploadImagem('PERFIL'))
+    const { result } = await renderHook(() => useUploadImagem('PERFIL'), { wrapper: comQuery() })
     await selecionarEEsperarPut(result)
 
     expect(presign).toHaveBeenCalledWith('/uploads/presign', {
@@ -142,7 +155,7 @@ describe('useUploadImagem', () => {
     ['NOTICIA', [16, 9]],
     ['BANNER', [16, 9]],
   ] as const)('recorta %s em %j', async (finalidade, aspect) => {
-    const { result } = await renderHook(() => useUploadImagem(finalidade))
+    const { result } = await renderHook(() => useUploadImagem(finalidade), { wrapper: comQuery() })
     await selecionarEEsperarPut(result)
 
     expect(pickerFalso.launchImageLibraryAsync).toHaveBeenCalledWith({
@@ -154,7 +167,7 @@ describe('useUploadImagem', () => {
   })
 
   it('câmera pede a permissão da câmera e abre a câmera', async () => {
-    const { result } = await renderHook(() => useUploadImagem('NOTICIA'))
+    const { result } = await renderHook(() => useUploadImagem('NOTICIA'), { wrapper: comQuery() })
     await selecionarEEsperarPut(result, 'camera')
 
     expect(pickerFalso.requestCameraPermissionsAsync).toHaveBeenCalled()
@@ -165,7 +178,7 @@ describe('useUploadImagem', () => {
   })
 
   it('erro de rede no PUT → erro; "Tentar novamente" pede novo presign e reenvia', async () => {
-    const { result } = await renderHook(() => useUploadImagem('PERFIL'))
+    const { result } = await renderHook(() => useUploadImagem('PERFIL'), { wrapper: comQuery() })
     await selecionarEEsperarPut(result)
 
     await act(() => ultimoEnvio().falhar())
@@ -192,7 +205,7 @@ describe('useUploadImagem', () => {
   })
 
   it('PUT recusado pelo R2 (403) → erro', async () => {
-    const { result } = await renderHook(() => useUploadImagem('PERFIL'))
+    const { result } = await renderHook(() => useUploadImagem('PERFIL'), { wrapper: comQuery() })
     await selecionarEEsperarPut(result)
 
     await act(() => ultimoEnvio().concluir(403))
@@ -203,7 +216,7 @@ describe('useUploadImagem', () => {
     presign.mockRejectedValue(
       new ApiErro({ status: 429, code: 'RATE_LIMITED', message: 'Muitas tentativas.' }),
     )
-    const { result } = await renderHook(() => useUploadImagem('PERFIL'))
+    const { result } = await renderHook(() => useUploadImagem('PERFIL'), { wrapper: comQuery() })
     await act(() => result.current.selecionar('galeria'))
 
     expect(result.current).toMatchObject({ estado: 'erro', erro: 'Muitas tentativas.' })
@@ -212,7 +225,7 @@ describe('useUploadImagem', () => {
 
   it('imagem grande demais → erro sem chamar a API e sem "Tentar novamente"', async () => {
     comprimirFalso.mockRejectedValue(new ErroImagem(MENSAGEM_IMAGEM_GRANDE))
-    const { result } = await renderHook(() => useUploadImagem('PERFIL'))
+    const { result } = await renderHook(() => useUploadImagem('PERFIL'), { wrapper: comQuery() })
     await act(() => result.current.selecionar('galeria'))
 
     expect(result.current).toMatchObject({
@@ -226,23 +239,50 @@ describe('useUploadImagem', () => {
   it('permissão negada → toast com atalho para as configurações, sem abrir a galeria', async () => {
     pickerFalso.requestMediaLibraryPermissionsAsync.mockResolvedValue({ granted: false })
     const abrirConfiguracoes = jest.spyOn(Linking, 'openSettings').mockResolvedValue()
-    const { result } = await renderHook(() => useUploadImagem('PERFIL'))
+    const { result } = await renderHook(() => useUploadImagem('PERFIL'), { wrapper: comQuery() })
 
     await act(() => result.current.selecionar('galeria'))
 
     expect(result.current.estado).toBe('ocioso')
     expect(pickerFalso.launchImageLibraryAsync).not.toHaveBeenCalled()
     expect(toast.erro).toHaveBeenCalledWith(MENSAGEM_PERMISSAO_NEGADA, {
-      acao: ACAO_ABRIR_CONFIGURACOES,
+      rotulo: ACAO_ABRIR_CONFIGURACOES,
       aoTocar: expect.any(Function) as () => void,
     })
     jest.mocked(toast.erro).mock.calls[0]?.[1]?.aoTocar()
     expect(abrirConfiguracoes).toHaveBeenCalled()
   })
 
+  it('câmera negada → toast específico da câmera', async () => {
+    pickerFalso.requestCameraPermissionsAsync.mockResolvedValue({ granted: false })
+    const { result } = await renderHook(() => useUploadImagem('PERFIL'), { wrapper: comQuery() })
+
+    await act(() => result.current.selecionar('camera'))
+
+    expect(pickerFalso.launchCameraAsync).not.toHaveBeenCalled()
+    expect(toast.erro).toHaveBeenCalledWith(
+      MENSAGEM_PERMISSAO_CAMERA_NEGADA,
+      expect.objectContaining({ rotulo: ACAO_ABRIR_CONFIGURACOES }),
+    )
+  })
+
+  it('offline o presign não é chamado (useAcaoOnline) e o erro permite tentar de novo', async () => {
+    onlineManager.setOnline(false)
+    const { result } = await renderHook(() => useUploadImagem('PERFIL'), { wrapper: comQuery() })
+
+    await act(() => result.current.selecionar('galeria'))
+
+    expect(presign).not.toHaveBeenCalled()
+    expect(result.current).toMatchObject({
+      estado: 'erro',
+      erro: MENSAGEM_ACAO_OFFLINE,
+      podeTentarNovamente: true,
+    })
+  })
+
   it('seleção cancelada volta ao estado anterior', async () => {
     pickerFalso.launchImageLibraryAsync.mockResolvedValue({ canceled: true, assets: null })
-    const { result } = await renderHook(() => useUploadImagem('PERFIL'))
+    const { result } = await renderHook(() => useUploadImagem('PERFIL'), { wrapper: comQuery() })
 
     await act(() => result.current.selecionar('galeria'))
 
@@ -251,7 +291,7 @@ describe('useUploadImagem', () => {
   })
 
   it('limpar durante o envio cancela o PUT e volta a ocioso', async () => {
-    const { result } = await renderHook(() => useUploadImagem('PERFIL'))
+    const { result } = await renderHook(() => useUploadImagem('PERFIL'), { wrapper: comQuery() })
     await selecionarEEsperarPut(result)
 
     await act(() => result.current.limpar())

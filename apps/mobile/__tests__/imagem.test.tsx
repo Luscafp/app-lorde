@@ -1,5 +1,5 @@
 import { fireEvent, screen } from '@testing-library/react-native'
-import { Imagem, iniciais, TRANSICAO_IMAGEM_MS } from '@/components/imagem'
+import { Imagem, iniciais, TRANSICAO_IMAGEM_MS } from '@/components/imagem/imagem'
 import { renderizar } from '../test-utils/renderizar'
 
 const URL = 'https://img.exemplo.com/usuarios/u1/perfil/a.jpg'
@@ -15,6 +15,7 @@ describe('Imagem', () => {
       transition: TRANSICAO_IMAGEM_MS,
     })
     expect(TRANSICAO_IMAGEM_MS).toBe(150)
+    expect(screen.getByTestId('imagem-placeholder')).toBeOnTheScreen()
     expect(screen.getByRole('image', { name: 'Foto de perfil' })).toBeOnTheScreen()
   })
 

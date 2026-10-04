@@ -21,7 +21,7 @@ type Props = {
   /** Fallback de iniciais quando não há imagem (perfil). */
   nome?: string
   /** O formulário mantém o salvar desabilitado enquanto for `true`. */
-  aoMudarEnviando?: (enviando: boolean) => void
+  onMudarEnviando?: (enviando: boolean) => void
 }
 
 const ESTILO_MOLDURA = {
@@ -38,13 +38,13 @@ export function SeletorImagem({
   podeRemover = true,
   rotulo,
   nome,
-  aoMudarEnviando,
+  onMudarEnviando,
 }: Props) {
   const upload = useUploadImagem(finalidade)
   const online = useOnline()
   const [urlRemovida, setUrlRemovida] = useState<string | null>(null)
-  const aoMudar = useRef({ onChange, aoMudarEnviando })
-  aoMudar.current = { onChange, aoMudarEnviando }
+  const aoMudar = useRef({ onChange, onMudarEnviando })
+  aoMudar.current = { onChange, onMudarEnviando }
 
   const enviando = upload.estado === 'comprimindo' || upload.estado === 'enviando'
   const ocupado = enviando || upload.estado === 'selecionando'
@@ -58,7 +58,7 @@ export function SeletorImagem({
   }, [upload.key])
 
   useEffect(() => {
-    aoMudar.current.aoMudarEnviando?.(enviando)
+    aoMudar.current.onMudarEnviando?.(enviando)
   }, [enviando])
 
   const escolher = (origem: OrigemImagem) => void upload.selecionar(origem)

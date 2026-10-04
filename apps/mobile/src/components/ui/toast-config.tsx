@@ -2,8 +2,12 @@ import Ionicons from '@expo/vector-icons/Ionicons'
 import { Pressable, Text, View } from 'react-native'
 import type { ToastConfig, ToastConfigParams } from 'react-native-toast-message'
 import { paleta, useAtletica } from '@/features/atletica'
+import type { VarianteToast } from './toast'
 
-const APARENCIA = {
+const APARENCIA: Record<
+  VarianteToast,
+  { icone: keyof typeof Ionicons.glyphMap; prefixo: string; cor: (corPrimaria: string) => string }
+> = {
   sucesso: { icone: 'checkmark-circle', prefixo: 'Sucesso', cor: () => paleta.sucesso },
   erro: { icone: 'alert-circle', prefixo: 'Erro', cor: () => paleta.erro },
   info: {
@@ -11,9 +15,7 @@ const APARENCIA = {
     prefixo: 'Aviso',
     cor: (corPrimaria: string) => corPrimaria,
   },
-} as const
-
-type VarianteToast = keyof typeof APARENCIA
+}
 
 type Props = { variante: VarianteToast; text1?: string; text2?: string; onPress?: () => void }
 

@@ -35,7 +35,7 @@ jest.mock(
   'expo-file-system/legacy',
   () =>
     jest.requireActual<typeof import('../test-utils/upload-falso')>('../test-utils/upload-falso')
-      .arquivosFalso,
+      .arquivosFalsos,
 )
 jest.mock('@/features/uploads/comprimir', () => ({
   ...jest.requireActual<object>('@/features/uploads/comprimir'),
@@ -227,7 +227,7 @@ describe('SeletorImagem', () => {
 
     await waitFor(() =>
       expect(toast.erro).toHaveBeenCalledWith(MENSAGEM_PERMISSAO_NEGADA, {
-        acao: ACAO_ABRIR_CONFIGURACOES,
+        rotulo: ACAO_ABRIR_CONFIGURACOES,
         aoTocar: expect.any(Function) as () => void,
       }),
     )
@@ -253,7 +253,7 @@ function FormularioPerfil({ aoSalvar }: { aoSalvar: (dados: DadosPerfil) => void
             formato="circulo"
             valorAtualUrl={URL_ATUAL}
             onChange={field.onChange}
-            aoMudarEnviando={setEnviando}
+            onMudarEnviando={setEnviando}
           />
         )}
       />

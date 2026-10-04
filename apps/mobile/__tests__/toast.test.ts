@@ -14,7 +14,7 @@ describe('toast', () => {
 
   it('com ação, mostra o texto da ação e o toque esconde o toast e chama aoTocar', () => {
     const aoTocar = jest.fn()
-    toast.erro('Permissão negada.', { acao: 'Abrir configurações', aoTocar })
+    toast.erro('Permissão negada.', { rotulo: 'Abrir configurações', aoTocar })
 
     const opcoes = jest.mocked(Toast.show).mock.lastCall?.[0]
     expect(opcoes).toMatchObject({

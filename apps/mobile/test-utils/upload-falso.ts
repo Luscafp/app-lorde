@@ -21,7 +21,7 @@ export const pickerFalso = {
 
 export const envios: EnvioFalso[] = []
 
-export const arquivosFalso = {
+export const arquivosFalsos = {
   FileSystemUploadType: { BINARY_CONTENT: 0, MULTIPART: 1 },
   getInfoAsync: jest.fn(),
   createUploadTask: jest.fn(
