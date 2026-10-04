@@ -205,6 +205,27 @@ Ele abre um contexto próprio (herda `usuarioId`/`requestId` do externo, que vol
 - **`$queryRaw`/`$executeRaw` não são filtrados:** inclua `"atleticaId" = ${atleticaId}` no SQL.
 - **`upsert` em registro de outra atlética** não o altera, mas, como o `where` filtrado não o encontra, o Prisma executa o `create` na atlética do contexto. Se o `create` repetir um campo único, sai `P2002` → `409`. Para "não encontrado", use `update`.
 
+### Seed (`prisma/seed.ts`)
+
+```bash
+pnpm --filter @atletica/shared build   # o seed usa o senhaSchema do shared
+pnpm --filter api prisma:deploy        # banco com as migrations
+pnpm --filter api prisma:seed          # lê SEED_* do apps/api/.env (ou do ambiente)
+```
+
+Idempotente: pode rodar quantas vezes quiser, sem duplicar nem sobrescrever o que existe.
+
+1. **Atlética Lorde** (`slug = 'lorde'`), única com `usaAplicativo = true`: o seed falha se encontrar outra.
+2. **Administrador inicial** (`SEED_ADMIN_EMAIL`, `SEED_ADMIN_NOME`, `SEED_ADMIN_SENHA`, obrigatórias e validadas antes de gravar qualquer coisa; a senha segue o `senhaSchema`). Criado só se a Lorde não tiver vínculo `ADMINISTRADOR`; a senha de um admin existente **nunca** é alterada.
+3. **Modalidades básicas** — as que já existem (mesmo nome, sem diferenciar maiúsculas) ficam como estão.
+4. **Demonstração** (`SEED_DEMO=true`): adversária, dois times, eventos, notícias e um usuário por papel (`<papel>@demo.exemplo.com.br`, senha `lorde2026`). Recusado com `APP_ENV=producao`.
+
+Em **produção** o seed é executado uma única vez, por uma pessoa, na implantação (#92) — nunca no deploy automático.
+
+## Senhas (`src/infra/senha`)
+
+Importe `SenhaModule` e injete `SenhaService`: `hash(senha)` (Argon2id, `@node-rs/argon2`, parâmetros em `senha.config.ts` — convenções §5) e `verificar(hash, senha)` (`false` também para hash malformado). Valide a entrada com `senhaSchema` de `@atletica/shared` (política do UC06), sem redefini-la.
+
 ## E-mail transacional (`src/infra/email`)
 
 Importe `EmailModule` no módulo que envia e-mail. Ele exporta `EmailService`, `CodigoVerificacaoService` e o token `EmailProvider`.
