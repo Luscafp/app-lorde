@@ -1,8 +1,7 @@
 import { randomBytes } from 'node:crypto'
-import { JwtService, type JwtSignOptions } from '@nestjs/jwt'
 import type { Prisma, Sessao, Usuario } from '../../src/generated/prisma/client'
-import { OPCOES_ASSINATURA } from '../../src/modules/auth/token.config'
 import { prismaTeste } from '../setup/prisma-teste'
+import { assinarToken } from './token'
 
 const TRINTA_DIAS_MS = 30 * 24 * 60 * 60 * 1000
 
@@ -27,18 +26,6 @@ export function criarSessao(
       ...dados,
     },
   })
-}
-
-/**
- * Assina um payload com a configuração da API. `opcoes` sobrescreve (ex.: `secret`, `algorithm`);
- * valor `undefined` remove a opção (ex.: `{ issuer: undefined }` assina sem `iss`).
- */
-export function assinarToken(payload: object, opcoes: JwtSignOptions = {}): string {
-  const combinadas = { ...OPCOES_ASSINATURA, secret: process.env.JWT_ACCESS_SECRET, ...opcoes }
-  return new JwtService().sign(
-    payload,
-    Object.fromEntries(Object.entries(combinadas).filter(([, valor]) => valor !== undefined)),
-  )
 }
 
 /** Access token válido para o usuário, com sessão no banco (convenções §9). */

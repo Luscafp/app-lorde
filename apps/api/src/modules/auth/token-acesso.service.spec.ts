@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt'
-import { ErroNegocio } from '../../common/erros/erro-negocio'
-import { OPCOES_ASSINATURA } from './token.config'
+import { assinarToken } from '../../../test/fabricas/token'
+import { codigoDoErro } from '../../../test/suporte/codigo-do-erro'
 import { TokenAcessoService } from './token-acesso.service'
 
 const SEGREDO = 's'.repeat(32)
@@ -9,20 +9,8 @@ const jwt = new JwtService({ secret: SEGREDO })
 const servico = new TokenAcessoService(jwt)
 const payload = { sub: randomUUID(), atl: randomUUID(), sid: randomUUID() }
 
-/** Valor `undefined` em `opcoes` remove a opção (o jsonwebtoken rejeita `undefined`). */
 function assinar(dados: object = payload, opcoes: JwtSignOptions = {}): string {
-  const combinadas = Object.entries({ ...OPCOES_ASSINATURA, ...opcoes })
-  return jwt.sign(dados, Object.fromEntries(combinadas.filter(([, valor]) => valor !== undefined)))
-}
-
-function codigoDoErro(acao: () => unknown): string | undefined {
-  try {
-    acao()
-  } catch (erro) {
-    if (erro instanceof ErroNegocio) return `${erro.statusCode} ${erro.code}`
-    throw erro
-  }
-  return undefined
+  return assinarToken(dados, { secret: SEGREDO, ...opcoes })
 }
 
 describe('TokenAcessoService.verificar', () => {
@@ -51,6 +39,7 @@ describe('TokenAcessoService.verificar', () => {
     ['aud errado', () => assinar(payload, { audience: 'x' })],
     ['sem sid', () => assinar({ sub: payload.sub, atl: payload.atl })],
     ['atl fora do formato', () => assinar({ ...payload, atl: '1' })],
+    ['claim extra (papel)', () => assinar({ ...payload, papel: 'ADMINISTRADOR' })],
     ['texto qualquer', () => 'abc'],
   ])('%s → 401 UNAUTHENTICATED', (_, gerar) => {
     expect(codigoDoErro(() => servico.verificar(gerar()))).toBe('401 UNAUTHENTICATED')
@@ -61,12 +50,12 @@ describe('TokenAcessoService.verificar', () => {
     const { exp } = servico.verificar(token)
     const em = (segundos: number) => new Date((exp + segundos) * 1000)
 
-    it('aceita até 9 s depois do exp', () => {
-      expect(codigoDoErro(() => servico.verificar(token, em(9)))).toBeUndefined()
+    it('aceita até 10 s depois do exp', () => {
+      expect(codigoDoErro(() => servico.verificar(token, em(10)))).toBeUndefined()
     })
 
-    it('rejeita a partir de 10 s com TOKEN_EXPIRED', () => {
-      expect(codigoDoErro(() => servico.verificar(token, em(10)))).toBe('401 TOKEN_EXPIRED')
+    it('rejeita a partir de 11 s com TOKEN_EXPIRED', () => {
+      expect(codigoDoErro(() => servico.verificar(token, em(11)))).toBe('401 TOKEN_EXPIRED')
       expect(codigoDoErro(() => servico.verificar(token, em(60)))).toBe('401 TOKEN_EXPIRED')
     })
 

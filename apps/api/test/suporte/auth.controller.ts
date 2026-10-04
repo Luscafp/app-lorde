@@ -51,7 +51,18 @@ export class AuthTesteController {
     @UsuarioAtual('papel') papel: Papel,
     @AtleticaAtual() atleticaId: string,
   ) {
-    return { usuario, papel, atleticaId, contexto: this.contexto.atleticaId() }
+    return {
+      usuario,
+      papel,
+      atleticaId,
+      contexto: { atleticaId: this.contexto.atleticaId(), usuarioId: this.contexto.usuarioId() },
+    }
+  }
+
+  @Publico()
+  @Get('publica-com-atletica')
+  publicaComAtletica(@AtleticaAtual() atleticaId: string) {
+    return { atleticaId }
   }
 
   @Get('eventos/:id')

@@ -1,8 +1,9 @@
-import { Papel } from '@atletica/shared'
+import { NIVEL_PAPEL, Papel } from '@atletica/shared'
 import request from 'supertest'
-import { assinarToken, criarSessao, tokenPara } from '../fabricas/auth'
+import { criarSessao, tokenPara } from '../fabricas/auth'
 import { criarAtletica } from '../fabricas/atletica'
 import { proximaSequencia } from '../fabricas/sequencia'
+import { assinarToken } from '../fabricas/token'
 import { criarUsuario, type UsuarioCriado } from '../fabricas/usuario'
 import { criarApp, type AppDeTeste } from '../setup/criar-app'
 import { prismaTeste } from '../setup/prisma-teste'
@@ -28,14 +29,6 @@ const ROTAS_POR_NIVEL = [
   ['presidencia', Papel.PRESIDENTE],
   ['administracao', Papel.ADMINISTRADOR],
 ] as const
-
-const NIVEL: Record<Papel, number> = {
-  ATLETA: 1,
-  DIRETOR: 2,
-  PRESIDENTE: 3,
-  VICE_PRESIDENTE: 3,
-  ADMINISTRADOR: 4,
-}
 
 // TODO: trocar pelas fábricas de domínio quando existirem (times → #63, eventos → #70).
 async function criarTime(atleticaId: string) {
@@ -152,7 +145,7 @@ describe('Autenticação e autorização (#7)', () => {
       expect(resposta.body).toEqual(NAO_AUTENTICADO)
     })
 
-    it('vencido há 1 min → 401 TOKEN_EXPIRED; há 5 s → aceito (critério 4)', async () => {
+    it('vencido há 1 min → 401 TOKEN_EXPIRED; há 5 s ou 10 s → aceito (critério 4)', async () => {
       const agora = Math.floor(Date.now() / 1000)
       const vencidoHa = (segundos: number) =>
         assinarToken(
@@ -169,6 +162,7 @@ describe('Autenticação e autorização (#7)', () => {
         details: [],
       })
       expect((await get('livre', vencidoHa(5))).status).toBe(200)
+      expect((await get('livre', vencidoHa(10))).status).toBe(200)
     })
   })
 
@@ -266,7 +260,7 @@ describe('Autenticação e autorização (#7)', () => {
   describe('papéis', () => {
     const casos = Object.values(Papel).flatMap((papel) =>
       ROTAS_POR_NIVEL.map(
-        ([rota, minimo]) => [papel, rota, NIVEL[papel] >= NIVEL[minimo]] as const,
+        ([rota, minimo]) => [papel, rota, NIVEL_PAPEL[papel] >= NIVEL_PAPEL[minimo]] as const,
       ),
     )
 
@@ -322,8 +316,14 @@ describe('Autenticação e autorização (#7)', () => {
         },
         papel: 'VICE_PRESIDENTE',
         atleticaId: usuario.atleticaId,
-        contexto: usuario.atleticaId,
+        contexto: { atleticaId: usuario.atleticaId, usuarioId: usuario.id },
       })
+    })
+
+    it('@AtleticaAtual() em rota @Publico() é erro de programação → 500', async () => {
+      const resposta = await get('publica-com-atletica')
+      expect(resposta.status).toBe(500)
+      expect(resposta.body).toMatchObject({ code: 'INTERNAL_ERROR' })
     })
 
     it('o guard não escreve na sessão', async () => {

@@ -1,7 +1,7 @@
 import { Papel } from '@atletica/shared'
 import type { ExecutionContext } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
-import { ErroNegocio } from '../../../common/erros/erro-negocio'
+import { codigoDoErro } from '../../../../test/suporte/codigo-do-erro'
 import { PapelMinimo } from '../decorators/papel-minimo.decorator'
 import { Publico } from '../decorators/publico.decorator'
 import type { UsuarioAutenticado } from '../tipos'
@@ -36,12 +36,7 @@ function contexto(
 }
 
 function resultado(ctx: ExecutionContext): string | true {
-  try {
-    return new PapelGuard(new Reflector()).canActivate(ctx) as true
-  } catch (erro) {
-    if (erro instanceof ErroNegocio) return `${erro.statusCode} ${erro.code}`
-    throw erro
-  }
+  return codigoDoErro(() => new PapelGuard(new Reflector()).canActivate(ctx)) ?? true
 }
 
 describe('PapelGuard', () => {

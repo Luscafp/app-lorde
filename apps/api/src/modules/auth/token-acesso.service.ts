@@ -21,7 +21,7 @@ export class TokenAcessoService {
     if (!resultado.success) throw erroNaoAutenticado()
 
     const segundos = Math.floor(agora.getTime() / 1000)
-    if (resultado.data.exp + TOLERANCIA_RELOGIO <= segundos) throw erroTokenExpirado()
+    if (resultado.data.exp + TOLERANCIA_RELOGIO < segundos) throw erroTokenExpirado()
     return resultado.data
   }
 }

@@ -87,7 +87,7 @@ describe('GET /api/v1/...', () => {
     .set('Authorization', `Bearer ${await tokenPara(diretor)}`)
   ```
 
-- `criarSessao({ usuarioId, atleticaId, ...campos })` e `assinarToken(payload, opcoes?)` (`auth.ts`) — para cenários de sessão revogada/expirada e de tokens inválidos (`{ secret }`, `{ algorithm }`; `{ issuer: undefined }` assina sem `iss`).
+- `criarSessao({ usuarioId, atleticaId, ...campos })` (`auth.ts`) e `assinarToken(payload, opcoes?)` (`token.ts`, sem banco; serve também aos unitários) — para cenários de sessão revogada/expirada e de tokens inválidos (`{ secret }`, `{ algorithm }`; `{ issuer: undefined }` assina sem `iss`).
 - Cada issue de domínio cria as suas em `test/fabricas/<dominio>.ts` (ex.: `eventos.ts` na #70).
 
 ### Suítes de infraestrutura
@@ -117,7 +117,7 @@ Toda rota exige access token por padrão (RN03). Dois guards globais, nesta orde
 | `@Publico()`                  | Rota (ou controller) sem token e **sem** contexto de atlética. Só para as rotas públicas da convenção §4.7; justifique no PR. |
 | `@PapelMinimo(Papel.DIRETOR)` | Nível mínimo; a hierarquia libera os superiores (`PRESIDENTE` inclui o Vice). Sem ele, qualquer autenticado.                  |
 | `@UsuarioAtual()`             | Parâmetro `UsuarioAutenticado`; `@UsuarioAtual('id')` devolve um campo. `undefined` em rota pública.                          |
-| `@AtleticaAtual()`            | Parâmetro com o `atleticaId` do token. Em rota pública é erro de programação (500).                                           |
+| `@AtleticaAtual()`            | Parâmetro com o `atleticaId` do contexto da requisição. Em rota pública é erro de programação (500).                          |
 
 ```ts
 interface UsuarioAutenticado {

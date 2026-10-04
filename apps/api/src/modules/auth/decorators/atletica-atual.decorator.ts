@@ -1,9 +1,10 @@
-import { createParamDecorator, type ExecutionContext } from '@nestjs/common'
-import type { RequisicaoAutenticada } from '../tipos'
+import { createParamDecorator } from '@nestjs/common'
+import { ClsServiceManager } from 'nestjs-cls'
+import type { StoreContexto } from '../../../infra/contexto/contexto-atletica.service'
 
-/** `atleticaId` do token. Em rota `@Publico()` é erro de programação (500). */
-export const AtleticaAtual = createParamDecorator((_: unknown, ctx: ExecutionContext): string => {
-  const { usuario } = ctx.switchToHttp().getRequest<RequisicaoAutenticada>()
-  if (!usuario) throw new Error('@AtleticaAtual() usado em rota sem autenticação.')
-  return usuario.atleticaId
+/** `atleticaId` do contexto da requisição. Em rota `@Publico()` é erro de programação (500). */
+export const AtleticaAtual = createParamDecorator((): string => {
+  const atleticaId = ClsServiceManager.getClsService<StoreContexto>().get('atleticaId')
+  if (!atleticaId) throw new Error('@AtleticaAtual() usado em rota sem autenticação.')
+  return atleticaId
 })

@@ -3,7 +3,7 @@ import { type CanActivate, type ExecutionContext, Injectable } from '@nestjs/com
 import { Reflector } from '@nestjs/core'
 import { ContextoAtletica } from '../../../infra/contexto/contexto-atletica.service'
 import { PrismaService } from '../../../infra/prisma/prisma.service'
-import { PUBLICO } from '../decorators/publico.decorator'
+import { ehRotaPublica } from '../decorators/publico.decorator'
 import { erroContaDesativada, erroNaoAutenticado } from '../erros'
 import type { PayloadAcesso, RequisicaoAutenticada, UsuarioAutenticado } from '../tipos'
 import { TokenAcessoService } from '../token-acesso.service'
@@ -21,9 +21,7 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
-    if (this.reflector.getAllAndOverride<boolean>(PUBLICO, [ctx.getHandler(), ctx.getClass()])) {
-      return true
-    }
+    if (ehRotaPublica(this.reflector, ctx)) return true
 
     const requisicao = ctx.switchToHttp().getRequest<RequisicaoAutenticada>()
     const token = BEARER.exec(requisicao.headers.authorization ?? '')?.[1]
