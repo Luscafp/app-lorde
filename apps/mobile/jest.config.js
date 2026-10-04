@@ -3,7 +3,11 @@ module.exports = {
   preset: 'jest-expo',
   // pnpm guarda os pacotes em node_modules/.pnpm/<pacote>/node_modules/<pacote>.
   transformIgnorePatterns: [
-    String.raw`node_modules/(?!(?:\.pnpm/[^/]+/node_modules/)?((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|react-native-svg|@atletica/.*))`,
+    String.raw`node_modules/(?!(?:\.pnpm/[^/]+/node_modules/)?((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|react-native-svg|standard-navigation|@atletica/.*))`,
   ],
-  moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1' },
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '\\.css$': '<rootDir>/__mocks__/estilo.js',
+  },
+  setupFiles: ['<rootDir>/jest.setup.ts'],
 }
