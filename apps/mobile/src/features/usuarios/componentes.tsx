@@ -1,7 +1,7 @@
-import { ROTULO_PAPEL, type UsuarioResumo } from '@atletica/shared'
-import { Image, Pressable, ScrollView, Text, View } from 'react-native'
-import { Texto } from '@/components/ui'
-import { paleta, useAtletica } from '@/features/atletica'
+import { ROTULO_PAPEL, SituacaoUsuario, type UsuarioResumo } from '@atletica/shared'
+import { Image, Pressable, Text, View } from 'react-native'
+import { Selo, Texto } from '@/components/ui'
+import { paleta } from '@/features/atletica'
 
 function iniciais(nome: string): string {
   const partes = nome.trim().split(/\s+/)
@@ -36,62 +36,6 @@ export function Avatar({
   )
 }
 
-export function Selo({ texto, cor = paleta['texto-suave'] }: { texto: string; cor?: string }) {
-  return (
-    <View className="rounded-full border px-2 py-0.5" style={{ borderColor: cor }}>
-      <Text className="text-xs font-semibold" style={{ color: cor }}>
-        {texto}
-      </Text>
-    </View>
-  )
-}
-
-export type Opcao<T> = { valor: T | undefined; rotulo: string }
-
-export function Pilulas<T extends string>({
-  rotulo,
-  opcoes,
-  valor,
-  aoMudar,
-}: {
-  rotulo: string
-  opcoes: readonly Opcao<T>[]
-  valor: T | undefined
-  aoMudar: (valor: T | undefined) => void
-}) {
-  const { corPrimaria } = useAtletica()
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      accessibilityLabel={rotulo}
-      contentContainerClassName="gap-2"
-    >
-      {opcoes.map((opcao) => {
-        const selecionada = opcao.valor === valor
-        return (
-          <Pressable
-            key={opcao.rotulo}
-            accessibilityRole="radio"
-            accessibilityLabel={opcao.rotulo}
-            accessibilityState={{ selected: selecionada }}
-            onPress={() => aoMudar(opcao.valor)}
-            className="min-h-[44px] justify-center rounded-full border px-4"
-            style={{ borderColor: selecionada ? corPrimaria : paleta.borda }}
-          >
-            <Text
-              className={`text-sm ${selecionada ? 'font-semibold' : ''}`}
-              style={{ color: selecionada ? corPrimaria : paleta.texto }}
-            >
-              {opcao.rotulo}
-            </Text>
-          </Pressable>
-        )
-      })}
-    </ScrollView>
-  )
-}
-
 export function ItemUsuario({
   usuario,
   aoAbrir,
@@ -99,7 +43,7 @@ export function ItemUsuario({
   usuario: UsuarioResumo
   aoAbrir: (id: string) => void
 }) {
-  const desativado = usuario.situacao === 'DESATIVADO'
+  const desativado = usuario.situacao === SituacaoUsuario.DESATIVADO
   const cargo = ROTULO_PAPEL[usuario.papel]
   return (
     <Pressable

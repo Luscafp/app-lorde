@@ -5,7 +5,7 @@ import type { ComponentProps } from 'react'
 import { Pressable, ScrollView, View } from 'react-native'
 import { Texto } from '@/components/ui'
 import { paleta } from '@/features/atletica'
-import { useTemNivelMinimo } from '@/infra/sessao/use-ve-painel'
+import { useTemNivelMinimo } from '@/infra/sessao/use-tem-nivel-minimo'
 
 type Entrada = {
   titulo: string

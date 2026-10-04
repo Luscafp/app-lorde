@@ -1,6 +1,8 @@
 export { Botao, type VarianteBotao } from './botao'
 export { Campo } from './campo'
 export { Cartao } from './cartao'
+export { Pilulas, type Opcao } from './pilulas'
+export { Selo } from './selo'
 export { Texto, type VarianteTexto } from './texto'
 export { toast } from './toast'
 export { toastConfig } from './toast-config'

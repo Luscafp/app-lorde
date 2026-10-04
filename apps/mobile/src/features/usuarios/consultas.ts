@@ -1,23 +1,15 @@
-import type { FiltrosUsuarios, SituacaoAlterada, UsuarioResumo } from '@atletica/shared'
+import {
+  SituacaoUsuario,
+  type FiltrosUsuarios,
+  type SituacaoAlterada,
+  type UsuarioResumo,
+} from '@atletica/shared'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
 import { toast } from '@/components/ui/toast'
 import type { ApiErro } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import { alterarSituacao, buscarUsuario, LIMITE_PAGINA, listarUsuarios } from './api'
-
-export const ATRASO_BUSCA_MS = 300
-
-/** Valor que só muda depois de `atrasoMs` sem novas alterações. */
-export function useValorAtrasado<T>(valor: T, atrasoMs = ATRASO_BUSCA_MS): T {
-  const [atrasado, setAtrasado] = useState(valor)
-  useEffect(() => {
-    const temporizador = setTimeout(() => setAtrasado(valor), atrasoMs)
-    return () => clearTimeout(temporizador)
-  }, [valor, atrasoMs])
-  return atrasado
-}
 
 export function useListaUsuarios(filtros: FiltrosUsuarios) {
   return useInfiniteQuery({
@@ -52,7 +44,7 @@ export function useAlterarSituacao(id: string) {
   return useAcaoOnline<SituacaoAlterada, ApiErro, boolean>({
     mutationFn: (ativo) => alterarSituacao(id, ativo),
     onSuccess: ({ situacao }) =>
-      toast.sucesso(situacao === 'ATIVO' ? 'Conta reativada' : 'Conta desativada'),
+      toast.sucesso(situacao === SituacaoUsuario.ATIVO ? 'Conta reativada' : 'Conta desativada'),
     // O toast de erro é global; recarregar mostra o motivo atualizado (ex.: NIVEL_INSUFICIENTE).
     onSettled: () => cliente.invalidateQueries({ queryKey: chaves.usuarios.todos() }),
   })

@@ -1,11 +1,6 @@
 import { ehAdministrador, Papel, podeAgirSobre, type PermissoesUsuario } from '@atletica/shared'
 import type { ClienteComEscopo, TransacaoComEscopo } from '../../infra/prisma/prisma.service'
-import {
-  erroUltimoAdministrador,
-  MENSAGEM_ALVO_PROPRIO,
-  MENSAGEM_NIVEL_INSUFICIENTE,
-  MENSAGEM_USUARIO_EXCLUIDO,
-} from './erros'
+import { erroUltimoAdministrador, MENSAGEM_DE_BLOQUEIO, type Bloqueio } from './erros'
 
 type ClienteVinculos = Pick<ClienteComEscopo, 'vinculoAtletica'>
 
@@ -52,10 +47,11 @@ export async function garantirNaoUltimoAdministrador(
   if (await ehUltimoAdministrador(tx, atleticaId, usuarioId)) throw erroUltimoAdministrador()
 }
 
-function motivoBloqueio(solicitante: Solicitante, alvo: AlvoPermissoes): string | null {
-  if (alvo.excluido) return MENSAGEM_USUARIO_EXCLUIDO
-  if (alvo.id === solicitante.id) return MENSAGEM_ALVO_PROPRIO
-  if (!podeAgirSobre(solicitante.papel, alvo.papel)) return MENSAGEM_NIVEL_INSUFICIENTE
+/** Ordem única das checagens de desativar/reativar: leitura (`permissoes`) e escrita. */
+export function bloqueioDaAcao(solicitante: Solicitante, alvo: AlvoPermissoes): Bloqueio | null {
+  if (alvo.excluido) return 'USUARIO_EXCLUIDO'
+  if (alvo.id === solicitante.id) return 'ALVO_PROPRIO'
+  if (!podeAgirSobre(solicitante.papel, alvo.papel)) return 'NIVEL_INSUFICIENTE'
   return null
 }
 
@@ -65,10 +61,10 @@ export function calcularPermissoes(
   alvo: AlvoPermissoes,
   ehUltimoAdmin: boolean,
 ): PermissoesUsuario {
-  const motivo = motivoBloqueio(solicitante, alvo)
+  const bloqueio = bloqueioDaAcao(solicitante, alvo)
   return {
-    podeAlterarSituacao: motivo === null,
-    motivoBloqueio: motivo,
+    podeAlterarSituacao: bloqueio === null,
+    motivoBloqueio: bloqueio && MENSAGEM_DE_BLOQUEIO[bloqueio],
     podeAlterarPapel:
       ehAdministrador(solicitante.papel) && !alvo.excluido && alvo.id !== solicitante.id,
     ehUltimoAdministrador: ehUltimoAdmin && !alvo.excluido,

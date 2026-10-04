@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { Papel } from '../enums/papel'
+import { respostaPaginadaSchema } from '../utils/paginacao'
 import { SITUACOES_FILTRO, SituacaoUsuario } from './schemas'
 
 export const usuarioResumoSchema = z
@@ -13,14 +14,7 @@ export const usuarioResumoSchema = z
   })
   .strict()
 
-export const listaUsuariosSchema = z
-  .object({
-    items: z.array(usuarioResumoSchema),
-    page: z.number().int(),
-    limit: z.number().int(),
-    total: z.number().int(),
-  })
-  .strict()
+export const listaUsuariosSchema = respostaPaginadaSchema(usuarioResumoSchema)
 
 /** Calculadas no backend para o solicitante (RNF07); o app só as reflete. */
 export const permissoesUsuarioSchema = z

@@ -23,6 +23,24 @@ export function erroUsuarioExcluido(): ErroNegocio {
   return new ErroNegocio(HttpStatus.CONFLICT, 'USUARIO_EXCLUIDO', MENSAGEM_USUARIO_EXCLUIDO)
 }
 
+export type Bloqueio = 'USUARIO_EXCLUIDO' | 'ALVO_PROPRIO' | 'NIVEL_INSUFICIENTE'
+
+export const MENSAGEM_DE_BLOQUEIO: Readonly<Record<Bloqueio, string>> = {
+  USUARIO_EXCLUIDO: MENSAGEM_USUARIO_EXCLUIDO,
+  ALVO_PROPRIO: MENSAGEM_ALVO_PROPRIO,
+  NIVEL_INSUFICIENTE: MENSAGEM_NIVEL_INSUFICIENTE,
+}
+
+const ERRO_DE_BLOQUEIO: Readonly<Record<Bloqueio, () => ErroNegocio>> = {
+  USUARIO_EXCLUIDO: erroUsuarioExcluido,
+  ALVO_PROPRIO: erroAlvoProprio,
+  NIVEL_INSUFICIENTE: erroNivelInsuficiente,
+}
+
+export function erroDeBloqueio(bloqueio: Bloqueio): ErroNegocio {
+  return ERRO_DE_BLOQUEIO[bloqueio]()
+}
+
 export function erroUltimoAdministrador(): ErroNegocio {
   return new ErroNegocio(
     HttpStatus.CONFLICT,

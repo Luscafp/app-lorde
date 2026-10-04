@@ -1,7 +1,7 @@
 import { Papel } from '@atletica/shared'
 import { Redirect, useRouter } from 'expo-router'
 import { ListaUsuarios } from '@/features/usuarios'
-import { useTemNivelMinimo } from '@/infra/sessao/use-ve-painel'
+import { useTemNivelMinimo } from '@/infra/sessao/use-tem-nivel-minimo'
 
 export default function Usuarios() {
   const router = useRouter()

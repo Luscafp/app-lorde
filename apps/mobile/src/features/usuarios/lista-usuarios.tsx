@@ -1,29 +1,43 @@
-import { BUSCA_MIN, Papel, type SituacaoFiltro } from '@atletica/shared'
+import {
+  BUSCA_MIN,
+  Papel,
+  ROTULO_PAPEL,
+  SituacaoUsuario,
+  type SituacaoFiltro,
+} from '@atletica/shared'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, FlatList, TextInput, View } from 'react-native'
 import { EstadoVazio, TelaDados } from '@/components/estado'
+import { Pilulas, type Opcao } from '@/components/ui'
 import { paleta } from '@/features/atletica'
-import { ItemUsuario, Pilulas, type Opcao } from './componentes'
-import { juntarPaginas, useListaUsuarios, useValorAtrasado } from './consultas'
+import { useValorAtrasado } from '@/infra/use-valor-atrasado'
+import { ItemUsuario } from './componentes'
+import { juntarPaginas, useListaUsuarios } from './consultas'
+
+const ATRASO_BUSCA_MS = 300
+
+const PAPEIS_FILTRO = [
+  Papel.ATLETA,
+  Papel.DIRETOR,
+  Papel.VICE_PRESIDENTE,
+  Papel.PRESIDENTE,
+  Papel.ADMINISTRADOR,
+] as const
 
 const OPCOES_PAPEL: readonly Opcao<Papel>[] = [
   { valor: undefined, rotulo: 'Todos' },
-  { valor: Papel.ATLETA, rotulo: 'Atleta' },
-  { valor: Papel.DIRETOR, rotulo: 'Diretor' },
-  { valor: Papel.VICE_PRESIDENTE, rotulo: 'Vice-presidente' },
-  { valor: Papel.PRESIDENTE, rotulo: 'Presidente' },
-  { valor: Papel.ADMINISTRADOR, rotulo: 'Administrador' },
+  ...PAPEIS_FILTRO.map((papel) => ({ valor: papel, rotulo: ROTULO_PAPEL[papel] })),
 ]
 
 const OPCOES_SITUACAO: readonly Opcao<SituacaoFiltro>[] = [
   { valor: undefined, rotulo: 'Todos' },
-  { valor: 'ATIVO', rotulo: 'Ativos' },
-  { valor: 'DESATIVADO', rotulo: 'Desativados' },
+  { valor: SituacaoUsuario.ATIVO, rotulo: 'Ativos' },
+  { valor: SituacaoUsuario.DESATIVADO, rotulo: 'Desativados' },
 ]
 
 /** Com 1 caractere a busca anterior continua valendo (a API exige 2). */
 function useBusca(termo: string): string | undefined {
-  const atrasado = useValorAtrasado(termo.trim())
+  const atrasado = useValorAtrasado(termo.trim(), ATRASO_BUSCA_MS)
   const [busca, setBusca] = useState<string>()
   useEffect(() => {
     if (atrasado.length === 0 || atrasado.length >= BUSCA_MIN) setBusca(atrasado || undefined)

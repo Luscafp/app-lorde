@@ -1,13 +1,14 @@
-import { formatarData, ROTULO_PAPEL, type UsuarioDetalhe } from '@atletica/shared'
+import { formatarData, ROTULO_PAPEL, SituacaoUsuario, type UsuarioDetalhe } from '@atletica/shared'
+import type { ReactNode } from 'react'
 import { Alert, ScrollView, View } from 'react-native'
 import { TelaDados } from '@/components/estado'
-import { Botao, Cartao, Texto } from '@/components/ui'
+import { Botao, Cartao, Selo, Texto } from '@/components/ui'
 import { paleta } from '@/features/atletica'
-import { Avatar, Selo } from './componentes'
+import { Avatar } from './componentes'
 import { useAlterarSituacao, useUsuario } from './consultas'
 
 function confirmar(usuario: UsuarioDetalhe, aoConfirmar: () => void) {
-  const desativar = usuario.situacao === 'ATIVO'
+  const desativar = usuario.situacao === SituacaoUsuario.ATIVO
   Alert.alert(
     desativar ? 'Desativar conta' : 'Reativar conta',
     desativar
@@ -24,15 +25,24 @@ function confirmar(usuario: UsuarioDetalhe, aoConfirmar: () => void) {
   )
 }
 
-function Acoes({ usuario }: { usuario: UsuarioDetalhe }) {
-  const acao = useAlterarSituacao(usuario.id)
-  const { podeAlterarSituacao, motivoBloqueio } = usuario.permissoes
+/** Ponto de entrada da #28: renderiza o "Alterar cargo" do detalhe. */
+type AlterarCargo = (usuario: UsuarioDetalhe) => ReactNode
 
-  if (usuario.situacao === 'EXCLUIDO') {
+function Acoes({
+  usuario,
+  alterarCargo,
+}: {
+  usuario: UsuarioDetalhe
+  alterarCargo?: AlterarCargo
+}) {
+  const acao = useAlterarSituacao(usuario.id)
+  const { podeAlterarSituacao, motivoBloqueio, podeAlterarPapel } = usuario.permissoes
+
+  if (usuario.situacao === SituacaoUsuario.EXCLUIDO) {
     return <Texto variante="legenda">Usuário excluído</Texto>
   }
 
-  const ativo = usuario.situacao === 'ATIVO'
+  const ativo = usuario.situacao === SituacaoUsuario.ATIVO
   return (
     <View className="gap-2">
       <Botao
@@ -43,11 +53,18 @@ function Acoes({ usuario }: { usuario: UsuarioDetalhe }) {
         onPress={() => confirmar(usuario, () => acao.mutate(!ativo))}
       />
       {motivoBloqueio && <Texto variante="legenda">{motivoBloqueio}</Texto>}
+      {podeAlterarPapel && alterarCargo?.(usuario)}
     </View>
   )
 }
 
-function Conteudo({ usuario }: { usuario: UsuarioDetalhe }) {
+function Conteudo({
+  usuario,
+  alterarCargo,
+}: {
+  usuario: UsuarioDetalhe
+  alterarCargo?: AlterarCargo
+}) {
   return (
     <ScrollView contentContainerClassName="gap-6 p-4">
       <View className="items-center gap-2">
@@ -58,12 +75,14 @@ function Conteudo({ usuario }: { usuario: UsuarioDetalhe }) {
         <Texto variante="legenda">{usuario.email}</Texto>
         <View className="flex-row flex-wrap justify-center gap-2">
           <Selo texto={ROTULO_PAPEL[usuario.papel]} />
-          {usuario.situacao === 'DESATIVADO' && <Selo texto="Desativado" cor={paleta.erro} />}
+          {usuario.situacao === SituacaoUsuario.DESATIVADO && (
+            <Selo texto="Desativado" cor={paleta.erro} />
+          )}
         </View>
         <Texto variante="legenda">Membro desde {formatarData(usuario.criadoEm)}</Texto>
       </View>
 
-      {usuario.situacao !== 'EXCLUIDO' && (
+      {usuario.situacao !== SituacaoUsuario.EXCLUIDO && (
         <View className="gap-2">
           <Texto variante="subtitulo">Times</Texto>
           {usuario.times.length === 0 ? (
@@ -82,17 +101,17 @@ function Conteudo({ usuario }: { usuario: UsuarioDetalhe }) {
         </View>
       )}
 
-      <Acoes usuario={usuario} />
+      <Acoes usuario={usuario} alterarCargo={alterarCargo} />
     </ScrollView>
   )
 }
 
-export function DetalheUsuario({ id }: { id: string }) {
+export function DetalheUsuario({ id, alterarCargo }: { id: string; alterarCargo?: AlterarCargo }) {
   const consulta = useUsuario(id)
   return (
     <View className="flex-1 bg-fundo">
       <TelaDados consulta={consulta} esqueleto="detalhe">
-        {(usuario) => <Conteudo usuario={usuario} />}
+        {(usuario) => <Conteudo usuario={usuario} alterarCargo={alterarCargo} />}
       </TelaDados>
     </View>
   )

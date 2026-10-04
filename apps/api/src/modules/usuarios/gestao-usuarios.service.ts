@@ -1,7 +1,6 @@
 import {
   ehPresidencia,
   Papel,
-  podeAgirSobre,
   SituacaoUsuario,
   type ListarUsuariosQuery,
   type ListaUsuarios,
@@ -15,19 +14,21 @@ import { EventosDominioService } from '../../infra/eventos/eventos-dominio.servi
 import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import { Prisma } from '../../generated/prisma/client'
 import { AuditoriaService } from '../auditoria/auditoria.service'
+import { diferenca } from '../auditoria/diferenca'
 import { erroSemPermissao } from '../auth/erros'
 import { SessaoService } from '../auth/sessao.service'
 import type { UsuarioAutenticado } from '../auth/tipos'
 import { UploadsService } from '../uploads/uploads.service'
+import { erroDeBloqueio, erroUsuarioNaoEncontrado } from './erros'
 import {
-  erroAlvoProprio,
-  erroNivelInsuficiente,
-  erroUsuarioExcluido,
-  erroUsuarioNaoEncontrado,
-} from './erros'
-import { bloquearPapeis, calcularPermissoes, ehUltimoAdministrador } from './regras-papel'
+  bloqueioDaAcao,
+  bloquearPapeis,
+  calcularPermissoes,
+  ehUltimoAdministrador,
+  type Solicitante,
+} from './regras-papel'
 
-type Solicitante = Pick<UsuarioAutenticado, 'id' | 'papel' | 'atleticaId'>
+type SolicitanteNaAtletica = Solicitante & Pick<UsuarioAutenticado, 'atleticaId'>
 
 interface LinhaUsuario {
   id: string
@@ -113,7 +114,7 @@ export class GestaoUsuariosService {
     }
   }
 
-  async detalhar(id: string, solicitante: Solicitante): Promise<UsuarioDetalhe> {
+  async detalhar(id: string, solicitante: SolicitanteNaAtletica): Promise<UsuarioDetalhe> {
     const { atleticaId } = solicitante
     const vinculo = await this.prisma.db.vinculoAtletica.findFirst({
       where: { usuarioId: id },
@@ -178,19 +179,20 @@ export class GestaoUsuariosService {
   async alterarSituacao(
     id: string,
     ativo: boolean,
-    solicitante: Solicitante,
+    solicitante: SolicitanteNaAtletica,
   ): Promise<SituacaoAlterada> {
     const { atleticaId } = solicitante
     return this.transacao.executar(async (tx) => {
       await bloquearPapeis(tx, atleticaId)
       const alvo = await this.bloquearVinculo(tx, id, atleticaId)
       if (!alvo) throw erroUsuarioNaoEncontrado()
-      if (alvo.excluido) throw erroUsuarioExcluido()
-      if (id === solicitante.id) throw erroAlvoProprio()
-      await this.conferirNivel(tx, solicitante.id, alvo.papel)
+      const papel = await this.papelAtual(tx, solicitante.id)
+      const bloqueio = bloqueioDaAcao({ id: solicitante.id, papel }, { ...alvo, id })
+      if (bloqueio) throw erroDeBloqueio(bloqueio)
 
       const resposta = { id, situacao: situacaoDe(ativo) }
-      if (alvo.ativo === ativo) return resposta
+      const mudanca = diferenca({ ativo: alvo.ativo }, { ativo })
+      if (!mudanca) return resposta
 
       await tx.vinculoAtletica.update({ where: { id: alvo.id }, data: { ativo } })
       if (!ativo) await this.revogarSessoes(tx, id, solicitante)
@@ -198,7 +200,7 @@ export class GestaoUsuariosService {
         entidade: 'VinculoAtletica',
         acao: ativo ? 'USUARIO_REATIVADO' : 'USUARIO_DESATIVADO',
         entidadeId: id,
-        dados: { antes: { ativo: alvo.ativo }, depois: { ativo } },
+        dados: mudanca,
       })
       return resposta
     })
@@ -218,23 +220,19 @@ export class GestaoUsuariosService {
   }
 
   /** O papel do solicitante é relido sob o lock: pode ter mudado desde o guard. */
-  private async conferirNivel(
-    tx: TransacaoComEscopo,
-    solicitanteId: string,
-    papelAlvo: Papel,
-  ): Promise<void> {
+  private async papelAtual(tx: TransacaoComEscopo, solicitanteId: string): Promise<Papel> {
     const ator = await tx.vinculoAtletica.findFirst({
       where: { usuarioId: solicitanteId, ativo: true },
       select: { papel: true },
     })
     if (!ator || !ehPresidencia(ator.papel)) throw erroSemPermissao()
-    if (!podeAgirSobre(ator.papel, papelAlvo)) throw erroNivelInsuficiente()
+    return ator.papel
   }
 
   private async revogarSessoes(
     tx: TransacaoComEscopo,
     usuarioId: string,
-    { id: autorId, atleticaId }: Solicitante,
+    { id: autorId, atleticaId }: SolicitanteNaAtletica,
   ): Promise<void> {
     const sessaoIds = await this.sessoes.revogarTodas(tx, usuarioId, 'CONTA_DESATIVADA', {
       atleticaId,
