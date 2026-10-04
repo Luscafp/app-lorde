@@ -8,7 +8,7 @@ import { criarApp, type AppDeTeste } from '../setup/criar-app'
 import { prismaTeste } from '../setup/prisma-teste'
 
 const MINUTO = 60_000
-const LOGIN: LimiteTentativas = { maximo: 5, janelaMs: 15 * MINUTO }
+const LOGIN: LimiteTentativas = { maximo: 5, janelaMs: 15 * MINUTO, bloqueioMs: 15 * MINUTO }
 const CHAVE = 'ana@ex.com|10.0.0.1'
 const t0 = new Date('2026-10-04T12:00:00.000Z')
 const em = (minutos: number) => new Date(t0.getTime() + minutos * MINUTO)
@@ -36,7 +36,7 @@ describe('RateLimitService (#57)', () => {
       await servico.verificar(tipo, CHAVE, LOGIN, agora)
       return undefined
     } catch (erro) {
-      if (erro instanceof ErroLimiteExcedido) return erro.retryAfter
+      if (erro instanceof ErroLimiteExcedido) return erro.segundosParaNovaTentativa
       throw erro
     }
   }

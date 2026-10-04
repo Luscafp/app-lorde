@@ -1,7 +1,7 @@
 import { avaliarLimite, type LimiteTentativas } from './rate-limit.service'
 
 const MINUTO = 60_000
-const LOGIN: LimiteTentativas = { maximo: 5, janelaMs: 15 * MINUTO }
+const LOGIN: LimiteTentativas = { maximo: 5, janelaMs: 15 * MINUTO, bloqueioMs: 15 * MINUTO }
 const t0 = new Date('2026-10-04T12:00:00.000Z')
 const em = (minutos: number) => new Date(t0.getTime() + minutos * MINUTO)
 
@@ -52,5 +52,19 @@ describe('avaliarLimite', () => {
   it('bloqueioMs diferente da janela', () => {
     const limite = { maximo: 2, janelaMs: MINUTO, bloqueioMs: 10 * MINUTO }
     expect(avaliarLimite(tentativas(0, 0.5), limite, em(5)).bloqueadoAte).toEqual(em(10.5))
+  })
+
+  describe('sem bloqueioMs: janela deslizante', () => {
+    const HORA: LimiteTentativas = { maximo: 3, janelaMs: 60 * MINUTO }
+
+    it('libera quando a mais antiga das `maximo` sai da janela', () => {
+      const recentes = tentativas(0, 50, 59)
+      expect(avaliarLimite(recentes, HORA, em(59))).toEqual({ restantes: 0, bloqueadoAte: em(60) })
+      expect(avaliarLimite(recentes, HORA, em(60)).bloqueadoAte).toBeNull()
+    })
+
+    it('tentativas fora da janela não bloqueiam', () => {
+      expect(avaliarLimite(tentativas(0, 50, 61), HORA, em(61)).bloqueadoAte).toBeNull()
+    })
   })
 })

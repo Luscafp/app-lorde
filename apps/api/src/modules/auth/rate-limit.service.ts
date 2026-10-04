@@ -20,7 +20,7 @@ export interface LimiteTentativas {
   /** Tentativas na janela que disparam o bloqueio. */
   maximo: number
   janelaMs: number
-  /** Duração do bloqueio, contada da última tentativa; padrão: `janelaMs`. */
+  /** Bloqueio fixo contado da última tentativa (login); sem ele, a janela é deslizante. */
   bloqueioMs?: number
 }
 
@@ -29,19 +29,18 @@ export interface SituacaoLimite {
   bloqueadoAte: Date | null
 }
 
-/**
- * Regra do épico #10 §14: com as `maximo` tentativas mais recentes (`recentes`, da mais nova para
- * a mais antiga), bloqueia se `tN − t1 ≤ janela` e `agora < tN + bloqueio`.
- */
+/** Épico #10 §14, sobre as `maximo` tentativas mais recentes (da mais nova para a mais antiga). */
 export function avaliarLimite(
   recentes: Date[],
-  { maximo, janelaMs, bloqueioMs = janelaMs }: LimiteTentativas,
+  { maximo, janelaMs, bloqueioMs }: LimiteTentativas,
   agora: Date,
 ): SituacaoLimite {
   const ultima = recentes[0]
   const primeira = recentes[maximo - 1]
   if (ultima && primeira) {
-    const bloqueadoAte = new Date(ultima.getTime() + bloqueioMs)
+    const bloqueadoAte = new Date(
+      bloqueioMs === undefined ? primeira.getTime() + janelaMs : ultima.getTime() + bloqueioMs,
+    )
     if (ultima.getTime() - primeira.getTime() <= janelaMs && agora < bloqueadoAte) {
       return { restantes: 0, bloqueadoAte }
     }
@@ -51,11 +50,7 @@ export function avaliarLimite(
   return { restantes: Math.max(maximo - naJanela, 0), bloqueadoAte: null }
 }
 
-/**
- * Único mecanismo de limite de tentativas do projeto (convenções §4.6, §11.3), persistido em
- * `TentativaAcesso`. Fluxo: `verificar` antes da ação, `registrar` a tentativa (ou a falha) e
- * `limpar` quando o sucesso deve zerar a contagem (ex.: login).
- */
+/** Único mecanismo de limite de tentativas (convenções §11.3); uso no README da API. */
 @Injectable()
 export class RateLimitService {
   constructor(private readonly prisma: PrismaService) {}

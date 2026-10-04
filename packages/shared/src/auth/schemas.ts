@@ -6,11 +6,14 @@ export const EMAIL_MAX = 254
 export const NOME_MIN = 2
 export const NOME_MAX = 80
 
-/** Política de senha do UC06: 8–128 caracteres, ao menos uma letra e um número. */
-export const senhaSchema = z
+/** Teto contra DoS no Argon2, também no login. */
+const senhaLimitada = z
   .string()
-  .min(SENHA_MIN, { error: `A senha deve ter ao menos ${SENHA_MIN} caracteres.` })
   .max(SENHA_MAX, { error: `A senha deve ter no máximo ${SENHA_MAX} caracteres.` })
+
+/** Política de senha do UC06: 8–128 caracteres, ao menos uma letra e um número. */
+export const senhaSchema = senhaLimitada
+  .min(SENHA_MIN, { error: `A senha deve ter ao menos ${SENHA_MIN} caracteres.` })
   .regex(/\p{L}/u, { error: 'A senha deve ter ao menos uma letra.' })
   .regex(/\p{N}/u, { error: 'A senha deve ter ao menos um número.' })
 
@@ -32,10 +35,7 @@ export const nomeSchema = z
 export const loginSchema = z
   .object({
     email: emailSchema,
-    senha: z
-      .string()
-      .min(1, { error: 'Informe a senha.' })
-      .max(SENHA_MAX, { error: `A senha deve ter no máximo ${SENHA_MAX} caracteres.` }),
+    senha: senhaLimitada.min(1, { error: 'Informe a senha.' }),
   })
   .strict()
 

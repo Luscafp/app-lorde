@@ -21,14 +21,18 @@ import {
   erroTermosDesatualizados,
 } from './erros'
 import { RateLimitService, TipoTentativa, type LimiteTentativas } from './rate-limit.service'
-import { montarRespostaSessao, type UsuarioDaSessao } from './resposta-sessao'
+import { montarRespostaSessao, type UsuarioParaSessao } from './resposta-sessao'
 import { SessaoService, type SessaoCriada } from './sessao.service'
 import { TokenAcessoService } from './token-acesso.service'
 
 const MINUTO_MS = 60_000
 
 /** RNF06: 5 falhas em 15 min por e-mail + IP bloqueiam por 15 min. */
-export const LIMITE_LOGIN: LimiteTentativas = { maximo: 5, janelaMs: 15 * MINUTO_MS }
+export const LIMITE_LOGIN: LimiteTentativas = {
+  maximo: 5,
+  janelaMs: 15 * MINUTO_MS,
+  bloqueioMs: 15 * MINUTO_MS,
+}
 /** Mitiga a enumeração de e-mails pelo cadastro (épico #10 §10). */
 export const LIMITE_CADASTRO: LimiteTentativas = { maximo: 10, janelaMs: 60 * MINUTO_MS }
 
@@ -163,7 +167,7 @@ export class AuthService implements OnModuleInit {
     throw erroCredenciaisInvalidas(restantes === 1)
   }
 
-  private responder(usuario: UsuarioDaSessao, sessao: SessaoCriada): RespostaSessao {
+  private responder(usuario: UsuarioParaSessao, sessao: SessaoCriada): RespostaSessao {
     const acesso = this.tokens.assinar({
       sub: usuario.id,
       atl: usuario.atleticaId,

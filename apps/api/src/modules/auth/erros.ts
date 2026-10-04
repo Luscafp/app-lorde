@@ -42,13 +42,12 @@ export function erroCredenciaisInvalidas(ultimaTentativa = false): ErroNegocio {
   )
 }
 
+const EMAIL_JA_CADASTRADO = 'Este e-mail já está cadastrado.'
+
 export function erroEmailJaCadastrado(): ErroNegocio {
-  return new ErroNegocio(
-    HttpStatus.CONFLICT,
-    'EMAIL_JA_CADASTRADO',
-    'Este e-mail já está cadastrado.',
-    [{ field: 'email', message: 'Este e-mail já está cadastrado.' }],
-  )
+  return new ErroNegocio(HttpStatus.CONFLICT, 'EMAIL_JA_CADASTRADO', EMAIL_JA_CADASTRADO, [
+    { field: 'email', message: EMAIL_JA_CADASTRADO },
+  ])
 }
 
 export function erroTermosDesatualizados(): ErroNegocio {

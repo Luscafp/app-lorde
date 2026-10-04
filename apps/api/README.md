@@ -180,7 +180,7 @@ registrar(tipo, chave, agora?): Promise<void>
 limpar(tipo, chave): Promise<void>
 ```
 
-- Bloqueado quando as `maximo` tentativas mais recentes cabem em `janelaMs` e `agora < última + bloqueioMs` (padrão: `janelaMs`). `verificar` lança `ErroLimiteExcedido` → `429 RATE_LIMITED` com `Retry-After` em segundos (o filtro global põe o cabeçalho).
+- Bloqueado quando as `maximo` tentativas mais recentes cabem em `janelaMs`: sem `bloqueioMs`, até a mais antiga delas sair da janela (janela deslizante, ex.: 10 cadastros/h); com `bloqueioMs`, até `última + bloqueioMs` (login: 15 min após a 5ª falha). `verificar` lança `ErroLimiteExcedido` → `429 RATE_LIMITED` com `Retry-After` em segundos (o filtro global põe o cabeçalho).
 - Fluxo: `verificar` antes da ação; `registrar` a tentativa (cadastro, presign) ou só a falha (login); `limpar` quando o sucesso zera a contagem.
 - `tipo` ∈ `TipoTentativa`: `LOGIN_FALHA`, `CADASTRO`, `RECUPERACAO_ENVIO`, `CODIGO_TENTATIVA`, `SENHA_CONFIRMACAO_FALHA`, `PRESIGN`, `VERIFICACAO_ENVIO`, `AVISO_ENVIO`. Tipo novo: acrescente ao catálogo (sem migration; `VarChar(30)`). `chave` até 300 caracteres (ex.: `email|ip`, `usuarioId`).
 

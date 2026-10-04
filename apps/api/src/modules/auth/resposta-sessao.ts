@@ -2,7 +2,7 @@ import type { Papel, RespostaSessao } from '@atletica/shared'
 import type { SessaoCriada } from './sessao.service'
 import type { TokenAcessoEmitido } from './token-acesso.service'
 
-export interface UsuarioDaSessao {
+export interface UsuarioParaSessao {
   id: string
   nome: string
   email: string
@@ -13,7 +13,7 @@ export interface UsuarioDaSessao {
 
 /** Contrato único de cadastro, login e refresh (convenções §11.2), também usado pela #58. */
 export function montarRespostaSessao(
-  usuario: UsuarioDaSessao,
+  usuario: UsuarioParaSessao,
   { refreshToken }: SessaoCriada,
   { accessToken, accessTokenExpiraEm }: TokenAcessoEmitido,
 ): RespostaSessao {

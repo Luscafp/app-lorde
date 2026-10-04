@@ -178,7 +178,7 @@ export class ExcecaoGlobalFilter implements ExceptionFilter {
     }
 
     if (excecao instanceof ErroLimiteExcedido) {
-      resposta.setHeader('Retry-After', String(excecao.retryAfter))
+      resposta.setHeader('Retry-After', String(excecao.segundosParaNovaTentativa))
     }
     resposta.status(corpo.statusCode).json(corpo)
   }
