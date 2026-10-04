@@ -66,7 +66,13 @@ function lerDetalhes(valor: unknown): DetalheErro[] {
   )
 }
 
-function erroDaResposta(status: number, corpo: CorpoErro | null, requestId: string): ApiErro {
+function lerSegundos(valor: string | null): number | null {
+  const segundos = Number(valor)
+  return valor && Number.isInteger(segundos) && segundos > 0 ? segundos : null
+}
+
+function erroDaResposta(resposta: Response, corpo: CorpoErro | null, requestId: string): ApiErro {
+  const { status } = resposta
   return new ApiErro({
     status,
     code:
@@ -77,7 +83,8 @@ function erroDaResposta(status: number, corpo: CorpoErro | null, requestId: stri
           : CodigoLocal.ERRO_HTTP,
     message: typeof corpo?.message === 'string' ? corpo.message : MENSAGEM_ERRO_GENERICO,
     details: lerDetalhes(corpo?.details),
-    requestId,
+    requestId: resposta.headers.get('x-request-id') ?? requestId,
+    segundosParaNovaTentativa: lerSegundos(resposta.headers.get('retry-after')),
   })
 }
 
@@ -139,9 +146,11 @@ export async function enviar<T>(
     })
     const dados = await lerJson(resposta)
     if (!resposta.ok) {
-      const idResposta = resposta.headers.get('x-request-id') ?? requestId
-      if (resposta.status >= 500) registrarErroServidor(url, metodo, resposta.status, idResposta)
-      throw erroDaResposta(resposta.status, dados as CorpoErro | null, idResposta)
+      const erro = erroDaResposta(resposta, dados as CorpoErro | null, requestId)
+      if (erro.status >= 500) {
+        registrarErroServidor(url, metodo, erro.status, erro.requestId ?? requestId)
+      }
+      throw erro
     }
     return dados as T
   } catch (erro) {

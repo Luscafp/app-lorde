@@ -47,6 +47,8 @@ function Navegacao() {
       <Stack.Protected guard={!autenticado}>
         <Stack.Screen name="(publico)" />
       </Stack.Protected>
+      <Stack.Screen name="termos" />
+      <Stack.Screen name="privacidade" />
       <Stack.Screen name="+not-found" />
     </Stack>
   )
