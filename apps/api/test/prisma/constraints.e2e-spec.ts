@@ -4,6 +4,7 @@ import * as enumsPrisma from '../../src/generated/prisma/enums'
 import { criarAtletica } from '../fabricas/atletica'
 import { proximaSequencia } from '../fabricas/sequencia'
 import { criarUsuario } from '../fabricas/usuario'
+import { listarTabelas } from '../setup/limpar-banco'
 import { prismaTeste } from '../setup/prisma-teste'
 
 /**
@@ -20,14 +21,22 @@ interface Violacao {
   constraint: string | undefined
 }
 
-/** Lê SQLSTATE e nome da constraint do erro do Prisma com o adapter `pg`. */
+/**
+ * Lê SQLSTATE e nome da constraint do erro do Prisma com o adapter `pg`. Falha alto se o formato
+ * do erro mudar (outra versão do Prisma), em vez de comparar com `undefined`.
+ */
 function lerViolacao(erro: unknown): Violacao {
   const causa = (erro as { meta?: { driverAdapterError?: { cause?: Record<string, unknown> } } })
     .meta?.driverAdapterError?.cause
-  const indice = (causa?.constraint as { index?: string } | undefined)?.index
-  const mensagem = typeof causa?.originalMessage === 'string' ? causa.originalMessage : ''
+  if (typeof causa?.originalCode !== 'string') {
+    throw new Error('erro sem SQLSTATE em meta.driverAdapterError.cause.originalCode', {
+      cause: erro,
+    })
+  }
+  const indice = (causa.constraint as { index?: string } | undefined)?.index
+  const mensagem = typeof causa.originalMessage === 'string' ? causa.originalMessage : ''
   return {
-    sqlstate: String(causa?.originalCode),
+    sqlstate: causa.originalCode,
     constraint: indice ?? /constraint "([^"]+)"/.exec(mensagem)?.[1],
   }
 }
@@ -46,11 +55,14 @@ async function esperarViolacao(operacao: Promise<unknown>, nome: string): Promis
     expect(mapearExcecao(erro)).toMatchObject({ statusCode: 422, code: 'ESTADO_INVALIDO' })
   } else {
     expect(violacao.sqlstate).toBe(SQLSTATE_UNICO)
+    expect(erro).toMatchObject({ code: 'P2002' })
     expect(mapearExcecao(erro)).toMatchObject({ statusCode: 409, code: 'REGISTRO_DUPLICADO' })
   }
 }
 
 // --- Dados auxiliares (as fábricas de domínio são das issues de cada domínio) ---
+// TODO: trocar por `test/fabricas/<dominio>.ts` quando as issues de domínio as criarem
+// (modalidades/times, eventos → #70), para não manter cópias paralelas.
 
 function criarModalidade(nome = `Modalidade ${proximaSequencia()}`, ativa = true) {
   return prismaTeste.modalidade.create({ data: { nome, icone: 'bola', ativa } })
@@ -64,7 +76,7 @@ async function criarTime(atleticaId: string, dados: { modalidadeId?: string; nom
 }
 
 /** Atlética com app, adversária, um time de cada (mesma modalidade) e um diretor. */
-async function cenario() {
+async function montarCenario() {
   const atletica = await criarAtletica()
   const adversaria = await criarAtletica({ usaAplicativo: false })
   const modalidade = await criarModalidade()
@@ -73,42 +85,42 @@ async function cenario() {
   const diretor = await criarUsuario({ atleticaId: atletica.id, papel: 'DIRETOR' })
   return { atletica, adversaria, modalidade, time, timeAdversario, diretor }
 }
-type Cenario = Awaited<ReturnType<typeof cenario>>
+type Cenario = Awaited<ReturnType<typeof montarCenario>>
 
 function dadosEvento(
-  c: Cenario,
+  cenario: Cenario,
   dados: Partial<Prisma.EventoUncheckedCreateInput> = {},
 ): Prisma.EventoUncheckedCreateInput {
   const jogo = (dados.tipo ?? 'JOGO') === 'JOGO'
   return {
-    atleticaId: c.atletica.id,
+    atleticaId: cenario.atletica.id,
     tipo: 'JOGO',
-    timeId: c.time.id,
-    timeAdversarioId: jogo ? c.timeAdversario.id : null,
+    timeId: cenario.time.id,
+    timeAdversarioId: jogo ? cenario.timeAdversario.id : null,
     inicio: new Date('2026-11-10T19:00:00Z'),
     local: 'Ginásio',
-    criadoPorId: c.diretor.id,
+    criadoPorId: cenario.diretor.id,
     ...dados,
   }
 }
 
-function criarEvento(c: Cenario, dados: Partial<Prisma.EventoUncheckedCreateInput> = {}) {
-  return prismaTeste.evento.create({ data: dadosEvento(c, dados) })
+function criarEvento(cenario: Cenario, dados: Partial<Prisma.EventoUncheckedCreateInput> = {}) {
+  return prismaTeste.evento.create({ data: dadosEvento(cenario, dados) })
 }
 
 function dadosSerie(
-  c: Cenario,
+  cenario: Cenario,
   dados: Partial<Prisma.SerieRecorrenciaUncheckedCreateInput> = {},
 ): Prisma.SerieRecorrenciaUncheckedCreateInput {
   return {
-    atleticaId: c.atletica.id,
-    timeId: c.time.id,
+    atleticaId: cenario.atletica.id,
+    timeId: cenario.time.id,
     diasSemana: [1, 3],
     horario: '19:30',
     dataInicio: new Date('2026-11-01'),
     dataFim: new Date('2027-05-01'),
     local: 'Ginásio',
-    criadoPorId: c.diretor.id,
+    criadoPorId: cenario.diretor.id,
     ...dados,
   }
 }
@@ -146,10 +158,7 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
     ]
 
     it('cria uma tabela para cada modelo do schema', async () => {
-      const linhas = await prismaTeste.$queryRaw<{ tablename: string }[]>`
-        SELECT tablename FROM pg_tables WHERE schemaname = 'public'`
-      const tabelas = linhas.map(({ tablename }) => tablename)
-      expect(tabelas).toEqual(expect.arrayContaining(Object.values(Prisma.ModelName)))
+      expect(await listarTabelas()).toEqual(expect.arrayContaining(Object.values(Prisma.ModelName)))
     })
 
     it('cria os enums do schema com os mesmos valores', async () => {
@@ -320,9 +329,13 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
 
   describe('MembroTime', () => {
     it('um vínculo ativo por usuário e time (membro_time_ativo_unico, critério 10)', async () => {
-      const c = await cenario()
-      const atleta = await criarUsuario({ atleticaId: c.atletica.id })
-      const dados = { atleticaId: c.atletica.id, timeId: c.time.id, usuarioId: atleta.id }
+      const cenario = await montarCenario()
+      const atleta = await criarUsuario({ atleticaId: cenario.atletica.id })
+      const dados = {
+        atleticaId: cenario.atletica.id,
+        timeId: cenario.time.id,
+        usuarioId: atleta.id,
+      }
       const vinculo = await prismaTeste.membroTime.create({ data: dados })
 
       await esperarViolacao(
@@ -338,9 +351,9 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
     })
 
     it('saída não antes da entrada (membro_saida_apos_entrada)', async () => {
-      const c = await cenario()
+      const cenario = await montarCenario()
       const entradaEm = new Date('2026-10-01T12:00:00Z')
-      const dados = { atleticaId: c.atletica.id, timeId: c.time.id, entradaEm }
+      const dados = { atleticaId: cenario.atletica.id, timeId: cenario.time.id, entradaEm }
       await prismaTeste.membroTime.create({
         data: { ...dados, usuarioId: (await criarUsuario()).id, saidaEm: entradaEm },
       })
@@ -359,9 +372,13 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
 
   describe('SolicitacaoEntrada', () => {
     it('uma PENDENTE por usuário e time (solicitacao_pendente_unica, critério 9)', async () => {
-      const c = await cenario()
-      const atleta = await criarUsuario({ atleticaId: c.atletica.id })
-      const dados = { atleticaId: c.atletica.id, timeId: c.time.id, usuarioId: atleta.id }
+      const cenario = await montarCenario()
+      const atleta = await criarUsuario({ atleticaId: cenario.atletica.id })
+      const dados = {
+        atleticaId: cenario.atletica.id,
+        timeId: cenario.time.id,
+        usuarioId: atleta.id,
+      }
       const primeira = await prismaTeste.solicitacaoEntrada.create({ data: dados })
 
       await esperarViolacao(
@@ -371,7 +388,7 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
 
       await prismaTeste.solicitacaoEntrada.update({
         where: { id: primeira.id },
-        data: { status: 'REJEITADA', avaliadaEm: new Date(), avaliadoPorId: c.diretor.id },
+        data: { status: 'REJEITADA', avaliadaEm: new Date(), avaliadoPorId: cenario.diretor.id },
       })
       await expect(prismaTeste.solicitacaoEntrada.create({ data: dados })).resolves.toBeDefined()
     })
@@ -379,8 +396,8 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
     it.each(['APROVADA', 'REJEITADA'] as const)(
       '%s exige avaliadaEm (solicitacao_avaliacao_coerente)',
       async (status) => {
-        const c = await cenario()
-        const base = { atleticaId: c.atletica.id, timeId: c.time.id, status }
+        const cenario = await montarCenario()
+        const base = { atleticaId: cenario.atletica.id, timeId: cenario.time.id, status }
         await prismaTeste.solicitacaoEntrada.create({
           data: { ...base, usuarioId: (await criarUsuario()).id, avaliadaEm: new Date() },
         })
@@ -395,22 +412,22 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
   })
 
   describe('Evento', () => {
-    let c: Cenario
+    let cenario: Cenario
     beforeEach(async () => {
-      c = await cenario()
+      cenario = await montarCenario()
     })
 
     it('JOGO com adversário e TREINO sem adversário nem placar são aceitos', async () => {
-      await criarEvento(c)
-      await criarEvento(c, { tipo: 'TREINO' })
+      await criarEvento(cenario)
+      await criarEvento(cenario, { tipo: 'TREINO' })
       expect(await prismaTeste.evento.count()).toBe(2)
     })
 
     type DadosEvento = Partial<Prisma.EventoUncheckedCreateInput>
-    it.each<[string, (c: Cenario) => DadosEvento | Promise<DadosEvento>]>([
+    it.each<[string, () => DadosEvento | Promise<DadosEvento>]>([
       [
         'TREINO com time adversário',
-        (c) => ({ tipo: 'TREINO', timeAdversarioId: c.timeAdversario.id }),
+        () => ({ tipo: 'TREINO', timeAdversarioId: cenario.timeAdversario.id }),
       ],
       [
         'TREINO com placar',
@@ -425,49 +442,52 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
       ['JOGO sem time adversário', () => ({ tipo: 'JOGO', timeAdversarioId: null })],
       [
         'JOGO de uma série',
-        async (c) => ({
+        async () => ({
           tipo: 'JOGO',
-          serieId: (await prismaTeste.serieRecorrencia.create({ data: dadosSerie(c) })).id,
+          serieId: (await prismaTeste.serieRecorrencia.create({ data: dadosSerie(cenario) })).id,
         }),
       ],
     ])('rejeita %s (evento_tipo_coerente, critério 11)', async (_caso, montar) => {
-      await esperarViolacao(criarEvento(c, await montar(c)), 'evento_tipo_coerente')
+      await esperarViolacao(criarEvento(cenario, await montar()), 'evento_tipo_coerente')
     })
 
     it('times distintos (evento_times_distintos)', async () => {
+      await expect(
+        criarEvento(cenario, { timeAdversarioId: cenario.timeAdversario.id }),
+      ).resolves.toBeDefined()
       await esperarViolacao(
-        criarEvento(c, { timeAdversarioId: c.time.id }),
+        criarEvento(cenario, { timeAdversarioId: cenario.time.id }),
         'evento_times_distintos',
       )
     })
 
     it('placar das duas equipes e resultado juntos (evento_placar_completo, critério 12)', async () => {
       const finalizado = { status: 'FINALIZADO' } as const
-      await criarEvento(c, {
+      await criarEvento(cenario, {
         ...finalizado,
         placarTime: 2,
         placarAdversario: 1,
         resultado: 'VITORIA',
       })
       await esperarViolacao(
-        criarEvento(c, { ...finalizado, placarTime: 2, resultado: 'VITORIA' }),
+        criarEvento(cenario, { ...finalizado, placarTime: 2, resultado: 'VITORIA' }),
         'evento_placar_completo',
       )
       await esperarViolacao(
-        criarEvento(c, { ...finalizado, placarTime: 2, placarAdversario: 1 }),
+        criarEvento(cenario, { ...finalizado, placarTime: 2, placarAdversario: 1 }),
         'evento_placar_completo',
       )
     })
 
     it('placar não negativo (evento_placar_nao_negativo)', async () => {
-      await criarEvento(c, {
+      await criarEvento(cenario, {
         status: 'FINALIZADO',
         placarTime: 0,
         placarAdversario: 0,
         resultado: 'EMPATE',
       })
       await esperarViolacao(
-        criarEvento(c, {
+        criarEvento(cenario, {
           status: 'FINALIZADO',
           placarTime: -1,
           placarAdversario: 0,
@@ -478,8 +498,16 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
     })
 
     it('resultado só com status FINALIZADO (evento_resultado_finalizado)', async () => {
+      await expect(
+        criarEvento(cenario, {
+          status: 'FINALIZADO',
+          placarTime: 1,
+          placarAdversario: 0,
+          resultado: 'VITORIA',
+        }),
+      ).resolves.toBeDefined()
       await esperarViolacao(
-        criarEvento(c, {
+        criarEvento(cenario, {
           status: 'EM_ANDAMENTO',
           placarTime: 1,
           placarAdversario: 0,
@@ -491,14 +519,14 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
   })
 
   describe('SerieRecorrencia', () => {
-    let c: Cenario
+    let cenario: Cenario
     beforeEach(async () => {
-      c = await cenario()
+      cenario = await montarCenario()
     })
 
     it('série válida de exatamente 6 meses é aceita', async () => {
       await prismaTeste.serieRecorrencia.create({
-        data: dadosSerie(c, {
+        data: dadosSerie(cenario, {
           diasSemana: [0, 1, 2, 3, 4, 5, 6],
           horario: '23:59',
           dataInicio: new Date('2026-11-01'),
@@ -525,7 +553,7 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
       ],
     ])('rejeita %s (%s)', async (_caso, dados, constraint) => {
       await esperarViolacao(
-        prismaTeste.serieRecorrencia.create({ data: dadosSerie(c, dados) }),
+        prismaTeste.serieRecorrencia.create({ data: dadosSerie(cenario, dados) }),
         constraint,
       )
     })
@@ -533,9 +561,9 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
 
   describe('Participacao', () => {
     it('resposta e presença acompanhadas da data (participacao_*_coerente)', async () => {
-      const c = await cenario()
-      const evento = await criarEvento(c)
-      const base = { atleticaId: c.atletica.id, eventoId: evento.id }
+      const cenario = await montarCenario()
+      const evento = await criarEvento(cenario)
+      const base = { atleticaId: cenario.atletica.id, eventoId: evento.id }
       const agora = new Date()
 
       await prismaTeste.participacao.createMany({

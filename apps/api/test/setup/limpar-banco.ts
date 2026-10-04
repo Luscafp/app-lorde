@@ -2,8 +2,12 @@ import { prismaTeste } from './prisma-teste'
 
 let tabelas: string[] | undefined
 
-/** Tabelas do schema `public`, exceto `_prisma_migrations`, lidas uma vez por arquivo de teste. */
-async function listarTabelas(): Promise<string[]> {
+/**
+ * Tabelas do schema `public`, exceto `_prisma_migrations`, lidas uma vez por arquivo de teste.
+ * O cache vale porque as migrations só rodam no `globalSetup`, antes de qualquer teste: nenhum
+ * teste pode criar ou remover tabelas.
+ */
+export async function listarTabelas(): Promise<string[]> {
   tabelas ??= (
     await prismaTeste.$queryRaw<{ tablename: string }[]>`
       SELECT tablename FROM pg_tables
