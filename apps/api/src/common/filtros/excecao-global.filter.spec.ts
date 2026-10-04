@@ -1,0 +1,154 @@
+import {
+  ArgumentsHost,
+  ConflictException,
+  ForbiddenException,
+  HttpException,
+  InternalServerErrorException,
+  NotFoundException,
+  PayloadTooLargeException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common'
+import { ZodValidationException } from 'nestjs-zod'
+import { z } from 'zod'
+import { ErroNegocio } from '../erros/erro-negocio'
+import { ExcecaoGlobalFilter, MENSAGEM_ERRO_INTERNO, mapearExcecao } from './excecao-global.filter'
+
+describe('mapearExcecao', () => {
+  it('ZodValidationException → 400 VALIDATION_ERROR com details em notação de ponto', () => {
+    const schema = z.object({ tags: z.array(z.string()) })
+    const erro = schema.safeParse({ tags: [1] }).error
+    expect(mapearExcecao(new ZodValidationException(erro))).toEqual({
+      statusCode: 400,
+      code: 'VALIDATION_ERROR',
+      message: 'Dados inválidos.',
+      details: [{ field: 'tags.0', message: expect.any(String) as string }],
+    })
+  })
+
+  it('ErroNegocio → status e code informados, details [] por padrão', () => {
+    expect(mapearExcecao(new ErroNegocio(409, 'EXEMPLO_CONFLITO', 'Mensagem'))).toEqual({
+      statusCode: 409,
+      code: 'EXEMPLO_CONFLITO',
+      message: 'Mensagem',
+      details: [],
+    })
+  })
+
+  it('ErroNegocio preserva details', () => {
+    const details = [{ field: 'nome', message: 'Já existe.' }]
+    expect(mapearExcecao(new ErroNegocio(422, 'X', 'Y', details)).details).toEqual(details)
+  })
+
+  it('UnauthorizedException sem code → 401 UNAUTHENTICATED', () => {
+    expect(mapearExcecao(new UnauthorizedException())).toMatchObject({
+      statusCode: 401,
+      code: 'UNAUTHENTICATED',
+    })
+  })
+
+  it('UnauthorizedException com code próprio → respeita code e message', () => {
+    const excecao = new UnauthorizedException({ code: 'TOKEN_EXPIRED', message: 'Expirou.' })
+    expect(mapearExcecao(excecao)).toEqual({
+      statusCode: 401,
+      code: 'TOKEN_EXPIRED',
+      message: 'Expirou.',
+      details: [],
+    })
+  })
+
+  it('ForbiddenException sem code → 403 FORBIDDEN', () => {
+    expect(mapearExcecao(new ForbiddenException())).toMatchObject({
+      statusCode: 403,
+      code: 'FORBIDDEN',
+    })
+  })
+
+  it('NotFoundException → 404 NOT_FOUND sem vazar a mensagem do Nest', () => {
+    expect(mapearExcecao(new NotFoundException('Cannot GET /x'))).toEqual({
+      statusCode: 404,
+      code: 'NOT_FOUND',
+      message: 'Recurso não encontrado.',
+      details: [],
+    })
+  })
+
+  it('PayloadTooLargeException → 413 PAYLOAD_TOO_LARGE', () => {
+    expect(mapearExcecao(new PayloadTooLargeException())).toMatchObject({
+      statusCode: 413,
+      code: 'PAYLOAD_TOO_LARGE',
+    })
+  })
+
+  it('erro entity.too.large do body-parser → 413 PAYLOAD_TOO_LARGE', () => {
+    const erro = Object.assign(new Error('request entity too large'), {
+      type: 'entity.too.large',
+      status: 413,
+    })
+    expect(mapearExcecao(erro)).toMatchObject({ statusCode: 413, code: 'PAYLOAD_TOO_LARGE' })
+  })
+
+  it('JSON malformado do body-parser → 400 VALIDATION_ERROR', () => {
+    const erro = Object.assign(new SyntaxError('Unexpected token'), { type: 'entity.parse.failed' })
+    expect(mapearExcecao(erro)).toMatchObject({ statusCode: 400, code: 'VALIDATION_ERROR' })
+  })
+
+  it('HttpException genérica → HTTP_<status>', () => {
+    expect(mapearExcecao(new ConflictException())).toMatchObject({
+      statusCode: 409,
+      code: 'HTTP_409',
+    })
+    expect(mapearExcecao(new HttpException('teapot', 418))).toMatchObject({
+      statusCode: 418,
+      code: 'HTTP_418',
+    })
+  })
+
+  it('HttpException 5xx sem code → INTERNAL_ERROR sem a mensagem original', () => {
+    expect(mapearExcecao(new InternalServerErrorException('segredo interno'))).toEqual({
+      statusCode: 500,
+      code: 'INTERNAL_ERROR',
+      message: MENSAGEM_ERRO_INTERNO,
+      details: [],
+    })
+    expect(mapearExcecao(new ServiceUnavailableException())).toMatchObject({
+      statusCode: 503,
+      code: 'INTERNAL_ERROR',
+    })
+  })
+
+  it('erro inesperado → 500 INTERNAL_ERROR com mensagem genérica', () => {
+    expect(mapearExcecao(new Error('segredo interno'))).toEqual({
+      statusCode: 500,
+      code: 'INTERNAL_ERROR',
+      message: MENSAGEM_ERRO_INTERNO,
+      details: [],
+    })
+  })
+})
+
+describe('ExcecaoGlobalFilter', () => {
+  function criarHost() {
+    const json = jest.fn()
+    const status = jest.fn(() => ({ json }))
+    const host = {
+      switchToHttp: () => ({
+        getRequest: () => ({ method: 'GET', originalUrl: '/api/v1/x' }),
+        getResponse: () => ({ status }),
+      }),
+    } as unknown as ArgumentsHost
+    return { host, status, json }
+  }
+
+  it('responde com o status e o corpo mapeados', () => {
+    const { host, status, json } = criarHost()
+    new ExcecaoGlobalFilter().catch(new ErroNegocio(422, 'ESTADO_INVALIDO', 'Inválido.'), host)
+    expect(status).toHaveBeenCalledWith(422)
+    expect(json).toHaveBeenCalledWith({
+      statusCode: 422,
+      code: 'ESTADO_INVALIDO',
+      message: 'Inválido.',
+      details: [],
+    })
+  })
+})

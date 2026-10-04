@@ -1,0 +1,29 @@
+name: atletica
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: atletica
+      POSTGRES_PASSWORD: atletica
+      POSTGRES_DB: atletica_dev
+    ports: ['5432:5432']
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U atletica']
+      interval: 5s
+      retries: 10
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: atletica
+      POSTGRES_PASSWORD: atletica
+      POSTGRES_DB: atletica_test
+    ports: ['5433:5432']
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U atletica']
+      interval: 5s
+      retries: 10
+volumes:
+  pgdata: {}

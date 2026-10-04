@@ -1,0 +1,28 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# Expo
+.expo/
+web-build/
+android/
+ios/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+expo-env.d.ts
+
+# Logs e SO
+*.log
+.DS_Store
+Thumbs.db
+
+# Ferramentas
+.claude/
+.idea/

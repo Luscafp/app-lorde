@@ -1,0 +1,179 @@
+import { ConfigService } from '@nestjs/config'
+import type { NestExpressApplication } from '@nestjs/platform-express'
+import { Test } from '@nestjs/testing'
+import { PARAMS_PROVIDER_TOKEN } from 'nestjs-pino'
+import request from 'supertest'
+import type { App } from 'supertest/types'
+import { AppModule } from '../src/app.module'
+import { validarEnv, type Env } from '../src/config/env.schema'
+import { configurarApp } from '../src/configurar-app'
+import { criarConfigLogger } from '../src/infra/logs/logger.config'
+import { ExemploController } from './suporte/exemplo.controller'
+
+/** Recebe as linhas JSON escritas pelo pino, para inspecionar o log nos testes. */
+function destinoDeLog(linhas: Record<string, unknown>[]) {
+  return { write: (linha: string) => linhas.push(JSON.parse(linha) as Record<string, unknown>) }
+}
+
+async function criarAppPlataforma(
+  env: Partial<Env> = {},
+  linhasDeLog?: Record<string, unknown>[],
+): Promise<NestExpressApplication> {
+  const config = { ...validarEnv(process.env), ...env }
+  let construtor = Test.createTestingModule({
+    imports: [AppModule],
+    controllers: [ExemploController],
+  })
+    .overrideProvider(ConfigService)
+    .useValue({ get: (chave: keyof Env) => config[chave] })
+
+  if (linhasDeLog) {
+    const params = criarConfigLogger({ NODE_ENV: 'test', LOG_LEVEL: 'warn' })
+    construtor = construtor
+      .overrideProvider(PARAMS_PROVIDER_TOKEN)
+      .useValue({ ...params, pinoHttp: [params.pinoHttp, destinoDeLog(linhasDeLog)] })
+  }
+  const modulo = await construtor.compile()
+
+  const app = modulo.createNestApplication<NestExpressApplication>({ bodyParser: false })
+  configurarApp(app)
+  await app.init()
+  return app
+}
+
+describe('Plataforma da API (#1)', () => {
+  let app: NestExpressApplication
+  let http: App
+
+  beforeAll(async () => {
+    app = await criarAppPlataforma({ NODE_ENV: 'development' })
+    http = app.getHttpServer()
+  })
+
+  afterAll(async () => {
+    await app.close()
+  })
+
+  it('corpo inválido para DTO do shared → 400 VALIDATION_ERROR com details', async () => {
+    const resposta = await request(http).post('/api/v1/exemplo/validacao').send({ page: 0 })
+    expect(resposta.status).toBe(400)
+    expect(resposta.body).toEqual({
+      statusCode: 400,
+      code: 'VALIDATION_ERROR',
+      message: 'Dados inválidos.',
+      details: [{ field: 'page', message: expect.any(String) as string }],
+    })
+  })
+
+  it('corpo válido passa pelo ZodValidationPipe com os padrões aplicados', async () => {
+    const resposta = await request(http).post('/api/v1/exemplo/validacao').send({ limit: '10' })
+    expect(resposta.status).toBe(200)
+    expect(resposta.body).toEqual({ page: 1, limit: 10 })
+  })
+
+  it('ErroNegocio → 409 com code e details []', async () => {
+    const resposta = await request(http).get('/api/v1/exemplo/conflito')
+    expect(resposta.status).toBe(409)
+    expect(resposta.body).toEqual({
+      statusCode: 409,
+      code: 'EXEMPLO_CONFLITO',
+      message: 'Mensagem',
+      details: [],
+    })
+  })
+
+  it('erro inesperado → 500 genérico, sem stack nem mensagem original', async () => {
+    const resposta = await request(http).get('/api/v1/exemplo/erro')
+    expect(resposta.status).toBe(500)
+    expect(resposta.body).toEqual({
+      statusCode: 500,
+      code: 'INTERNAL_ERROR',
+      message: 'Ocorreu um erro inesperado. Tente novamente.',
+      details: [],
+    })
+    expect(resposta.text).not.toMatch(/stack|at |"x"/)
+  })
+
+  it('rota inexistente → 404 NOT_FOUND', async () => {
+    const resposta = await request(http).get('/api/v1/nao-existe')
+    expect(resposta.status).toBe(404)
+    expect(resposta.body).toMatchObject({ statusCode: 404, code: 'NOT_FOUND', details: [] })
+  })
+
+  it('corpo JSON de 150 kB → 413 PAYLOAD_TOO_LARGE', async () => {
+    const resposta = await request(http)
+      .post('/api/v1/exemplo/corpo')
+      .send({ texto: 'a'.repeat(150 * 1024) })
+    expect(resposta.status).toBe(413)
+    expect(resposta.body).toMatchObject({ statusCode: 413, code: 'PAYLOAD_TOO_LARGE' })
+  })
+
+  it('corpo JSON abaixo do limite é aceito', async () => {
+    const resposta = await request(http)
+      .post('/api/v1/exemplo/corpo')
+      .send({ texto: 'a'.repeat(50 * 1024) })
+    expect(resposta.status).toBe(200)
+  })
+
+  it('aplica os cabeçalhos do helmet', async () => {
+    const resposta = await request(http).get('/api/v1/nao-existe')
+    expect(resposta.headers['x-content-type-options']).toBe('nosniff')
+  })
+
+  it('Swagger disponível em /api/docs fora de produção, com esquema bearer', async () => {
+    expect((await request(http).get('/api/docs')).status).toBe(200)
+    const doc = await request(http).get('/api/docs-json')
+    expect(doc.body).toMatchObject({
+      components: { securitySchemes: { bearer: { type: 'http', scheme: 'bearer' } } },
+    })
+  })
+})
+
+describe('Swagger em produção (#1)', () => {
+  it('/api/docs → 404 NOT_FOUND', async () => {
+    const app = await criarAppPlataforma({ NODE_ENV: 'production' })
+    try {
+      const resposta = await request(app.getHttpServer()).get('/api/docs')
+      expect(resposta.status).toBe(404)
+      expect(resposta.body).toMatchObject({ code: 'NOT_FOUND' })
+    } finally {
+      await app.close()
+    }
+  })
+})
+
+describe('Log de erros (#1)', () => {
+  const linhas: Record<string, unknown>[] = []
+  let app: NestExpressApplication
+
+  beforeAll(async () => {
+    app = await criarAppPlataforma({}, linhas)
+  })
+
+  afterAll(async () => {
+    await app.close()
+  })
+
+  beforeEach(() => {
+    linhas.length = 0
+  })
+
+  it('erro inesperado → log error com o stack', async () => {
+    await request(app.getHttpServer()).get('/api/v1/exemplo/erro')
+    const registro = linhas.find((linha) => linha.msg === 'Erro inesperado')
+    expect(registro).toMatchObject({
+      level: 50,
+      code: 'INTERNAL_ERROR',
+      method: 'GET',
+      url: '/api/v1/exemplo/erro',
+      err: { message: 'x', stack: expect.stringMatching(/^Error: x\n\s+at /) as string },
+    })
+  })
+
+  it('erro 4xx → log warn sem o corpo da requisição', async () => {
+    await request(app.getHttpServer()).post('/api/v1/exemplo/validacao').send({ page: 0 })
+    const registro = linhas.find((linha) => linha.code === 'VALIDATION_ERROR')
+    expect(registro).toMatchObject({ level: 40, statusCode: 400 })
+    expect(JSON.stringify(registro)).not.toMatch(/"page"/)
+  })
+})

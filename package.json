@@ -1,0 +1,40 @@
+{
+  "name": "atletica",
+  "private": true,
+  "packageManager": "pnpm@12.9.1",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @atletica/shared build && pnpm -r --parallel dev",
+    "dev:api": "pnpm --filter @atletica/shared build && pnpm --parallel --filter @atletica/shared --filter api dev",
+    "dev:mobile": "pnpm --filter mobile dev",
+    "db:up": "docker compose up -d postgres postgres-test",
+    "db:down": "docker compose down",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm --filter @atletica/shared build && pnpm -r typecheck",
+    "test": "pnpm --filter @atletica/shared build && pnpm -r test",
+    "build": "pnpm --filter @atletica/shared --filter api build",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md,yml,yaml}": "prettier --write"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.13.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.9",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0"
+  }
+}
