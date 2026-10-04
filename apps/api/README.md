@@ -175,14 +175,13 @@ export class EventosController {
 
 `POST /api/v1/auth/refresh` (200, `Cache-Control: no-store`) e `POST /api/v1/auth/logout` (204), ambas `@Publico()` com corpo `{ refreshToken }` (`refreshTokenSchema`).
 
-- **Refresh:** `UPDATE` condicional atômico (hash atual, não revogada, não expirada) grava o hash novo, `refreshTokenAnteriorHash`, `rotacionadaEm` e `expiraEm = agora + 30 dias`, e responde o mesmo contrato do login. Sem linha afetada, a releitura decide: formato inválido, inexistente ou expirada → `401 REFRESH_INVALIDO`; revogada → `401 SESSAO_REVOGADA`; token anterior há menos de 30 s → `401 REFRESH_JA_ROTACIONADO` (sem revogar); qualquer outro → revoga com `REUSO_REFRESH`, `warn` no log e `401 SESSAO_REVOGADA`. Usuário ou vínculo inativo → revoga com `CONTA_DESATIVADA` e `401 CONTA_DESATIVADA`. As revogações são gravadas antes do `401`.
-- **Logout:** sempre `204`; o token atual ou o anterior de uma sessão não revogada a revoga com `LOGOUT`.
-- **Evento:** toda revogação desta issue emite `usuario.sessaoEncerrada { usuarioId, sessaoIds: [sid], motivo, autorId }` após o commit (`autorId` = usuário no logout, `null` no reuso e na conta desativada).
+- **Refresh:** `UPDATE` condicional atômico (hash atual, não revogada, não expirada) grava o hash novo, `refreshTokenAnteriorHash`, `rotacionadaEm` e `expiraEm = agora + 30 dias`, e responde o mesmo contrato do login. Sem linha afetada, a releitura decide: formato inválido, inexistente ou expirada → `401 REFRESH_INVALIDO`; revogada → `401 SESSAO_REVOGADA`; token anterior há menos de 30 s → `401 REFRESH_JA_ROTACIONADO` (sem revogar); qualquer outro → revoga com `REUSO_REFRESH`, `warn` no log e `401 SESSAO_REVOGADA`. Usuário ou vínculo inativo → revoga com `CONTA_DESATIVADA` e `401 CONTA_DESATIVADA`; conta excluída → revoga com `CONTA_EXCLUIDA` e `401 REFRESH_INVALIDO`. O schema aceita qualquer texto em `refreshToken` (formato conferido aqui); campo desconhecido ou ausente → `400 VALIDATION_ERROR`. As revogações são gravadas antes do `401`.
+- **Logout:** sempre `204` (inclusive token vazio ou malformado); o token atual ou o anterior de uma sessão não revogada a revoga com `LOGOUT`.
+- **Evento:** toda revogação desta issue emite `usuario.sessaoEncerrada { usuarioId, sessaoIds: [sid], motivo, autorId }` após o commit (`autorId` = usuário no logout, `null` no reuso e na conta desativada ou excluída).
 
 Exportado pelo `AuthModule` para #62, #12, #13 e #27:
 
 ```ts
-// Revoga as sessões ativas e devolve só os ids revogados nesta chamada.
 revogarTodas(tx, usuarioId, motivo, { exceto?, atleticaId? }?, agora?): Promise<string[]>
 revogar(tx, sessaoId, motivo, agora?): Promise<boolean>
 ```

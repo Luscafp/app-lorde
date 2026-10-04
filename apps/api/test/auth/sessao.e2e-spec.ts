@@ -21,6 +21,8 @@ import { AuthTesteController } from '../suporte/auth.controller'
 const REFRESH = '/api/v1/auth/refresh'
 const LOGOUT = '/api/v1/auth/logout'
 const ROTA_PROTEGIDA = '/api/v1/teste-auth/livre'
+const TOKEN_INEXISTENTE =
+  '0b6f8a52-8e5d-4a43-9d6c-1f0f3c2b7a90.Q2x0b2tlbi1zZWNyZXQtZXhlbXBsby0zMmJ5dGVzMDE'
 
 describe('Sessão: refresh e logout (#58)', () => {
   let contexto: AppDeTeste
@@ -171,11 +173,10 @@ describe('Sessão: refresh e logout (#58)', () => {
 
     it.each([
       ['sem separador', 'malformado'],
+      ['vazio', ''],
+      ['longo demais', 'a'.repeat(500)],
       ['sessaoId que não é UUID', 'abc.Q2x0b2tlbi1zZWNyZXQtZXhlbXBsby0zMmJ5dGVzMDE'],
-      [
-        'sessão inexistente',
-        '0b6f8a52-8e5d-4a43-9d6c-1f0f3c2b7a90.Q2x0b2tlbi1zZWNyZXQtZXhlbXBsby0zMmJ5dGVzMDE',
-      ],
+      ['sessão inexistente', TOKEN_INEXISTENTE],
     ])('%s → 401 REFRESH_INVALIDO', async (_caso, refreshToken) => {
       const resposta = await renovar(refreshToken)
 
@@ -190,8 +191,11 @@ describe('Sessão: refresh e logout (#58)', () => {
       expect((await renovar(refreshToken)).body).toMatchObject({ code: 'REFRESH_INVALIDO' })
     })
 
-    it('corpo sem refreshToken → 400 VALIDATION_ERROR', async () => {
-      const resposta = await request(contexto.http).post(REFRESH).send({})
+    it.each([
+      ['sem refreshToken', {}],
+      ['com campo desconhecido', { refreshToken: TOKEN_INEXISTENTE, usuarioId: 'x' }],
+    ])('corpo %s → 400 VALIDATION_ERROR', async (_caso, corpo) => {
+      const resposta = await request(contexto.http).post(REFRESH).send(corpo)
 
       expect(resposta.status).toBe(400)
       expect(resposta.body).toMatchObject({ code: 'VALIDATION_ERROR' })
@@ -239,6 +243,33 @@ describe('Sessão: refresh e logout (#58)', () => {
         ])
       },
     )
+
+    it('conta excluída depois do login → 401 REFRESH_INVALIDO e sessão revogada com CONTA_EXCLUIDA', async () => {
+      const { usuario, refreshToken } = await abrirSessao()
+      await prismaTeste.usuario.update({
+        where: { id: usuario.id },
+        data: { excluidoEm: new Date() },
+      })
+
+      const resposta = await renovar(refreshToken)
+
+      expect(resposta.status).toBe(401)
+      expect(resposta.body).toMatchObject({ code: 'REFRESH_INVALIDO' })
+      const sessao = await sessaoDoToken(refreshToken)
+      expect(sessao.motivoRevogacao).toBe('CONTA_EXCLUIDA')
+      await aguardarOuvintes()
+      expect(eventos.emitidos()).toEqual([
+        {
+          nome: 'usuario.sessaoEncerrada',
+          payload: {
+            usuarioId: usuario.id,
+            sessaoIds: [sessao.id],
+            motivo: 'CONTA_EXCLUIDA',
+            autorId: null,
+          },
+        },
+      ])
+    })
   })
 
   describe('POST /auth/logout', () => {
@@ -289,13 +320,9 @@ describe('Sessão: refresh e logout (#58)', () => {
 
     it.each([
       ['malformado', () => Promise.resolve('malformado')],
-      [
-        'de sessão inexistente',
-        () =>
-          Promise.resolve(
-            '0b6f8a52-8e5d-4a43-9d6c-1f0f3c2b7a90.Q2x0b2tlbi1zZWNyZXQtZXhlbXBsby0zMmJ5dGVzMDE',
-          ),
-      ],
+      ['vazio', () => Promise.resolve('')],
+      ['longo demais', () => Promise.resolve('a'.repeat(500))],
+      ['de sessão inexistente', () => Promise.resolve(TOKEN_INEXISTENTE)],
       [
         'já revogado',
         async () => {

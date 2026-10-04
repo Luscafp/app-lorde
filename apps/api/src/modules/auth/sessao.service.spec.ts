@@ -143,6 +143,14 @@ describe('SessaoService.rotacionar', () => {
 
     await expect(servico.rotacionar(tx, TOKEN, AGORA)).resolves.toMatchObject({ tipo: 'REUSO' })
   })
+
+  it('reuso concorrente que já encontra a sessão revogada → REVOGADA', async () => {
+    const { sessao, tx } = criarTx()
+    sessao.findUnique.mockResolvedValue(sessaoLida())
+    sessao.updateMany.mockResolvedValue({ count: 0 })
+
+    await expect(servico.rotacionar(tx, TOKEN, AGORA)).resolves.toEqual({ tipo: 'REVOGADA' })
+  })
 })
 
 describe('SessaoService.revogarPorToken', () => {

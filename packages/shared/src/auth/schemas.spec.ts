@@ -5,7 +5,6 @@ import {
   emailSchema,
   loginSchema,
   nomeSchema,
-  REFRESH_TOKEN_MAX,
   refreshTokenSchema,
   senhaSchema,
 } from './schemas'
@@ -138,13 +137,14 @@ describe('cadastroFormSchema', () => {
 })
 
 describe('refreshTokenSchema', () => {
-  it('aceita qualquer texto até o limite; o formato é conferido na API', () => {
-    expect(refreshTokenSchema.safeParse({ refreshToken: 'malformado' }).success).toBe(true)
-  })
+  it.each(['malformado', '', 'a'.repeat(500)])(
+    'aceita qualquer texto (%#); o formato é conferido na API',
+    (refreshToken) => {
+      expect(refreshTokenSchema.safeParse({ refreshToken }).success).toBe(true)
+    },
+  )
 
   it.each([
-    ['vazio', { refreshToken: '' }],
-    ['acima do limite', { refreshToken: 'a'.repeat(REFRESH_TOKEN_MAX + 1) }],
     ['ausente', {}],
     ['com campo desconhecido', { refreshToken: 'a.b', usuarioId: 'x' }],
   ])('rejeita corpo %s', (_caso, corpo) => {

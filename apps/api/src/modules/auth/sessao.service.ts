@@ -35,7 +35,7 @@ export type ResultadoRotacao =
   | { tipo: 'INVALIDO' }
   | { tipo: 'REVOGADA' }
   | { tipo: 'JA_ROTACIONADO' }
-  /** A sessão foi revogada nesta chamada com `REUSO_REFRESH`. */
+  /** A sessão foi revogada nesta chamada com `REUSO_REFRESH`; reuso concorrente já revogado é `REVOGADA`. */
   | (SessaoDoUsuario & { tipo: 'REUSO' })
 
 export interface OpcoesRevogarTodas {
@@ -60,6 +60,18 @@ function lerRefreshToken(refreshToken: string): { sessaoId: string; hash: string
     : null
 }
 
+function montarRefreshToken(sessaoId: string, segredo: string): string {
+  return `${sessaoId}.${segredo}`
+}
+
+function novaExpiracao(agora: Date): Date {
+  return new Date(agora.getTime() + VALIDADE_SESSAO_MS)
+}
+
+function dadosRevogacao(motivo: MotivoRevogacao, agora: Date) {
+  return { revogadaEm: agora, motivoRevogacao: motivo }
+}
+
 function hashesIguais(a: string, b: string | null): boolean {
   return b !== null && timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'))
 }
@@ -80,12 +92,12 @@ export class SessaoService {
         usuarioId,
         atleticaId,
         refreshTokenHash: hashSegredo(segredo),
-        expiraEm: new Date(agora.getTime() + VALIDADE_SESSAO_MS),
+        expiraEm: novaExpiracao(agora),
         userAgent: userAgent?.slice(0, TAMANHO_USER_AGENT),
         ip: ip?.slice(0, TAMANHO_IP),
       },
     })
-    return { sessaoId, refreshToken: `${sessaoId}.${segredo}` }
+    return { sessaoId, refreshToken: montarRefreshToken(sessaoId, segredo) }
   }
 
   /** `UPDATE` condicional atômico; sem linha afetada, a releitura classifica a falha (épico #10 §7.3). */
@@ -105,7 +117,7 @@ export class SessaoService {
         refreshTokenHash: hashSegredo(segredo),
         refreshTokenAnteriorHash: hash,
         rotacionadaEm: agora,
-        expiraEm: new Date(agora.getTime() + VALIDADE_SESSAO_MS),
+        expiraEm: novaExpiracao(agora),
       },
       select: { usuarioId: true, atleticaId: true },
     })
@@ -113,7 +125,7 @@ export class SessaoService {
       return {
         tipo: 'ROTACIONADA',
         sessaoId,
-        refreshToken: `${sessaoId}.${segredo}`,
+        refreshToken: montarRefreshToken(sessaoId, segredo),
         ...rotacionada,
       }
     }
@@ -137,7 +149,8 @@ export class SessaoService {
       return { tipo: 'JA_ROTACIONADO' }
     }
 
-    await this.revogar(tx, sessaoId, 'REUSO_REFRESH', agora)
+    const revogadaAgora = await this.revogar(tx, sessaoId, 'REUSO_REFRESH', agora)
+    if (!revogadaAgora) return { tipo: 'REVOGADA' }
     return { tipo: 'REUSO', sessaoId, usuarioId: sessao.usuarioId }
   }
 
@@ -150,7 +163,7 @@ export class SessaoService {
   ): Promise<boolean> {
     const { count } = await tx.sessao.updateMany({
       where: { id: sessaoId, revogadaEm: null },
-      data: { revogadaEm: agora, motivoRevogacao: motivo },
+      data: dadosRevogacao(motivo, agora),
     })
     return count === 1
   }
@@ -172,16 +185,13 @@ export class SessaoService {
         revogadaEm: null,
         OR: [{ refreshTokenHash: hash }, { refreshTokenAnteriorHash: hash }],
       },
-      data: { revogadaEm: agora, motivoRevogacao: motivo },
+      data: dadosRevogacao(motivo, agora),
       select: { usuarioId: true },
     })
     return sessao ? { sessaoId, usuarioId: sessao.usuarioId } : null
   }
 
-  /**
-   * Revoga as sessões ativas do usuário (#62, #12, #13, #27) e devolve só os ids revogados agora,
-   * para o `sessaoIds` de `usuario.sessaoEncerrada`. Lista vazia = o chamador não emite o evento.
-   */
+  /** Usada por #62, #12, #13, #27; devolve só os ids revogados agora (`sessaoIds` do evento). */
   async revogarTodas(
     tx: TransacaoComEscopo,
     usuarioId: string,
@@ -197,7 +207,7 @@ export class SessaoService {
         ...(exceto && { id: { not: exceto } }),
         ...(atleticaId && { atleticaId }),
       },
-      data: { revogadaEm: agora, motivoRevogacao: motivo },
+      data: dadosRevogacao(motivo, agora),
       select: { id: true },
     })
     return revogadas.map(({ id }) => id)

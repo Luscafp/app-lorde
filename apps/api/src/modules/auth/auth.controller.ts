@@ -122,7 +122,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Renova a sessão e rotaciona o refresh token' })
   @ApiBody({ type: RefreshTokenDto, examples: { refresh: { value: EXEMPLO_REFRESH } } })
   @ApiOkResponse({ type: RespostaSessaoDto, example: EXEMPLO_RESPOSTA })
-  @ApiBadRequestResponse({ description: '`VALIDATION_ERROR` (corpo sem `refreshToken`).' })
+  @ApiBadRequestResponse({
+    description: '`VALIDATION_ERROR` (corpo sem `refreshToken` ou com campo desconhecido).',
+  })
   @ApiUnauthorizedResponse({
     description:
       '`REFRESH_INVALIDO` (formato, sessão inexistente ou expirada), `SESSAO_REVOGADA` ' +
@@ -143,7 +145,9 @@ export class AuthController {
   @ApiNoContentResponse({
     description: 'Sempre, inclusive com token malformado, expirado ou de sessão já revogada.',
   })
-  @ApiBadRequestResponse({ description: '`VALIDATION_ERROR` (corpo sem `refreshToken`).' })
+  @ApiBadRequestResponse({
+    description: '`VALIDATION_ERROR` (corpo sem `refreshToken` ou com campo desconhecido).',
+  })
   sair(@Body() { refreshToken }: RefreshTokenDto): Promise<void> {
     return this.auth.sair(refreshToken)
   }

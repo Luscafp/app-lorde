@@ -30,7 +30,6 @@ import { RespostaSessaoService } from './resposta-sessao.service'
 import { SessaoService, type SessaoDoUsuario } from './sessao.service'
 
 const MINUTO_MS = 60_000
-const logger = new Logger('AuthService')
 
 /** RNF06: 5 falhas em 15 min por e-mail + IP bloqueiam por 15 min. */
 export const LIMITE_LOGIN: LimiteTentativas = {
@@ -58,8 +57,21 @@ export function chaveLogin(email: string, ip: string | undefined): string {
 
 const CAMPOS_USUARIO = { id: true, nome: true, email: true, fotoKey: true } as const
 
+function camposConta(atleticaId: string) {
+  return {
+    ...CAMPOS_USUARIO,
+    ativo: true,
+    vinculos: { where: { atleticaId }, select: { papel: true, ativo: true } },
+  } as const
+}
+
+function contaAtiva(usuario: { ativo: boolean }, vinculo: { ativo: boolean }): boolean {
+  return usuario.ativo && vinculo.ativo
+}
+
 @Injectable()
 export class AuthService implements OnModuleInit {
+  private readonly logger = new Logger(AuthService.name)
   /** Verificado quando o e-mail não existe, para o login levar o mesmo tempo (UC07 A1). */
   private hashFicticio?: Promise<string>
 
@@ -134,12 +146,7 @@ export class AuthService implements OnModuleInit {
     const atleticaId = this.atleticaPadrao.id()
     const usuario = await this.prisma.semEscopo.usuario.findFirst({
       where: { email: dados.email, excluidoEm: null },
-      select: {
-        ...CAMPOS_USUARIO,
-        senhaHash: true,
-        ativo: true,
-        vinculos: { where: { atleticaId }, select: { papel: true, ativo: true } },
-      },
+      select: { ...camposConta(atleticaId), senhaHash: true },
     })
     const vinculo = usuario?.vinculos[0]
     const senhaConfere = await this.senhas.verificar(
@@ -149,7 +156,7 @@ export class AuthService implements OnModuleInit {
     if (!usuario || !vinculo || !senhaConfere) return this.falharLogin(chave)
 
     await this.limites.limpar(TipoTentativa.LOGIN_FALHA, chave)
-    if (!usuario.ativo || !vinculo.ativo) {
+    if (!contaAtiva(usuario, vinculo)) {
       const { nome } = await this.atleticaPadrao.obter()
       throw erroContaDesativada(nome)
     }
@@ -166,9 +173,11 @@ export class AuthService implements OnModuleInit {
     })
   }
 
-  /** As revogações (reuso, conta desativada) são gravadas antes de responder `401`. */
+  /** As revogações (reuso, conta desativada ou excluída) são gravadas antes de responder `401`. */
   async renovar(refreshToken: string): Promise<RespostaSessao> {
-    const resultado = await this.transacao.executar((tx) => this.rotacionar(tx, refreshToken))
+    const resultado = await this.transacao.executar((tx) =>
+      this.renovarNaTransacao(tx, refreshToken),
+    )
     if (resultado instanceof ErroNegocio) throw resultado
     return resultado
   }
@@ -181,7 +190,7 @@ export class AuthService implements OnModuleInit {
     })
   }
 
-  private async rotacionar(
+  private async renovarNaTransacao(
     tx: TransacaoComEscopo,
     refreshToken: string,
   ): Promise<RespostaSessao | ErroNegocio> {
@@ -194,7 +203,7 @@ export class AuthService implements OnModuleInit {
       case 'JA_ROTACIONADO':
         return erroRefreshJaRotacionado()
       case 'REUSO':
-        logger.warn(
+        this.logger.warn(
           { sessaoId: rotacao.sessaoId, usuarioId: rotacao.usuarioId },
           'Reuso de refresh token: sessão revogada',
         )
@@ -205,20 +214,28 @@ export class AuthService implements OnModuleInit {
     const { atleticaId } = rotacao
     const usuario = await tx.usuario.findUnique({
       where: { id: rotacao.usuarioId },
-      select: {
-        ...CAMPOS_USUARIO,
-        ativo: true,
-        excluidoEm: true,
-        vinculos: { where: { atleticaId }, select: { papel: true, ativo: true } },
-      },
+      select: { ...camposConta(atleticaId), excluidoEm: true },
     })
     const vinculo = usuario?.vinculos[0]
-    if (!usuario?.ativo || usuario.excluidoEm || !vinculo?.ativo) {
-      await this.sessoes.revogar(tx, rotacao.sessaoId, 'CONTA_DESATIVADA')
-      this.emitirSessaoEncerrada(rotacao, 'CONTA_DESATIVADA', null)
-      return erroContaDesativada()
+    // Conta excluída é tratada como inexistente (épico #10 §3.3).
+    if (!usuario || usuario.excluidoEm) {
+      return this.revogarNaRenovacao(tx, rotacao, 'CONTA_EXCLUIDA', erroRefreshInvalido())
+    }
+    if (!vinculo || !contaAtiva(usuario, vinculo)) {
+      return this.revogarNaRenovacao(tx, rotacao, 'CONTA_DESATIVADA', erroContaDesativada())
     }
     return this.respostas.montar({ ...usuario, papel: vinculo.papel, atleticaId }, rotacao)
+  }
+
+  private async revogarNaRenovacao(
+    tx: TransacaoComEscopo,
+    sessao: SessaoDoUsuario,
+    motivo: MotivoRevogacao,
+    erro: ErroNegocio,
+  ): Promise<ErroNegocio> {
+    await this.sessoes.revogar(tx, sessao.sessaoId, motivo)
+    this.emitirSessaoEncerrada(sessao, motivo, null)
+    return erro
   }
 
   private emitirSessaoEncerrada(
