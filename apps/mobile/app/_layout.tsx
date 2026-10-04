@@ -1,4 +1,5 @@
 import '../global.css'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { Stack, useRouter } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
@@ -7,10 +8,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import Toast from 'react-native-toast-message'
 import { toastConfig } from '@/components/ui'
 import { carregarAtletica, paleta, ProvedorTema } from '@/features/atletica'
+import { queryClient } from '@/infra/query/query-client'
+import { configurarRede } from '@/infra/rede/online'
 import { consumirDestinoAposLogin } from '@/infra/sessao/destino'
 import { useSessao } from '@/infra/sessao/store'
 
 void SplashScreen.preventAutoHideAsync()
+configurarRede()
 
 /** Deep link protegido aberto sem sessão: depois do login, vai ao destino original. */
 function useIrAoDestinoAposLogin() {
@@ -61,12 +65,14 @@ export default function LayoutRaiz() {
   if (!pronto) return null
 
   return (
-    <SafeAreaProvider>
-      <ProvedorTema>
-        <StatusBar style="light" />
-        <Navegacao />
-      </ProvedorTema>
-      <Toast config={toastConfig} />
-    </SafeAreaProvider>
+    <QueryClientProvider client={queryClient}>
+      <SafeAreaProvider>
+        <ProvedorTema>
+          <StatusBar style="light" />
+          <Navegacao />
+        </ProvedorTema>
+        <Toast config={toastConfig} />
+      </SafeAreaProvider>
+    </QueryClientProvider>
   )
 }

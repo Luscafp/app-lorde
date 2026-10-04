@@ -1,22 +1,23 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { fireEvent, screen, waitFor } from '@testing-library/react-native'
 import { useForm } from 'react-hook-form'
 import { View } from 'react-native'
 import Toast from 'react-native-toast-message'
 import { z } from 'zod'
 import { Botao, Campo, toastConfig } from '@/components/ui'
+import { renderizar } from '../test-utils/renderizar'
 
 describe('Botao', () => {
   it('tem papel e rótulo de acessibilidade', async () => {
     const onPress = jest.fn()
-    await render(<Botao titulo="Salvar" onPress={onPress} />)
+    await renderizar(<Botao titulo="Salvar" onPress={onPress} />)
     await fireEvent.press(screen.getByRole('button', { name: 'Salvar' }))
     expect(onPress).toHaveBeenCalledTimes(1)
   })
 
   it('carregando mostra o spinner e não aceita toques', async () => {
     const onPress = jest.fn()
-    await render(<Botao titulo="Salvar" carregando onPress={onPress} />)
+    await renderizar(<Botao titulo="Salvar" carregando onPress={onPress} />)
     const botao = screen.getByRole('button', { name: 'Salvar' })
 
     await fireEvent.press(botao)
@@ -29,14 +30,14 @@ describe('Botao', () => {
 
   it('disabled não aceita toques', async () => {
     const onPress = jest.fn()
-    await render(<Botao titulo="Salvar" disabled onPress={onPress} />)
+    await renderizar(<Botao titulo="Salvar" disabled onPress={onPress} />)
     await fireEvent.press(screen.getByRole('button', { name: 'Salvar' }))
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
     expect(onPress).not.toHaveBeenCalled()
   })
 
   it('muda a aparência ao encostar o dedo (onPressIn)', async () => {
-    await render(<Botao titulo="Salvar" />)
+    await renderizar(<Botao titulo="Salvar" />)
     const botao = screen.getByRole('button', { name: 'Salvar' })
     expect(botao).toHaveStyle({ opacity: 1 })
     await fireEvent(botao, 'pressIn')
@@ -76,7 +77,7 @@ function Formulario({
 describe('Campo', () => {
   it('mostra o erro do Zod abaixo do campo e mantém o valor digitado', async () => {
     const aoEnviar = jest.fn()
-    await render(<Formulario aoEnviar={aoEnviar} />)
+    await renderizar(<Formulario aoEnviar={aoEnviar} />)
 
     await fireEvent.changeText(screen.getByLabelText('E-mail'), 'invalido')
     await fireEvent.press(screen.getByRole('button', { name: 'Enviar' }))
@@ -88,7 +89,7 @@ describe('Campo', () => {
 
   it('envia com valor válido', async () => {
     const aoEnviar = jest.fn<void, [Dados]>()
-    await render(<Formulario aoEnviar={aoEnviar} />)
+    await renderizar(<Formulario aoEnviar={aoEnviar} />)
 
     await fireEvent.changeText(screen.getByLabelText('E-mail'), 'ana@exemplo.com')
     await fireEvent.press(screen.getByRole('button', { name: 'Enviar' }))
@@ -99,7 +100,7 @@ describe('Campo', () => {
   })
 
   it('mostra o erro da API abaixo do campo e mantém o valor digitado', async () => {
-    await render(<Formulario aoEnviar={jest.fn()} erroDaApi="E-mail já cadastrado." />)
+    await renderizar(<Formulario aoEnviar={jest.fn()} erroDaApi="E-mail já cadastrado." />)
 
     await fireEvent.changeText(screen.getByLabelText('E-mail'), 'ana@exemplo.com')
     await fireEvent.press(screen.getByRole('button', { name: 'Enviar' }))
@@ -115,11 +116,11 @@ describe('toastConfig', () => {
     ['erro', 'Erro'],
     ['info', 'Aviso'],
   ] as const)('renderiza a variante %s com texto e rótulo acessível', async (tipo, prefixo) => {
-    const renderizar = toastConfig[tipo]
-    if (!renderizar) throw new Error(`variante ausente: ${tipo}`)
-    await render(
+    const variante = toastConfig[tipo]
+    if (!variante) throw new Error(`variante ausente: ${tipo}`)
+    await renderizar(
       <>
-        {renderizar({
+        {variante({
           type: tipo,
           text1: 'Mensagem',
           position: 'top',

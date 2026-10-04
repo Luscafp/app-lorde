@@ -2,6 +2,12 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   jest.requireActual<object>('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 )
 
+jest.mock('expo-crypto', () => ({
+  randomUUID: jest.fn(() =>
+    jest.requireActual<typeof import('node:crypto')>('node:crypto').randomUUID(),
+  ),
+}))
+
 jest.mock('expo-secure-store', () => {
   const itens = new Map<string, string>()
   return {

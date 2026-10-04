@@ -92,6 +92,26 @@ export default tseslint.config(
     rules: { 'no-restricted-imports': ['error', importsPrisma] },
   },
   {
+    // Toda mutação de tela usa useAcaoOnline (convenções §10.5); o logout da #60 é a exceção.
+    files: ['apps/mobile/src/features/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          ...importsPrisma,
+          paths: [
+            ...importsPrisma.paths,
+            {
+              name: '@tanstack/react-query',
+              importNames: ['useMutation'],
+              message: 'Use useAcaoOnline (@/infra/query/use-acao-online).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['**/*.{spec,test,e2e-spec}.{ts,tsx}', '**/__tests__/**'],
     languageOptions: { globals: globals.jest },
     rules: { '@typescript-eslint/unbound-method': 'off' },
