@@ -1,0 +1,99 @@
+import { formatarData, ROTULO_PAPEL, type UsuarioDetalhe } from '@atletica/shared'
+import { Alert, ScrollView, View } from 'react-native'
+import { TelaDados } from '@/components/estado'
+import { Botao, Cartao, Texto } from '@/components/ui'
+import { paleta } from '@/features/atletica'
+import { Avatar, Selo } from './componentes'
+import { useAlterarSituacao, useUsuario } from './consultas'
+
+function confirmar(usuario: UsuarioDetalhe, aoConfirmar: () => void) {
+  const desativar = usuario.situacao === 'ATIVO'
+  Alert.alert(
+    desativar ? 'Desativar conta' : 'Reativar conta',
+    desativar
+      ? `${usuario.nome} não poderá mais fazer login até ser reativado.`
+      : `${usuario.nome} poderá voltar a fazer login.`,
+    [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: desativar ? 'Desativar' : 'Reativar',
+        style: desativar ? 'destructive' : 'default',
+        onPress: aoConfirmar,
+      },
+    ],
+  )
+}
+
+function Acoes({ usuario }: { usuario: UsuarioDetalhe }) {
+  const acao = useAlterarSituacao(usuario.id)
+  const { podeAlterarSituacao, motivoBloqueio } = usuario.permissoes
+
+  if (usuario.situacao === 'EXCLUIDO') {
+    return <Texto variante="legenda">Usuário excluído</Texto>
+  }
+
+  const ativo = usuario.situacao === 'ATIVO'
+  return (
+    <View className="gap-2">
+      <Botao
+        titulo={ativo ? 'Desativar conta' : 'Reativar conta'}
+        variante={ativo ? 'perigo' : 'sucesso'}
+        disabled={!podeAlterarSituacao || !acao.online || acao.isPending}
+        carregando={acao.isPending}
+        onPress={() => confirmar(usuario, () => acao.mutate(!ativo))}
+      />
+      {motivoBloqueio && <Texto variante="legenda">{motivoBloqueio}</Texto>}
+    </View>
+  )
+}
+
+function Conteudo({ usuario }: { usuario: UsuarioDetalhe }) {
+  return (
+    <ScrollView contentContainerClassName="gap-6 p-4">
+      <View className="items-center gap-2">
+        <Avatar nome={usuario.nome} fotoUrl={usuario.fotoUrl} tamanho={96} />
+        <Texto variante="titulo" className="text-center">
+          {usuario.nome}
+        </Texto>
+        <Texto variante="legenda">{usuario.email}</Texto>
+        <View className="flex-row flex-wrap justify-center gap-2">
+          <Selo texto={ROTULO_PAPEL[usuario.papel]} />
+          {usuario.situacao === 'DESATIVADO' && <Selo texto="Desativado" cor={paleta.erro} />}
+        </View>
+        <Texto variante="legenda">Membro desde {formatarData(usuario.criadoEm)}</Texto>
+      </View>
+
+      {usuario.situacao !== 'EXCLUIDO' && (
+        <View className="gap-2">
+          <Texto variante="subtitulo">Times</Texto>
+          {usuario.times.length === 0 ? (
+            <Texto variante="legenda">Não participa de nenhum time.</Texto>
+          ) : (
+            usuario.times.map((time) => (
+              <Cartao key={time.id} className="flex-row items-center justify-between">
+                <View className="flex-1">
+                  <Texto className="font-semibold">{time.nome}</Texto>
+                  <Texto variante="legenda">{time.modalidade.nome}</Texto>
+                </View>
+                {time.capitao && <Selo texto="Capitão" />}
+              </Cartao>
+            ))
+          )}
+        </View>
+      )}
+
+      <Acoes usuario={usuario} />
+    </ScrollView>
+  )
+}
+
+export function DetalheUsuario({ id }: { id: string }) {
+  const consulta = useUsuario(id)
+  return (
+    <View className="flex-1 bg-fundo">
+      <TelaDados consulta={consulta} esqueleto="detalhe">
+        {(usuario) => <Conteudo usuario={usuario} />}
+      </TelaDados>
+    </View>
+  )
+}
