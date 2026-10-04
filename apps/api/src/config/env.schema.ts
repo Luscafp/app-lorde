@@ -34,8 +34,18 @@ export const envSchema = z
     CODIGO_PEPPER: z.string().min(32, { error: 'obrigatória, com ao menos 32 caracteres' }),
     // Segredo HS256 do access token (#7 verifica, #10 assina); distinto por ambiente (#92).
     JWT_ACCESS_SECRET: z.string().min(32, { error: 'obrigatória, com ao menos 32 caracteres' }),
-    // Base pública do bucket R2 (convenções §4.6): `fotoUrl` = `${base}/${fotoKey}`.
-    R2_PUBLIC_BASE_URL: vazioComoAusente(z.url({ error: 'deve ser uma URL' }).optional()),
+    // Bucket de imagens no Cloudflare R2 (#54); valores reais por ambiente na #92.
+    R2_ACCOUNT_ID: z
+      .string()
+      .trim()
+      .regex(/^[0-9a-f]{32}$/i, { error: 'obrigatória (32 caracteres hexadecimais)' }),
+    R2_ACCESS_KEY_ID: z.string().trim().min(1, { error: 'obrigatória' }),
+    R2_SECRET_ACCESS_KEY: z.string().trim().min(1, { error: 'obrigatória' }),
+    R2_BUCKET_IMAGENS: z.string().trim().min(3, { error: 'obrigatória' }),
+    // Base pública do bucket (convenções §4.6): `fotoUrl` = `${base}/${fotoKey}`.
+    R2_PUBLIC_BASE_URL: z
+      .url({ protocol: /^https$/, error: 'obrigatória, URL https://' })
+      .refine((url) => !url.endsWith('/'), { error: 'sem barra final' }),
     // Sentry da API (#48): ausente = desligado (local e testes).
     SENTRY_DSN: vazioComoAusente(z.url({ error: 'deve ser uma URL' }).optional()),
     SENTRY_TRACES_SAMPLE_RATE: vazioComoAusente(

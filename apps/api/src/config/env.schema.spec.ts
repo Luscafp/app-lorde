@@ -7,6 +7,11 @@ const valida = {
   EMAIL_REMETENTE: 'Atlética <nao-responda@exemplo.com.br>',
   CODIGO_PEPPER: 'p'.repeat(32),
   JWT_ACCESS_SECRET: 'j'.repeat(32),
+  R2_ACCOUNT_ID: '0123456789abcdef0123456789abcdef',
+  R2_ACCESS_KEY_ID: 'chave-de-acesso',
+  R2_SECRET_ACCESS_KEY: 'segredo-de-acesso',
+  R2_BUCKET_IMAGENS: 'atletica-imagens-dev',
+  R2_PUBLIC_BASE_URL: 'https://imagens.exemplo.com',
 }
 
 const producao = {
@@ -29,6 +34,11 @@ describe('validarEnv', () => {
       EMAIL_REMETENTE: valida.EMAIL_REMETENTE,
       CODIGO_PEPPER: valida.CODIGO_PEPPER,
       JWT_ACCESS_SECRET: valida.JWT_ACCESS_SECRET,
+      R2_ACCOUNT_ID: valida.R2_ACCOUNT_ID,
+      R2_ACCESS_KEY_ID: valida.R2_ACCESS_KEY_ID,
+      R2_SECRET_ACCESS_KEY: valida.R2_SECRET_ACCESS_KEY,
+      R2_BUCKET_IMAGENS: valida.R2_BUCKET_IMAGENS,
+      R2_PUBLIC_BASE_URL: valida.R2_PUBLIC_BASE_URL,
       SENTRY_TRACES_SAMPLE_RATE: 0.1,
     })
   })
@@ -136,12 +146,38 @@ describe('validarEnv', () => {
     })
   })
 
-  describe('R2_PUBLIC_BASE_URL', () => {
-    it('é opcional, vazia conta como ausente e exige URL', () => {
-      expect(validarEnv({ ...valida, R2_PUBLIC_BASE_URL: '' }).R2_PUBLIC_BASE_URL).toBeUndefined()
-      expect(() => validarEnv({ ...valida, R2_PUBLIC_BASE_URL: 'cdn' })).toThrow(
-        /R2_PUBLIC_BASE_URL/,
+  describe('R2 (#54)', () => {
+    it.each([
+      'R2_ACCOUNT_ID',
+      'R2_ACCESS_KEY_ID',
+      'R2_SECRET_ACCESS_KEY',
+      'R2_BUCKET_IMAGENS',
+      'R2_PUBLIC_BASE_URL',
+    ] as const)('rejeita %s ausente ou vazia', (variavel) => {
+      const { [variavel]: _, ...sem } = valida
+      expect(() => validarEnv(sem)).toThrow(new RegExp(variavel))
+      expect(() => validarEnv({ ...valida, [variavel]: '' })).toThrow(new RegExp(variavel))
+    })
+
+    it('R2_ACCOUNT_ID tem 32 caracteres hexadecimais', () => {
+      expect(() => validarEnv({ ...valida, R2_ACCOUNT_ID: 'conta.exemplo.com' })).toThrow(
+        /R2_ACCOUNT_ID/,
       )
+    })
+
+    it('R2_PUBLIC_BASE_URL exige https e não aceita barra final', () => {
+      for (const R2_PUBLIC_BASE_URL of [
+        'cdn',
+        'http://imagens.exemplo.com',
+        'https://img.ex.com/',
+      ]) {
+        expect(() => validarEnv({ ...valida, R2_PUBLIC_BASE_URL })).toThrow(/R2_PUBLIC_BASE_URL/)
+      }
+    })
+
+    it('não imprime o segredo', () => {
+      const config = { ...valida, R2_SECRET_ACCESS_KEY: 'valor-secreto', R2_PUBLIC_BASE_URL: '' }
+      expect(() => validarEnv(config)).not.toThrow(/valor-secreto/)
     })
   })
 

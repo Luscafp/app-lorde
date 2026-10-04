@@ -6,22 +6,26 @@ Visão geral, scripts e primeiros passos no [README da raiz](../../README.md). C
 
 Validadas por `src/config/env.schema.ts` (Zod): a API não sobe com variável faltando ou inválida e a mensagem lista as variáveis com problema, sem os valores. Exemplo comentado em `.env.example`; nos testes os valores vêm de `.env.test.example` (veja [Testes](#testes)).
 
-| Variável                    | Obrigatória                 | Descrição                                                                                                                  |
-| --------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `NODE_ENV`                  | não (`development`)         | `development \| test \| production`                                                                                        |
-| `APP_ENV`                   | com `NODE_ENV=production`   | `local \| development \| homologacao \| producao` (padrão `local`)                                                         |
-| `PORT`                      | não (`3000`)                | Porta HTTP                                                                                                                 |
-| `DATABASE_URL`              | sim                         | `postgresql://...`                                                                                                         |
-| `LOG_LEVEL`                 | não (`info`)                | Nível do pino                                                                                                              |
-| `EMAIL_PROVIDER`            | sim                         | `resend` (homologação/produção — obrigatório com `NODE_ENV=production`), `fake` (testes), `log` (desenvolvimento)          |
-| `RESEND_API_KEY`            | com `EMAIL_PROVIDER=resend` | Chave da API do Resend (vazia conta como ausente)                                                                          |
-| `EMAIL_REMETENTE`           | sim                         | Remetente, ex.: `"Atlética Lorde <nao-responda@dominio>"` (domínio verificado no Resend)                                   |
-| `CODIGO_PEPPER`             | sim (≥ 32 caracteres)       | Segredo do HMAC dos códigos de verificação. Trocar o valor invalida os códigos pendentes                                   |
-| `JWT_ACCESS_SECRET`         | sim (≥ 32 caracteres)       | Segredo HS256 do access token (#7), distinto por ambiente. Trocar o valor invalida os access tokens em circulação          |
-| `R2_PUBLIC_BASE_URL`        | não                         | URL pública do bucket R2; as respostas expõem `fotoUrl` = `<base>/<fotoKey>` (ausente = `fotoUrl: null`)                   |
-| `SENTRY_DSN`                | não                         | DSN do Sentry da API; ausente ou vazia = Sentry desligado (veja [Observabilidade](#observabilidade))                       |
-| `SENTRY_TRACES_SAMPLE_RATE` | não (`0.1`)                 | Fração de traces de 0 a 1: `0.1` em produção, `1.0` em homologação                                                         |
-| `GIT_COMMIT_SHA`            | não                         | Commit do build, injetado no `docker build` (veja [Docker](#docker)). Ausente = `RAILWAY_GIT_COMMIT_SHA` ou `desconhecido` |
+| Variável                    | Obrigatória                  | Descrição                                                                                                                  |
+| --------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                  | não (`development`)          | `development \| test \| production`                                                                                        |
+| `APP_ENV`                   | com `NODE_ENV=production`    | `local \| development \| homologacao \| producao` (padrão `local`)                                                         |
+| `PORT`                      | não (`3000`)                 | Porta HTTP                                                                                                                 |
+| `DATABASE_URL`              | sim                          | `postgresql://...`                                                                                                         |
+| `LOG_LEVEL`                 | não (`info`)                 | Nível do pino                                                                                                              |
+| `EMAIL_PROVIDER`            | sim                          | `resend` (homologação/produção — obrigatório com `NODE_ENV=production`), `fake` (testes), `log` (desenvolvimento)          |
+| `RESEND_API_KEY`            | com `EMAIL_PROVIDER=resend`  | Chave da API do Resend (vazia conta como ausente)                                                                          |
+| `EMAIL_REMETENTE`           | sim                          | Remetente, ex.: `"Atlética Lorde <nao-responda@dominio>"` (domínio verificado no Resend)                                   |
+| `CODIGO_PEPPER`             | sim (≥ 32 caracteres)        | Segredo do HMAC dos códigos de verificação. Trocar o valor invalida os códigos pendentes                                   |
+| `JWT_ACCESS_SECRET`         | sim (≥ 32 caracteres)        | Segredo HS256 do access token (#7), distinto por ambiente. Trocar o valor invalida os access tokens em circulação          |
+| `R2_ACCOUNT_ID`             | sim (32 hexadecimais)        | Account ID da Cloudflare; endpoint S3 `https://<id>.r2.cloudflarestorage.com` (veja [Uploads](#uploads-srcmodulesuploads)) |
+| `R2_ACCESS_KEY_ID`          | sim                          | Chave do token do R2 restrito ao bucket de imagens do ambiente (#92)                                                       |
+| `R2_SECRET_ACCESS_KEY`      | sim                          | Segredo do mesmo token                                                                                                     |
+| `R2_BUCKET_IMAGENS`         | sim                          | Bucket de imagens (`atletica-imagens-hml` / `atletica-imagens-prod`)                                                       |
+| `R2_PUBLIC_BASE_URL`        | sim (https, sem barra final) | URL pública do bucket; as respostas expõem `fotoUrl` = `<base>/<fotoKey>`                                                  |
+| `SENTRY_DSN`                | não                          | DSN do Sentry da API; ausente ou vazia = Sentry desligado (veja [Observabilidade](#observabilidade))                       |
+| `SENTRY_TRACES_SAMPLE_RATE` | não (`0.1`)                  | Fração de traces de 0 a 1: `0.1` em produção, `1.0` em homologação                                                         |
+| `GIT_COMMIT_SHA`            | não                          | Commit do build, injetado no `docker build` (veja [Docker](#docker)). Ausente = `RAILWAY_GIT_COMMIT_SHA` ou `desconhecido` |
 
 ## Testes
 
@@ -93,6 +97,7 @@ describe('GET /api/v1/...', () => {
   ```
 
 - `criarSessao({ usuarioId, atleticaId, ...campos })` (`auth.ts`) e `assinarToken(payload, opcoes?)` (`token.ts`, sem banco; serve também aos unitários) — para cenários de sessão revogada/expirada e de tokens inválidos (`{ secret }`, `{ algorithm }`; `{ issuer: undefined }` assina sem `iss`).
+- `simularArmazenamento()` (`uploads.ts`) — R2 mockado: `{ s3: { send }, assinar, ajustar }`. Passe `ajustar` ao `criarApp`; por padrão o `HeadObject` responde um JPEG de 800 kB e o presigner, uma URL fictícia. Use em todo teste que passe pelo `UploadsService` (`s3.send.mockRejectedValueOnce(new NotFound(...))` simula upload não concluído).
 - Cada issue de domínio cria as suas em `test/fabricas/<dominio>.ts` (ex.: `eventos.ts` na #70).
 
 ### Suítes de infraestrutura
@@ -183,8 +188,54 @@ limpar(tipo, chave): Promise<void>
 ```
 
 - Bloqueado quando as `maximo` tentativas mais recentes cabem em `janelaMs`: sem `bloqueioMs`, até a mais antiga delas sair da janela (janela deslizante, ex.: 10 cadastros/h); com `bloqueioMs`, até `última + bloqueioMs` (login: 15 min após a 5ª falha). `verificar` lança `ErroLimiteExcedido` → `429 RATE_LIMITED` com `Retry-After` em segundos (o filtro global põe o cabeçalho).
-- Fluxo: `consumir` quando toda tentativa conta (cadastro, presign: `verificar` + `registrar` sob `pg_advisory_xact_lock`, sem furo com requisições simultâneas); `verificar` antes e `registrar` só a falha (login); `limpar` quando o sucesso zera a contagem.
+- Fluxo: `consumir` quando toda tentativa conta (cadastro: `verificar` + `registrar` sob `pg_advisory_xact_lock`, sem furo com requisições simultâneas); `verificar` antes e `registrar` depois do resultado (login registra a falha; presign registra a URL emitida, nunca a falha do R2); `limpar` quando o sucesso zera a contagem.
 - `tipo` ∈ `TipoTentativa`: `LOGIN_FALHA`, `CADASTRO`, `RECUPERACAO_ENVIO`, `CODIGO_TENTATIVA`, `SENHA_CONFIRMACAO_FALHA`, `PRESIGN`, `VERIFICACAO_ENVIO`, `AVISO_ENVIO`. Tipo novo: acrescente ao catálogo (sem migration; `VarChar(30)`). `chave` até 300 caracteres (ex.: `email|ip`, `usuarioId`).
+
+## Uploads (`src/modules/uploads`)
+
+Imagens vão do app direto ao Cloudflare R2 por URL `PUT` pré-assinada (épico #9); a API nunca recebe os bytes. As entidades guardam só a **chave** (`fotoKey`, `imagemCapaKey`, `imagemKey`) e as respostas expõem a URL pública.
+
+### `POST /api/v1/uploads/presign`
+
+Qualquer autenticado; `NOTICIA` e `BANNER` exigem DIRETOR (conferido no service, `403 FORBIDDEN`). Corpo `presignRequestSchema` (`@atletica/shared`, `.strict()`): `{ finalidade, contentType: image/jpeg|png|webp, tamanhoBytes: 1–5.242.880 }`. Resposta `201 { uploadUrl, key, publicUrl, expiresAt }`, com `Cache-Control: no-store`.
+
+- A API gera a chave (o app nunca a escolhe), com a extensão derivada do `contentType`:
+
+  | Finalidade | Chave                                                      |
+  | ---------- | ---------------------------------------------------------- |
+  | `PERFIL`   | `usuarios/{usuarioId}/perfil/{uuid}.{ext}`                 |
+  | `NOTICIA`  | `atleticas/{atleticaId}/noticias/{usuarioId}/{uuid}.{ext}` |
+  | `BANNER`   | `atleticas/{atleticaId}/banners/{usuarioId}/{uuid}.{ext}`  |
+
+- A URL vale 300 s e assina `content-type` e `content-length`: o `PUT` (sem `Authorization`) precisa enviar exatamente o tipo e o tamanho declarados.
+- Limite: 30 presigns por usuário por hora (`RateLimitService`, tipo `PRESIGN`, chave `usuarioId`) → `429 RATE_LIMITED` com `Retry-After`. Só a URL emitida conta.
+- Falha ao assinar (credenciais, R2) → `503 ARMAZENAMENTO_INDISPONIVEL`, sem contar no limite.
+- O `S3Client` (`armazenamento.ts`: endpoint `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`, `region: 'auto'`, path-style) e o presigner (token `ASSINAR_URL`) são providers; nos testes, `simularArmazenamento()` os troca por mocks.
+
+### `UploadsService` (para os recursos com imagem)
+
+Importe o `UploadsModule` e injete o `UploadsService`:
+
+```ts
+validarKey({ key, finalidade, usuarioId, atleticaId }): Promise<void>
+urlPublica(key: string | null): string | null // `${R2_PUBLIC_BASE_URL}/${key}`
+remover(key: string): Promise<void>
+```
+
+- **`validarKey`** é o único validador (não existem `confirmar` nem `validarChave`). Na ordem: formato da finalidade (regex estrita: sem `..`, barra extra ou chave de outra finalidade), `usuarioId` do caminho = usuário atual, `atleticaId` do caminho = atlética do token (`NOTICIA`/`BANNER`) e `HeadObject` (existe, ≤ 5 MB, tipo permitido). Falhas: `422 UPLOAD_INVALIDO` "Imagem inválida. Envie a imagem novamente." ou, se o objeto não existe, `422 UPLOAD_NAO_ENCONTRADO` "O envio da imagem não foi concluído. Tente novamente.". R2 inacessível → `503 ARMAZENAMENTO_INDISPONIVEL`.
+- **Só chame `validarKey` quando a chave mudar** (diferente da gravada): um diretor que edita a notícia de outro mantém a capa sem revalidar a posse.
+- **`remover`** é de melhor esforço (a falha só gera `warn`; a limpeza de órfãos da #56 recolhe o objeto). Chame-o **depois do commit**, via `aposCommit`, nunca dentro da transação:
+
+```ts
+if (fotoKey !== anterior) {
+  await this.uploads.validarKey({ key: fotoKey, finalidade: 'PERFIL', usuarioId, atleticaId })
+}
+await this.transacao.executar(async (tx) => {
+  await tx.usuario.update({ where: { id: usuarioId }, data: { fotoKey } })
+  if (anterior && anterior !== fotoKey) aposCommit(() => this.uploads.remover(anterior))
+})
+return { fotoUrl: this.uploads.urlPublica(fotoKey) }
+```
 
 ## Banco de dados e multi-atlética (`src/infra/prisma`, `src/infra/contexto`)
 
@@ -487,6 +538,9 @@ docker run --rm -p 3000:3000 \
   -e EMAIL_REMETENTE="Atlética <nao-responda@exemplo.com.br>" \
   -e CODIGO_PEPPER=troque-por-um-segredo-aleatorio-de-32-caracteres-ou-mais \
   -e JWT_ACCESS_SECRET=troque-por-um-segredo-aleatorio-de-32-caracteres-ou-mais \
+  -e R2_ACCOUNT_ID=0123456789abcdef0123456789abcdef -e R2_ACCESS_KEY_ID=ficticia \
+  -e R2_SECRET_ACCESS_KEY=ficticia -e R2_BUCKET_IMAGENS=atletica-imagens-hml \
+  -e R2_PUBLIC_BASE_URL=https://imagens.exemplo.com.br \
   atletica-api
 curl http://localhost:3000/api/v1/health
 ```
