@@ -1,4 +1,5 @@
 import { Papel, type RespostaSessao } from '@atletica/shared'
+import * as Sentry from '@sentry/react-native'
 import * as SecureStore from 'expo-secure-store'
 import { toast } from '@/components/ui/toast'
 import { api, ApiErro, definirRegistrador } from '@/infra/api/cliente'
@@ -82,6 +83,7 @@ beforeEach(async () => {
   fetchMock.mockReset()
   jest.mocked(toast.erro).mockClear()
   registrador.mockClear()
+  jest.mocked(Sentry.addBreadcrumb).mockClear()
   definirRegistrador(registrador)
   itensSeguros.clear()
   await useSessao.getState().iniciarSessao({
@@ -164,6 +166,27 @@ describe('requisição', () => {
 
     expect(e).toMatchObject({ status: 502, code: 'INTERNAL_ERROR', details: [] })
     expect(e.message).toBe('Ocorreu um erro inesperado. Tente novamente.')
+  })
+
+  it('5xx registra breadcrumb com requestId, sem corpo e sem Authorization', async () => {
+    fetchMock.mockResolvedValue(resposta(500, { code: 'INTERNAL_ERROR' }, 'R'))
+
+    await capturar(api.post('/times', { nome: 'ana@exemplo.com' }, { consulta: { pagina: 2 } }))
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledTimes(1)
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
+      category: 'http',
+      type: 'http',
+      level: 'error',
+      message: 'POST /times 500',
+      data: { requestId: 'R', metodo: 'POST', rota: '/times', status: 500 },
+    })
+  })
+
+  it('4xx não registra breadcrumb', async () => {
+    fetchMock.mockResolvedValue(erro(404, 'NAO_ENCONTRADO'))
+    await capturar(api.get('/eventos/1'))
+    expect(Sentry.addBreadcrumb).not.toHaveBeenCalled()
   })
 
   it('falha de rede vira SEM_CONEXAO', async () => {

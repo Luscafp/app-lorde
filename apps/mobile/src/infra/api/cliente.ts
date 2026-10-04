@@ -10,7 +10,7 @@ type Registrador = (mensagem: string, contexto: Record<string, unknown>) => void
 
 let registrar: Registrador = (mensagem, contexto) => console.warn(mensagem, contexto)
 
-/** A #49 troca o registrador padrão (console) pelo Sentry. */
+/** `iniciarSentry()` troca o registrador padrão (console) pelo Sentry. */
 export function definirRegistrador(registrador: Registrador): void {
   registrar = registrador
 }

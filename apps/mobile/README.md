@@ -6,10 +6,11 @@ Development build (não Expo Go). Comandos na raiz do monorepo: `pnpm dev:mobile
 
 Copie `.env.example` para `.env`. Variáveis `EXPO_PUBLIC_*` são embutidas no bundle: nunca coloque segredos nelas.
 
-| Variável               | Exemplo                           | Uso                                                                                       |
-| ---------------------- | --------------------------------- | ----------------------------------------------------------------------------------------- |
-| `EXPO_PUBLIC_API_URL`  | `http://192.168.0.10:3000/api/v1` | URL base da API, **já com `/api/v1`**. No aparelho, use o IP da máquina, não `localhost`. |
-| `EXPO_PUBLIC_AMBIENTE` | `development`                     | `development \| homologacao \| producao` (convenções §11.11)                              |
+| Variável                 | Exemplo                           | Uso                                                                                       |
+| ------------------------ | --------------------------------- | ----------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_API_URL`    | `http://192.168.0.10:3000/api/v1` | URL base da API, **já com `/api/v1`**. No aparelho, use o IP da máquina, não `localhost`. |
+| `EXPO_PUBLIC_AMBIENTE`   | `development`                     | `development \| homologacao \| producao` (convenções §11.11)                              |
+| `EXPO_PUBLIC_SENTRY_DSN` | vazio                             | DSN do projeto `atletica-app` (#93). Vazio = Sentry desligado.                            |
 
 Novas variáveis entram em `env.d.ts` (tipagem) e em `src/config/ambiente.ts`.
 
@@ -185,3 +186,12 @@ const { online, mutate, isPending } = useAcaoOnline({
   onPress={() => void form.handleSubmit((dados) => mutate(dados))()}
 />
 ```
+
+## Sentry — `src/infra/sentry.ts`
+
+- `iniciarSentry()` no layout raiz: sem `EXPO_PUBLIC_SENTRY_DSN` não inicializa; `environment` = `EXPO_PUBLIC_AMBIENTE`; `release`/`dist` do `expo-application` (`<id>@<versão>+<build>`); `enabled: !__DEV__`; `sendDefaultPii: false`. Liga o registrador do cliente HTTP (`definirRegistrador`) ao Sentry.
+- Scrubbers: `beforeBreadcrumb` remove `Authorization` e o corpo das requisições HTTP; `beforeSend` troca e-mails por `[email]` (message, extra, breadcrumbs e exceções) e deixa o usuário só com `id`. Nada de dado pessoal em `setContext`/`setExtra`.
+- Usuário: `Sentry.setUser({ id })` ao autenticar e `setUser(null)` ao ficar anônimo (acompanha `useSessao`).
+- Resposta 5xx da API vira breadcrumb `http` com `requestId`, método, rota (sem query) e status, para correlacionar com os logs da API.
+- `LimiteErro` (ErrorBoundary) envolve a navegação: erro de renderização vai ao Sentry e mostra `TelaErroFatal` ("Recarregar" → `Updates.reloadAsync()`). O layout raiz é exportado com `Sentry.wrap` e registra a navegação (rotas do Expo Router como nome de transação).
+- Source maps: plugin `@sentry/react-native/expo` no `app.config.ts` e `getSentryExpoConfig` no `metro.config.js`; o `SENTRY_AUTH_TOKEN` fica só no EAS (#93).

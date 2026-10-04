@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react-native'
 import Constants from 'expo-constants'
 import { randomUUID } from 'expo-crypto'
 import { ambiente } from '@/config/ambiente'
@@ -80,6 +81,18 @@ function erroDaResposta(status: number, corpo: CorpoErro | null, requestId: stri
   })
 }
 
+/** Correlação app ↔ API: só `requestId`, método, rota (sem query) e status. */
+function registrarErroServidor(url: string, metodo: Metodo, status: number, requestId: string) {
+  const rota = (caminhoNaApi(url) ?? url).replace(/[?#].*$/, '')
+  Sentry.addBreadcrumb({
+    category: 'http',
+    type: 'http',
+    level: 'error',
+    message: `${metodo} ${rota} ${status}`,
+    data: { requestId, metodo, rota, status },
+  })
+}
+
 async function lerJson(resposta: Response): Promise<unknown> {
   const texto = await resposta.text()
   if (!texto) return undefined
@@ -125,6 +138,7 @@ export async function enviar<T>(
     const dados = await lerJson(resposta)
     if (!resposta.ok) {
       const idResposta = resposta.headers.get('x-request-id') ?? requestId
+      if (resposta.status >= 500) registrarErroServidor(url, metodo, resposta.status, idResposta)
       throw erroDaResposta(resposta.status, dados as CorpoErro | null, idResposta)
     }
     return dados as T
