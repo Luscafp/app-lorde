@@ -38,6 +38,22 @@ describe('validarEnv', () => {
     expect(() => validarEnv({ ...valida, PORT: 'abc' })).toThrow(/PORT/)
   })
 
+  it('rejeita NODE_ENV=production sem APP_ENV', () => {
+    expect(() => validarEnv({ ...valida, NODE_ENV: 'production' })).toThrow(/APP_ENV/)
+  })
+
+  it('rejeita NODE_ENV=production com APP_ENV local ou development', () => {
+    for (const APP_ENV of ['local', 'development']) {
+      expect(() => validarEnv({ ...valida, NODE_ENV: 'production', APP_ENV })).toThrow(/APP_ENV/)
+    }
+  })
+
+  it('aceita NODE_ENV=production com APP_ENV homologacao ou producao', () => {
+    for (const APP_ENV of ['homologacao', 'producao'] as const) {
+      expect(validarEnv({ ...valida, NODE_ENV: 'production', APP_ENV }).APP_ENV).toBe(APP_ENV)
+    }
+  })
+
   it('rejeita APP_ENV desconhecido', () => {
     expect(() => validarEnv({ ...valida, APP_ENV: 'staging' })).toThrow(/APP_ENV/)
   })
