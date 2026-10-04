@@ -14,6 +14,24 @@ const importsPrisma = {
   ],
 }
 
+// `prisma.semEscopo` ignora o filtro por atlética (RNF20): só é permitido nestes caminhos
+// (convenções §3; épico #3 §7). Qualquer outro uso exige justificativa no PR.
+const SEM_ESCOPO_PERMITIDO = [
+  'apps/api/src/modules/auth/**',
+  'apps/api/src/modules/usuarios/conta*.ts',
+  'apps/api/src/modules/health/**',
+  'apps/api/src/infra/**',
+  'apps/api/prisma/seed*.ts',
+]
+const mensagemSemEscopo =
+  'prisma.semEscopo ignora o filtro por atlética: use prisma.db. Permitido só em modules/auth, ' +
+  'modules/usuarios/conta*, modules/health, infra e prisma/seed* (convenções §3).'
+const usoSemEscopo = [
+  "MemberExpression[property.name='semEscopo']",
+  "MemberExpression[property.value='semEscopo']",
+  "ObjectPattern > Property[key.name='semEscopo']",
+].map((selector) => ({ selector, message: mensagemSemEscopo }))
+
 export default tseslint.config(
   {
     ignores: [
@@ -52,6 +70,11 @@ export default tseslint.config(
     files: ['apps/api/**/*.ts'],
     languageOptions: { globals: globals.node },
     rules: { 'no-console': 'error' },
+  },
+  {
+    files: ['apps/api/**/*.ts'],
+    ignores: SEM_ESCOPO_PERMITIDO,
+    rules: { 'no-restricted-syntax': ['error', ...usoSemEscopo] },
   },
   {
     files: ['apps/api/src/**/*.module.ts'],
