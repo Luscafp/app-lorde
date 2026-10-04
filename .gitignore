@@ -26,3 +26,6 @@ Thumbs.db
 # Ferramentas
 .claude/
 .idea/
+
+# Prisma (client gerado por `prisma generate`)
+apps/api/src/generated/

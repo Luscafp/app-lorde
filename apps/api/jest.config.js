@@ -10,6 +10,8 @@ const temServices = globSync(SERVICES, { cwd: __dirname }).length > 0
 const comum = {
   testEnvironment: 'node',
   transform: { '^.+\\.ts$': ['@swc/jest'] },
+  // O client gerado pelo Prisma (src/generated/prisma) importa os próprios arquivos com sufixo `.js`.
+  moduleNameMapper: { '^(\\.{1,2}/.*)\\.js$': '$1' },
   setupFiles: ['<rootDir>/test/setup/env.ts'],
 }
 

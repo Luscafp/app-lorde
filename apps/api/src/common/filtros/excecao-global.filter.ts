@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common'
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client'
 import type { Request, Response } from 'express'
 import { ZodValidationException } from 'nestjs-zod'
 import { ZodError } from 'zod'
@@ -51,6 +52,62 @@ function ehObjeto(valor: unknown): valor is Record<string, unknown> {
   return typeof valor === 'object' && valor !== null
 }
 
+/** Erro de banco mapeado; sai sempre com `details: []` para não vazar dado interno. */
+type RespostaErroBanco = Omit<RespostaErro, 'details'>
+
+/**
+ * Rede de segurança para erros do Prisma (convenções §4.1). Os services devem capturar e
+ * relançar com `code` específico; aqui só sai o code genérico, nunca SQL nem mensagem interna.
+ */
+const ERROS_PRISMA: Record<string, RespostaErroBanco> = {
+  P2002: {
+    statusCode: HttpStatus.CONFLICT,
+    code: 'REGISTRO_DUPLICADO',
+    message: 'Já existe um registro com esses dados.',
+  },
+  P2025: {
+    statusCode: HttpStatus.NOT_FOUND,
+    code: 'NOT_FOUND',
+    message: 'Recurso não encontrado.',
+  },
+  P2003: {
+    statusCode: HttpStatus.CONFLICT,
+    code: 'REGISTRO_EM_USO',
+    message: 'O registro está vinculado a outros dados.',
+  },
+}
+
+const RESPOSTA_VIOLACAO_CHECK: RespostaErroBanco = {
+  statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+  code: 'ESTADO_INVALIDO',
+  message: 'A operação deixaria os dados em um estado inválido.',
+}
+
+/** SQLSTATE de violação de `CHECK` no PostgreSQL. */
+const SQLSTATE_VIOLACAO_CHECK = '23514'
+
+/**
+ * Com o adapter `pg` (Prisma 7), a violação de `CHECK` não tem código próprio do Prisma: chega
+ * como `P2039` (ou `P2010` em SQL bruto) com o SQLSTATE em `meta.driverAdapterError.cause`.
+ * Também reconhece o `DriverAdapterError` e o erro do `pg` soltos.
+ */
+function ehViolacaoCheck(erro: unknown): boolean {
+  if (!ehObjeto(erro)) return false
+  if (erro.code === SQLSTATE_VIOLACAO_CHECK) return true
+  const erroAdaptador = ehObjeto(erro.meta) ? erro.meta.driverAdapterError : erro
+  return (
+    ehObjeto(erroAdaptador) &&
+    ehObjeto(erroAdaptador.cause) &&
+    erroAdaptador.cause.originalCode === SQLSTATE_VIOLACAO_CHECK
+  )
+}
+
+function mapearErroBanco(erro: unknown): RespostaErroBanco | undefined {
+  if (ehViolacaoCheck(erro)) return RESPOSTA_VIOLACAO_CHECK
+  if (erro instanceof PrismaClientKnownRequestError) return ERROS_PRISMA[erro.code]
+  return undefined
+}
+
 /**
  * Exceção HTTP do Nest. Se foi criada com um objeto próprio (`{ code, message, details? }`),
  * o filtro o respeita; se o corpo foi montado pelo Nest (tem `statusCode`), usa o padrão do status.
@@ -79,6 +136,8 @@ export function mapearExcecao(excecao: unknown): RespostaErro {
     return { statusCode, code, message, details }
   }
   if (excecao instanceof HttpException) return mapearHttpException(excecao)
+  const erroBanco = mapearErroBanco(excecao)
+  if (erroBanco) return { ...erroBanco, details: [] }
   if (ehObjeto(excecao) && typeof excecao.type === 'string') {
     const statusCode = ERROS_BODY_PARSER[excecao.type]
     if (statusCode) return respostaPadrao(statusCode)

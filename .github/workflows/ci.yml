@@ -91,13 +91,14 @@ jobs:
       - name: Validar schema
         if: steps.filtro.outputs.prisma == 'true' && hashFiles('apps/api/prisma/schema.prisma') != ''
         run: pnpm --filter api exec prisma validate
+      # Prisma 7: o banco sombra vem do `SHADOW_DATABASE_URL` via `prisma.config.ts`
+      # (não há mais `--shadow-database-url` nem `--to-schema-datamodel`).
       - name: Schema e migrations sincronizados
         if: steps.filtro.outputs.prisma == 'true' && hashFiles('apps/api/prisma/schema.prisma') != ''
         run: >-
           pnpm --filter api exec prisma migrate diff
           --from-migrations prisma/migrations
-          --to-schema-datamodel prisma/schema.prisma
-          --shadow-database-url "$SHADOW_DATABASE_URL"
+          --to-schema prisma/schema.prisma
           --exit-code
 
   api:
