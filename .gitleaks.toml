@@ -9,4 +9,5 @@ regexes = [
   '''segredo-curto-31-caracteres-xxx''',
   '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.\.\.''',
   '''6f1c2a7e-2f5b-4c39-9a0e-3f3b1b8d2c11\.Q2x0b2tlbi1zZWNyZXQtZXhlbXBsby0zMmJ5dGVz''',
+  '''0b6f8a52-8e5d-4a43-9d6c-1f0f3c2b7a90\.Q2x0b2tlbi1zZWNyZXQtZXhlbXBsby0zMmJ5dGVzMDE''',
 ]

@@ -161,7 +161,7 @@ export class EventosController {
 
 ### Cadastro e login (`AuthController`, `AuthService`)
 
-`POST /api/v1/auth/cadastro` (201) e `POST /api/v1/auth/login` (200), ambas `@Publico()` e `Cache-Control: no-store`. Entrada validada por `cadastroSchema`/`loginSchema` (`@atletica/shared`, `.strict()`: campo desconhecido → 400). Resposta única, também usada pelo refresh (#58) via `RespostaSessaoService.montar(usuario, sessao)` (assina o access token; `fotoUrl` = `R2_PUBLIC_BASE_URL/fotoKey`):
+`POST /api/v1/auth/cadastro` (201) e `POST /api/v1/auth/login` (200), ambas `@Publico()` e `Cache-Control: no-store`. Entrada validada por `cadastroSchema`/`loginSchema` (`@atletica/shared`, `.strict()`: campo desconhecido → 400). Resposta única, também usada pelo refresh via `RespostaSessaoService.montar(usuario, sessao)` (assina o access token; `fotoUrl` = `R2_PUBLIC_BASE_URL/fotoKey`):
 
 ```ts
 { accessToken, refreshToken, accessTokenExpiraEm, usuario: { id, nome, email, fotoUrl, papel, atleticaId } }
@@ -170,6 +170,27 @@ export class EventosController {
 - **Cadastro:** limite de 10 tentativas por IP na hora (`CADASTRO`, chave `chaveCadastro(ip)`, contadas antes da validação para não facilitar a enumeração de e-mails); `versaoTermos ≠ TERMOS_VERSAO` → `409 TERMOS_DESATUALIZADOS`; e-mail existente → `409 EMAIL_JA_CADASTRADO` (checagem prévia e `P2002`, para corrida). Uma transação cria `Usuario`, `VinculoAtletica` (`ATLETA`, atlética padrão), `PreferenciaNotificacao`, `AceiteTermos` e `Sessao`; após o commit emite `usuario.cadastrado`.
 - **Login:** chave do limite `chaveLogin(email, ip)` = `email|ip`, 5 falhas em 15 min → `429` por 15 min (`Retry-After`); a 4ª falha avisa "Última tentativa antes do bloqueio.". E-mail inexistente verifica um hash fictício (mesmo tempo da senha errada) e responde o mesmo `401 CREDENCIAIS_INVALIDAS`. `401 CONTA_DESATIVADA` só com a senha correta. Hash com parâmetros antigos é refeito (`precisaRefazerHash`).
 - **Tokens:** `TokenAcessoService.assinar({ sub, atl, sid })` (HS256, 15 min, `iss`/`aud`); `SessaoService.criar(tx, { usuarioId, atleticaId, userAgent?, ip? })` devolve `{ sessaoId, refreshToken }` com `refreshToken = <sessaoId>.<segredo>` (32 bytes base64url); no banco fica só `hashSegredo(segredo)` (SHA-256 hex), `expiraEm = agora + 30 dias`.
+
+### Refresh e logout (`SessaoService`)
+
+`POST /api/v1/auth/refresh` (200, `Cache-Control: no-store`) e `POST /api/v1/auth/logout` (204), ambas `@Publico()` com corpo `{ refreshToken }` (`refreshTokenSchema`).
+
+- **Refresh:** `UPDATE` condicional atômico (hash atual, não revogada, não expirada) grava o hash novo, `refreshTokenAnteriorHash`, `rotacionadaEm` e `expiraEm = agora + 30 dias`, e responde o mesmo contrato do login. Sem linha afetada, a releitura decide: formato inválido, inexistente ou expirada → `401 REFRESH_INVALIDO`; revogada → `401 SESSAO_REVOGADA`; token anterior há menos de 30 s → `401 REFRESH_JA_ROTACIONADO` (sem revogar); qualquer outro → revoga com `REUSO_REFRESH`, `warn` no log e `401 SESSAO_REVOGADA`. Usuário ou vínculo inativo → revoga com `CONTA_DESATIVADA` e `401 CONTA_DESATIVADA`; conta excluída → revoga com `CONTA_EXCLUIDA` e `401 REFRESH_INVALIDO`. O schema aceita qualquer texto em `refreshToken` (formato conferido aqui); campo desconhecido ou ausente → `400 VALIDATION_ERROR`. As revogações são gravadas antes do `401`.
+- **Logout:** sempre `204` (inclusive token vazio ou malformado); o token atual ou o anterior de uma sessão não revogada a revoga com `LOGOUT`.
+- **Evento:** toda revogação desta issue emite `usuario.sessaoEncerrada { usuarioId, sessaoIds: [sid], motivo, autorId }` após o commit (`autorId` = usuário no logout, `null` no reuso e na conta desativada ou excluída).
+
+Exportado pelo `AuthModule` para #62, #12, #13 e #27:
+
+```ts
+revogarTodas(tx, usuarioId, motivo, { exceto?, atleticaId? }?, agora?): Promise<string[]>
+revogar(tx, sessaoId, motivo, agora?): Promise<boolean>
+```
+
+Quem chama `revogarTodas` emite `usuario.sessaoEncerrada` com a lista devolvida como `sessaoIds`, e só se ela não for vazia (convenções §11.8). `motivo` ∈ `MotivoRevogacao` (`eventos-dominio.ts`).
+
+### Agendador (`src/infra/agendador`)
+
+Único registro do `ScheduleModule` (`@nestjs/schedule`, convenções §11.6). Jobs usam `@Cron(expr, { name, timeZone: FUSO_PADRAO })` e recebem o relógio por parâmetro num método separado (o `cron` passa argumentos próprios ao `onTick`). `LimpezaDiariaJob` (`manutencao.limpeza-diaria`, 03:00) apaga `TentativaAcesso` com mais de 24 h e `Sessao` expiradas ou revogadas há mais de 30 dias. A #62 acrescenta `CodigoVerificacao` ao mesmo job.
 
 ### Limite de tentativas (`RateLimitService`)
 
