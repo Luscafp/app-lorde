@@ -4,7 +4,7 @@ Visão geral, scripts e primeiros passos no [README da raiz](../../README.md). C
 
 ## Variáveis de ambiente
 
-Validadas por `src/config/env.schema.ts` (Zod): a API não sobe com variável faltando ou inválida e a mensagem lista as variáveis com problema, sem os valores. Exemplo comentado em `.env.example`; nos testes os valores vêm de `test/setup/env.ts`.
+Validadas por `src/config/env.schema.ts` (Zod): a API não sobe com variável faltando ou inválida e a mensagem lista as variáveis com problema, sem os valores. Exemplo comentado em `.env.example`; nos testes os valores vêm de `.env.test.example` (veja [Testes](#testes)).
 
 | Variável          | Obrigatória                 | Descrição                                                                                                         |
 | ----------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -17,6 +17,72 @@ Validadas por `src/config/env.schema.ts` (Zod): a API não sobe com variável fa
 | `RESEND_API_KEY`  | com `EMAIL_PROVIDER=resend` | Chave da API do Resend (vazia conta como ausente)                                                                 |
 | `EMAIL_REMETENTE` | sim                         | Remetente, ex.: `"Atlética Lorde <nao-responda@dominio>"` (domínio verificado no Resend)                          |
 | `CODIGO_PEPPER`   | sim (≥ 32 caracteres)       | Segredo do HMAC dos códigos de verificação. Trocar o valor invalida os códigos pendentes                          |
+
+## Testes
+
+O Jest tem dois projetos, rodados juntos pelo `pnpm --filter api test` e pelo `test:cov` (a cobertura é medida sobre a soma):
+
+| Projeto       | Arquivos                | Banco                                                       |
+| ------------- | ----------------------- | ----------------------------------------------------------- |
+| `unit`        | `src/**/*.spec.ts`      | nenhum                                                      |
+| `integration` | `test/**/*.e2e-spec.ts` | Postgres real; roda com `--runInBand` (banco compartilhado) |
+
+### Rodar localmente
+
+```bash
+pnpm db:up                                 # Postgres de testes na porta 5433 (tmpfs)
+pnpm --filter api test:integration         # só integração
+pnpm --filter api test:unit                # só unitários, sem banco
+```
+
+- **Env:** `test/setup/env.ts` lê `.env.test.example` (versionado, valores fictícios). Para trocar algo localmente, crie `apps/api/.env.test` (fora do Git), que tem precedência; variáveis já definidas no ambiente (CI) têm precedência sobre os dois. `NODE_ENV` é sempre `test` e o `.env` de desenvolvimento é ignorado.
+- **`globalSetup`** (`test/setup/global-setup.ts`): roda `prisma migrate deploy` no banco de teste antes da suíte. **Recusa** qualquer `DATABASE_URL` cujo banco não termine em `_test`, para nunca apagar o banco de desenvolvimento.
+- **Banco vazio em todo teste:** `test/setup/integracao.ts` chama `limparBanco()` no `beforeEach` de todos os testes de integração. Por isso, **crie os dados no `beforeEach` ou no próprio teste**, nunca no `beforeAll` (seriam apagados antes do primeiro teste).
+- **Sem transação por teste** (épico #2 §14): os services abrem as próprias transações interativas (auditoria, #8), incompatíveis com rollback por teste. O isolamento é o `TRUNCATE` + `--runInBand`.
+
+### Utilitários (`test/setup/`)
+
+| Utilitário                           | Uso                                                                                                                                                                                                                   |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prismaTeste` (`prisma-teste.ts`)    | Cliente Prisma **base** (sem a extensão multi-atlética): enxerga todas as atléticas. Para preparar dados e conferir o banco; o código da API usa o `PrismaService` (#44).                                             |
+| `limparBanco()` (`limpar-banco.ts`)  | `TRUNCATE ... RESTART IDENTITY CASCADE` em todas as tabelas do `public`, menos `_prisma_migrations` (lista lida de `pg_tables`). Já roda no `beforeEach`; chame direto só para limpar no meio de um teste.            |
+| `criarApp(opcoes?)` (`criar-app.ts`) | Sobe o `AppModule` real com o `configurarApp` do `main.ts` e devolve `{ app, http }`. `opcoes.controllers` acrescenta controllers de teste; `opcoes.ajustar` recebe o `TestingModuleBuilder` (`overrideProvider`...). |
+
+```ts
+import request from 'supertest'
+import { criarUsuario } from '../fabricas/usuario'
+import { criarApp, type AppDeTeste } from '../setup/criar-app'
+
+describe('GET /api/v1/...', () => {
+  let contexto: AppDeTeste
+
+  beforeAll(async () => {
+    contexto = await criarApp()
+  })
+
+  afterAll(async () => {
+    await contexto.app.close()
+  })
+
+  it('...', async () => {
+    const diretor = await criarUsuario({ papel: 'DIRETOR' }) // dados no próprio teste
+    const resposta = await request(contexto.http).get('/api/v1/...')
+    expect(resposta.status).toBe(200)
+  })
+})
+```
+
+### Fábricas (`test/fabricas/`)
+
+- `criarAtletica(dados?)` — atlética que usa o app, com `slug`, `sigla` e cores válidas (`CHECK atletica_dados_app`). `criarAtletica({ usaAplicativo: false })` cria uma adversária só com o nome. Qualquer campo pode ser sobrescrito.
+- `criarUsuario({ papel = 'ATLETA', atleticaId?, nome?, email?, ativo?, vinculoAtivo?, senhaHash? })` — cria o `Usuario` (e-mail único, gravado em minúsculas) e o `VinculoAtletica` com o papel. Sem `atleticaId`, cria uma atlética. Devolve o usuário com `atleticaId` e `vinculo`. `senhaHash` padrão é `SENHA_HASH_FICTICIO`, que não corresponde a nenhuma senha: para login real, passe um hash do `SenhaService` (#45).
+- `proximaSequencia()` — número crescente para valores únicos nas fábricas.
+- Cada issue de domínio cria as suas em `test/fabricas/<dominio>.ts` (ex.: `eventos.ts` na #70). `tokenPara(usuario, ...)` é da #7.
+
+### Suítes de infraestrutura
+
+- `test/infraestrutura/` — testes dos próprios utilitários (`limparBanco`, fábricas, `criarApp`, proteção do `globalSetup`).
+- `test/prisma/constraints.e2e-spec.ts` — um caso aceito e um rejeitado para cada constraint da migration `init` (épico #3 §8.3), conferindo o nome da constraint violada, e a estrutura da migration (tabelas, enums, índices e `CHECK`). Toda constraint nova em SQL entra aqui.
 
 ## E-mail transacional (`src/infra/email`)
 

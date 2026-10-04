@@ -90,16 +90,18 @@ A API sobe em `http://localhost:3000/api/v1` e o Swagger em `http://localhost:30
 
 ### Scripts
 
-| Script                                            | Faz                                         |
-| ------------------------------------------------- | ------------------------------------------- |
-| `pnpm dev`                                        | shared em watch + API + Metro em paralelo   |
-| `pnpm dev:api` / `pnpm dev:mobile`                | um só pacote (a API compila o shared antes) |
-| `pnpm db:up` / `pnpm db:down`                     | sobe / derruba os contêineres do Postgres   |
-| `pnpm lint` / `pnpm format` / `pnpm format:check` | ESLint / Prettier                           |
-| `pnpm typecheck`                                  | `tsc --noEmit` em todos os pacotes          |
-| `pnpm test`                                       | Jest em todos os pacotes                    |
-| `pnpm --filter api test:cov`                      | testes da API com limite de cobertura       |
-| `pnpm build`                                      | build do shared e da API                    |
+| Script                                            | Faz                                                      |
+| ------------------------------------------------- | -------------------------------------------------------- |
+| `pnpm dev`                                        | shared em watch + API + Metro em paralelo                |
+| `pnpm dev:api` / `pnpm dev:mobile`                | um só pacote (a API compila o shared antes)              |
+| `pnpm db:up` / `pnpm db:down`                     | sobe / derruba os contêineres do Postgres                |
+| `pnpm lint` / `pnpm format` / `pnpm format:check` | ESLint / Prettier                                        |
+| `pnpm typecheck`                                  | `tsc --noEmit` em todos os pacotes                       |
+| `pnpm test`                                       | Jest em todos os pacotes (a API precisa do `pnpm db:up`) |
+| `pnpm --filter api test:unit`                     | só os testes unitários da API (sem banco)                |
+| `pnpm --filter api test:integration`              | só os testes de integração da API (Postgres de testes)   |
+| `pnpm --filter api test:cov`                      | testes da API com limite de cobertura                    |
+| `pnpm build`                                      | build do shared e da API                                 |
 
 Um hook de pre-commit (Husky + lint-staged) roda Prettier e ESLint nos arquivos alterados.
 
