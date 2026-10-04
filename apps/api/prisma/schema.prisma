@@ -1,0 +1,488 @@
+// Schema do banco — fonte de verdade do modelo de dados (épico #3, convenções §11.4).
+// Prisma 7: a URL de conexão fica em prisma.config.ts e o client (gerado em src/generated/prisma)
+// usa @prisma/adapter-pg (#44).
+//
+// ATENÇÃO: a migration `init` cria em SQL objetos que o Prisma não conhece (épico #3 §8.3).
+// O `migrate diff` não os vê como drift: revise TODA migration nova para não removê-los.
+//
+// Extensão:
+//   unaccent
+// Índices únicos parciais:
+//   vinculo_presidente_unico    "VinculoAtletica" ("atleticaId") WHERE papel = 'PRESIDENTE'
+//   vinculo_vice_unico          "VinculoAtletica" ("atleticaId") WHERE papel = 'VICE_PRESIDENTE'
+//   membro_time_ativo_unico     "MembroTime" ("timeId", "usuarioId") WHERE "saidaEm" IS NULL
+//   solicitacao_pendente_unica  "SolicitacaoEntrada" ("timeId", "usuarioId") WHERE status = 'PENDENTE'
+// Índices únicos por expressão (não parciais):
+//   modalidade_nome_unico       "Modalidade" (lower(nome))
+//   time_nome_unico             "Time" ("atleticaId", "modalidadeId", lower(nome))
+// CHECK:
+//   usuario_email_minusculo, atletica_dados_app, atletica_cores_hex, preferencia_antecedencia,
+//   membro_saida_apos_entrada, solicitacao_avaliacao_coerente, evento_tipo_coerente,
+//   evento_times_distintos, evento_placar_completo, evento_placar_nao_negativo,
+//   evento_resultado_finalizado, serie_dias_validos, serie_horario_formato, serie_periodo_valido,
+//   serie_limite_6_meses, participacao_resposta_coerente, participacao_presenca_coerente,
+//   noticia_publicada_com_data, banner_link_https, banner_ordem_nao_negativa
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Papel {
+  ATLETA
+  DIRETOR
+  PRESIDENTE
+  VICE_PRESIDENTE
+  ADMINISTRADOR
+}
+
+enum TipoEvento {
+  JOGO
+  TREINO
+}
+
+enum StatusEvento {
+  AGENDADO
+  EM_ANDAMENTO
+  FINALIZADO
+  CANCELADO
+}
+
+enum Resultado {
+  VITORIA
+  EMPATE
+  DERROTA
+}
+
+enum StatusSolicitacao {
+  PENDENTE
+  APROVADA
+  REJEITADA
+  CANCELADA
+}
+
+enum StatusNoticia {
+  RASCUNHO
+  PUBLICADA
+}
+
+/// [Decisão técnica] tabela técnica
+enum TipoCodigoVerificacao {
+  RECUPERAR_SENHA
+  VERIFICAR_EMAIL
+}
+
+model Usuario {
+  id              String    @id @default(uuid()) @db.Uuid
+  nome            String    @db.VarChar(80)
+  email           String    @unique @db.VarChar(254) /// sempre minúsculo (normalizado no service + CHECK)
+  senhaHash       String    @db.VarChar(255) /// Argon2id (SenhaService, #45)
+  fotoKey         String?   @db.VarChar(300) /// [Decisão técnica] chave do objeto no R2 (#9); a API devolve `fotoUrl` calculada
+  emailVerificado Boolean   @default(false)
+  ativo           Boolean   @default(true)
+  criadoEm        DateTime  @default(now()) @db.Timestamptz(3)
+  atualizadoEm    DateTime  @updatedAt @db.Timestamptz(3) /// [Sugestão]
+  excluidoEm      DateTime? @db.Timestamptz(3)
+
+  vinculos              VinculoAtletica[]
+  preferencia           PreferenciaNotificacao?
+  dispositivos          DispositivoPush[]
+  timesCapitaneados     Time[]                  @relation("CapitaoTime")
+  membrosTime           MembroTime[]
+  solicitacoes          SolicitacaoEntrada[]    @relation("SolicitacaoSolicitante")
+  solicitacoesAvaliadas SolicitacaoEntrada[]    @relation("SolicitacaoAvaliador")
+  eventosCriados        Evento[]                @relation("EventoCriadoPor")
+  seriesCriadas         SerieRecorrencia[]      @relation("SerieCriadaPor")
+  participacoes         Participacao[]
+  presencasRegistradas  Participacao[]          @relation("PresencaRegistradaPor")
+  noticias              Noticia[]
+  registrosAuditoria    RegistroAuditoria[]
+  sessoes               Sessao[]
+  codigosVerificacao    CodigoVerificacao[]
+  aceitesTermos         AceiteTermos[]
+}
+
+model Atletica {
+  id               String   @id @default(uuid()) @db.Uuid
+  slug             String?  @unique @db.VarChar(40) /// [Decisão técnica] chave natural do seed; obrigatório quando usaAplicativo (CHECK)
+  nome             String   @db.VarChar(80)
+  sigla            String?  @db.VarChar(12)
+  curso            String?  @db.VarChar(120)
+  logoUrl          String?  @db.VarChar(500)
+  corPrimaria      String?  @db.Char(7) /// #RRGGBB
+  corSecundaria    String?  @db.Char(7)
+  usaAplicativo    Boolean  @default(false)
+  contatoEmail     String?  @db.VarChar(254) /// [Decisão técnica] contato da diretoria: tela "Sobre" (3.4, #14) e orientação de conta desativada (#10)
+  contatoInstagram String?  @db.VarChar(60) /// [Sugestão]
+  contatoWhatsapp  String?  @db.VarChar(20) /// [Sugestão] formato E.164
+  criadoEm         DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm     DateTime @updatedAt @db.Timestamptz(3)
+
+  vinculos           VinculoAtletica[]
+  times              Time[]
+  membrosTime        MembroTime[]
+  solicitacoes       SolicitacaoEntrada[]
+  eventos            Evento[]
+  series             SerieRecorrencia[]
+  participacoes      Participacao[]
+  noticias           Noticia[]
+  tags               Tag[]
+  banners            Banner[]
+  registrosAuditoria RegistroAuditoria[]
+  sessoes            Sessao[]
+
+  @@index([usaAplicativo])
+}
+
+model VinculoAtletica {
+  id           String   @id @default(uuid()) @db.Uuid /// [Decisão técnica] id próprio facilita auditoria
+  usuarioId    String   @db.Uuid
+  atleticaId   String   @db.Uuid
+  papel        Papel    @default(ATLETA)
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+
+  usuario  Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  atletica Atletica @relation(fields: [atleticaId], references: [id], onDelete: Restrict)
+
+  @@unique([usuarioId, atleticaId])
+  @@index([atleticaId, papel])
+}
+
+model PreferenciaNotificacao {
+  usuarioId                 String   @id @db.Uuid
+  pushAtivo                 Boolean  @default(true)
+  novosEventos              Boolean  @default(true)
+  alteracoesEventos         Boolean  @default(true)
+  lembretes                 Boolean  @default(true)
+  antecedenciaLembreteHoras Int      @default(2) @db.SmallInt
+  resultados                Boolean  @default(true)
+  noticias                  Boolean  @default(true)
+  solicitacoes              Boolean  @default(true)
+  avisos                    Boolean  @default(true)
+  atualizadoEm              DateTime @updatedAt @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+}
+
+model DispositivoPush {
+  id          String   @id @default(uuid()) @db.Uuid
+  usuarioId   String   @db.Uuid
+  sessaoId    String?  @db.Uuid /// [Sugestão] remover o token no logout daquela sessão (UC08)
+  tokenPush   String   @unique @db.VarChar(255)
+  plataforma  String   @db.VarChar(10) /// "android" | "ios"
+  criadoEm    DateTime @default(now()) @db.Timestamptz(3)
+  ultimoUsoEm DateTime @default(now()) @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  sessao  Sessao? @relation(fields: [sessaoId], references: [id], onDelete: SetNull)
+
+  @@index([usuarioId])
+}
+
+model Modalidade {
+  id           String   @id @default(uuid()) @db.Uuid
+  nome         String   @db.VarChar(40)
+  icone        String   @db.VarChar(40) /// identificador do ícone no catálogo do app (#15)
+  ativa        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+  /// sem excluidoEm: exclusão física quando sem dependências (convenções §11.4, #15)
+
+  times Time[]
+
+  @@index([ativa])
+}
+
+model Time {
+  id           String   @id @default(uuid()) @db.Uuid
+  atleticaId   String   @db.Uuid /// atlética dona do time (Lorde ou adversária)
+  modalidadeId String   @db.Uuid
+  nome         String   @db.VarChar(60)
+  capitaoId    String?  @db.Uuid /// RN22/RN23; só para times de atlética com usaAplicativo
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+  /// sem excluidoEm: exclusão física quando sem dependências (convenções §11.4, #16)
+
+  atletica              Atletica             @relation(fields: [atleticaId], references: [id], onDelete: Restrict)
+  modalidade            Modalidade           @relation(fields: [modalidadeId], references: [id], onDelete: Restrict)
+  capitao               Usuario?             @relation("CapitaoTime", fields: [capitaoId], references: [id], onDelete: SetNull)
+  membros               MembroTime[]
+  solicitacoes          SolicitacaoEntrada[]
+  eventos               Evento[]             @relation("EventoTime")
+  eventosComoAdversario Evento[]             @relation("EventoTimeAdversario")
+  series                SerieRecorrencia[]
+
+  @@index([atleticaId, modalidadeId, ativo])
+  @@index([modalidadeId])
+  @@index([capitaoId])
+}
+
+model MembroTime {
+  id            String    @id @default(uuid()) @db.Uuid
+  atleticaId    String    @db.Uuid
+  timeId        String    @db.Uuid
+  usuarioId     String    @db.Uuid
+  solicitacaoId String?   @unique @db.Uuid /// [Sugestão] solicitação aprovada que originou a entrada
+  entradaEm     DateTime  @default(now()) @db.Timestamptz(3)
+  saidaEm       DateTime? @db.Timestamptz(3)
+
+  atletica    Atletica            @relation(fields: [atleticaId], references: [id], onDelete: Restrict)
+  time        Time                @relation(fields: [timeId], references: [id], onDelete: Restrict)
+  usuario     Usuario             @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  solicitacao SolicitacaoEntrada? @relation(fields: [solicitacaoId], references: [id], onDelete: SetNull)
+
+  @@index([timeId, saidaEm])
+  @@index([usuarioId, saidaEm])
+}
+
+model SolicitacaoEntrada {
+  id            String            @id @default(uuid()) @db.Uuid
+  atleticaId    String            @db.Uuid
+  timeId        String            @db.Uuid
+  usuarioId     String            @db.Uuid
+  status        StatusSolicitacao @default(PENDENTE)
+  criadaEm      DateTime          @default(now()) @db.Timestamptz(3)
+  avaliadaEm    DateTime?         @db.Timestamptz(3)
+  avaliadoPorId String?           @db.Uuid
+  canceladaEm   DateTime?         @db.Timestamptz(3) /// [Sugestão]
+
+  atletica    Atletica    @relation(fields: [atleticaId], references: [id], onDelete: Restrict)
+  time        Time        @relation(fields: [timeId], references: [id], onDelete: Restrict)
+  usuario     Usuario     @relation("SolicitacaoSolicitante", fields: [usuarioId], references: [id], onDelete: Restrict)
+  avaliadoPor Usuario?    @relation("SolicitacaoAvaliador", fields: [avaliadoPorId], references: [id], onDelete: Restrict)
+  membro      MembroTime?
+
+  @@index([atleticaId, status, criadaEm])
+  @@index([usuarioId, status])
+  @@index([timeId, status])
+}
+
+model Evento {
+  id               String       @id @default(uuid()) @db.Uuid
+  atleticaId       String       @db.Uuid
+  tipo             TipoEvento
+  timeId           String       @db.Uuid
+  timeAdversarioId String?      @db.Uuid
+  serieId          String?      @db.Uuid
+  inicio           DateTime     @db.Timestamptz(3)
+  local            String       @db.VarChar(150)
+  status           StatusEvento @default(AGENDADO)
+  placarTime       Int?         @db.SmallInt
+  placarAdversario Int?         @db.SmallInt
+  resultado        Resultado?
+  observacoes      String?      @db.VarChar(1000)
+  criadoPorId      String       @db.Uuid
+  criadoEm         DateTime     @default(now()) @db.Timestamptz(3)
+  atualizadoEm     DateTime     @updatedAt @db.Timestamptz(3)
+  excluidoEm       DateTime?    @db.Timestamptz(3)
+
+  atletica       Atletica          @relation(fields: [atleticaId], references: [id], onDelete: Restrict)
+  time           Time              @relation("EventoTime", fields: [timeId], references: [id], onDelete: Restrict)
+  timeAdversario Time?             @relation("EventoTimeAdversario", fields: [timeAdversarioId], references: [id], onDelete: Restrict)
+  serie          SerieRecorrencia? @relation(fields: [serieId], references: [id], onDelete: Restrict)
+  criadoPor      Usuario           @relation("EventoCriadoPor", fields: [criadoPorId], references: [id], onDelete: Restrict)
+  participacoes  Participacao[]
+
+  @@index([atleticaId, inicio])
+  @@index([atleticaId, status, inicio])
+  @@index([atleticaId, tipo, inicio])
+  @@index([timeId, inicio])
+  @@index([timeAdversarioId])
+  @@index([serieId, inicio])
+}
+
+model SerieRecorrencia {
+  id           String    @id @default(uuid()) @db.Uuid
+  atleticaId   String    @db.Uuid
+  timeId       String    @db.Uuid /// [Decisão técnica] necessário para gerar as ocorrências
+  diasSemana   Int[] /// 0 = domingo … 6 = sábado
+  horario      String    @db.Char(5) /// [Decisão técnica] "HH:mm", horário local America/Fortaleza (CHECK de formato)
+  dataInicio   DateTime  @db.Date
+  dataFim      DateTime  @db.Date
+  local        String    @db.VarChar(150) /// [Decisão técnica]
+  observacoes  String?   @db.VarChar(1000) /// [Decisão técnica]
+  criadoPorId  String    @db.Uuid
+  criadoEm     DateTime  @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime  @updatedAt @db.Timestamptz(3)
+  canceladaEm  DateTime? @db.Timestamptz(3) /// [Sugestão]
+
+  atletica  Atletica @relation(fields: [atleticaId], references: [id], onDelete: Restrict)
+  time      Time     @relation(fields: [timeId], references: [id], onDelete: Restrict)
+  criadoPor Usuario  @relation("SerieCriadaPor", fields: [criadoPorId], references: [id], onDelete: Restrict)
+  eventos   Evento[]
+
+  @@index([atleticaId, timeId])
+}
+
+/// [Decisão técnica] chave primária composta (eventoId, usuarioId): uma linha por atleta e evento
+model Participacao {
+  atleticaId              String    @db.Uuid
+  eventoId                String    @db.Uuid
+  usuarioId               String    @db.Uuid
+  confirmado              Boolean? /// null = não respondeu
+  respondidoEm            DateTime? @db.Timestamptz(3)
+  presente                Boolean? /// null = presença não registrada
+  presencaRegistradaEm    DateTime? @db.Timestamptz(3)
+  presencaRegistradaPorId String?   @db.Uuid /// [Sugestão] quem registrou a presença (#35)
+
+  atletica              Atletica @relation(fields: [atleticaId], references: [id], onDelete: Restrict)
+  evento                Evento   @relation(fields: [eventoId], references: [id], onDelete: Restrict)
+  usuario               Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  presencaRegistradaPor Usuario? @relation("PresencaRegistradaPor", fields: [presencaRegistradaPorId], references: [id], onDelete: Restrict)
+
+  @@id([eventoId, usuarioId])
+  @@index([usuarioId, presente])
+}
+
+model Noticia {
+  id            String        @id @default(uuid()) @db.Uuid
+  atleticaId    String        @db.Uuid
+  autorId       String        @db.Uuid
+  titulo        String        @db.VarChar(120) /// 3–120 caracteres (convenções §11.4)
+  conteudo      String        @default("") @db.Text /// Markdown restrito; rascunho pode ser vazio; publicar exige 1–10.000 caracteres após trim (validado no Zod da #26)
+  imagemCapaKey String?       @db.VarChar(300) /// [Decisão técnica] chave R2 (#9); a API devolve `imagemCapaUrl`
+  status        StatusNoticia @default(RASCUNHO)
+  publicadaEm   DateTime?     @db.Timestamptz(3)
+  criadoEm      DateTime      @default(now()) @db.Timestamptz(3)
+  atualizadoEm  DateTime      @updatedAt @db.Timestamptz(3)
+  excluidoEm    DateTime?     @db.Timestamptz(3)
+
+  atletica Atletica     @relation(fields: [atleticaId], references: [id], onDelete: Restrict)
+  autor    Usuario      @relation(fields: [autorId], references: [id], onDelete: Restrict)
+  tags     NoticiaTag[]
+
+  @@index([atleticaId, status, publicadaEm(sort: Desc)])
+}
+
+model Tag {
+  id              String   @id @default(uuid()) @db.Uuid
+  atleticaId      String   @db.Uuid
+  nome            String   @db.VarChar(30)
+  nomeNormalizado String   @db.VarChar(30) /// [Decisão técnica] trim + espaços colapsados + minúsculas + sem acentos (calculado no service da #32)
+  criadoEm        DateTime @default(now()) @db.Timestamptz(3)
+
+  atletica Atletica     @relation(fields: [atleticaId], references: [id], onDelete: Restrict)
+  noticias NoticiaTag[]
+
+  @@unique([atleticaId, nomeNormalizado])
+}
+
+/// [Decisão técnica] tabela de junção explícita (N:N do diagrama)
+model NoticiaTag {
+  noticiaId String @db.Uuid
+  tagId     String @db.Uuid
+
+  noticia Noticia @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noticiaId, tagId])
+  @@index([tagId])
+}
+
+model Banner {
+  id           String   @id @default(uuid()) @db.Uuid
+  atleticaId   String   @db.Uuid
+  titulo       String   @db.VarChar(80)
+  imagemKey    String   @db.VarChar(300) /// [Decisão técnica] chave R2 (#9); a API devolve `imagemUrl`
+  link         String?  @db.VarChar(500)
+  ordem        Int      @default(0)
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @updatedAt @db.Timestamptz(3)
+  /// sem excluidoEm: exclusão física (convenções §11.4, #33)
+
+  atletica Atletica @relation(fields: [atleticaId], references: [id], onDelete: Restrict)
+
+  @@index([atleticaId, ativo, ordem])
+}
+
+model RegistroAuditoria {
+  id         String   @id @default(uuid()) @db.Uuid
+  atleticaId String   @db.Uuid
+  usuarioId  String?  @db.Uuid /// ator: quem executou; null = sistema (job)
+  acao       String   @db.VarChar(40) /// catálogo fechado no shared (#8)
+  entidade   String   @db.VarChar(40) /// catálogo fechado no shared (#8)
+  entidadeId String   @db.Uuid
+  dados      Json     @db.JsonB /// { antes, depois, contexto? } só com campos alterados e apenas ids/valores de domínio, nunca nomes/e-mails (convenções §7, #8)
+  requestId  String?  @db.VarChar(64) /// [Sugestão] correlação com logs (#5)
+  criadoEm   DateTime @default(now()) @db.Timestamptz(3)
+
+  atletica Atletica @relation(fields: [atleticaId], references: [id], onDelete: Restrict)
+  usuario  Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([atleticaId, criadoEm(sort: Desc)])
+  @@index([atleticaId, entidade, entidadeId])
+  @@index([atleticaId, usuarioId, criadoEm])
+}
+
+/// [Decisão técnica] sessão de login (um dispositivo) com o refresh token rotativo — verificada pela #7, gerida pela #10
+model Sessao {
+  id                       String    @id @default(uuid()) @db.Uuid
+  usuarioId                String    @db.Uuid
+  atleticaId               String    @db.Uuid /// atlética ativa da sessão (vai no token como "atl")
+  refreshTokenHash         String    @unique @db.Char(64) /// SHA-256 hex do refresh token atual (8.2)
+  refreshTokenAnteriorHash String?   @db.Char(64) /// hash do token substituído na última rotação; reapresentá-lo = reuso → revoga a sessão (#10)
+  rotacionadaEm            DateTime? @db.Timestamptz(3) /// gravado a cada rotação; NÃO existe ultimoUsoEm (convenções §11.2)
+  expiraEm                 DateTime  @db.Timestamptz(3) /// 30 dias após a última rotação
+  revogadaEm               DateTime? @db.Timestamptz(3)
+  motivoRevogacao          String?   @db.VarChar(30) /// LOGOUT | TROCA_SENHA | RECUPERACAO_SENHA | CONTA_DESATIVADA | CONTA_EXCLUIDA | REUSO_REFRESH
+  userAgent                String?   @db.VarChar(255)
+  ip                       String?   @db.VarChar(45) /// [Sugestão]
+  criadoEm                 DateTime  @default(now()) @db.Timestamptz(3)
+
+  usuario      Usuario           @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  atletica     Atletica          @relation(fields: [atleticaId], references: [id], onDelete: Restrict)
+  dispositivos DispositivoPush[]
+
+  @@index([usuarioId, revogadaEm])
+  @@index([refreshTokenAnteriorHash])
+}
+
+/// [Decisão técnica — convenções §11.3] tentativas registradas pelo RateLimitService (#57), único mecanismo de limite:
+/// login (5 falhas/15 min por e-mail+IP), cadastro, recuperação, código, confirmação de senha, presign, verificação, aviso
+model TentativaAcesso {
+  id       String   @id @default(uuid()) @db.Uuid
+  tipo     String   @db.VarChar(30) /// catálogo TS no RateLimitService: LOGIN_FALHA, CADASTRO, RECUPERACAO_ENVIO, CODIGO_TENTATIVA, SENHA_CONFIRMACAO_FALHA, PRESIGN, VERIFICACAO_ENVIO, AVISO_ENVIO...
+  chave    String   @db.VarChar(300) /// ex.: "<email normalizado>|<ip>" ou usuarioId; apagada por job de limpeza (> 24 h)
+  criadoEm DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([tipo, chave, criadoEm(sort: Desc)])
+  @@index([criadoEm])
+}
+
+/// [Decisão técnica] códigos de recuperação de senha (#11) e verificação de e-mail (#31)
+model CodigoVerificacao {
+  id         String                @id @default(uuid()) @db.Uuid
+  usuarioId  String                @db.Uuid
+  tipo       TipoCodigoVerificacao
+  codigoHash String                @db.VarChar(255) /// HMAC-SHA256 com segredo do servidor (#11)
+  criadoEm   DateTime              @default(now()) @db.Timestamptz(3)
+  expiraEm   DateTime              @db.Timestamptz(3)
+  usadoEm    DateTime?             @db.Timestamptz(3)
+  tentativas Int                   @default(0) @db.SmallInt
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, tipo, criadoEm])
+}
+
+/// [Decisão técnica] prova do consentimento (RF02, RNF15)
+model AceiteTermos {
+  id        String   @id @default(uuid()) @db.Uuid
+  usuarioId String   @db.Uuid
+  versao    String   @db.VarChar(20) /// versão do documento único Termos de Uso + Política de Privacidade (ex.: "2026-10")
+  aceitoEm  DateTime @default(now()) @db.Timestamptz(3)
+  ip        String?  @db.VarChar(45) /// [Sugestão]
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([usuarioId, aceitoEm])
+}

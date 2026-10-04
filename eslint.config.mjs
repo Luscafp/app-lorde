@@ -24,6 +24,7 @@ export default tseslint.config(
       '**/android/**',
       '**/ios/**',
       '**/expo-env.d.ts',
+      'apps/api/src/generated/**',
       'docs/**',
     ],
   },
