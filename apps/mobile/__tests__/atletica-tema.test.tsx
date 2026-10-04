@@ -1,14 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { AtleticaPublica } from '@atletica/shared'
-import { act, render, renderHook, screen } from '@testing-library/react-native'
+import NetInfo from '@react-native-community/netinfo'
+import { onlineManager, QueryClientProvider } from '@tanstack/react-query'
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react-native'
 import * as nativewind from 'nativewind'
+import type { ReactNode } from 'react'
 import { StyleSheet, Text } from 'react-native'
 import { carregarAtletica, corTextoSobre, ProvedorTema, useAtletica } from '@/features/atletica'
 import { CHAVE_CACHE_ATLETICA } from '@/features/atletica/api'
-import { atleticaStore } from '@/features/atletica/carregar-atletica'
 import { hexParaRgb } from '@/features/atletica/cores'
 import { variaveisTema } from '@/features/atletica/provedor-tema'
 import { COR_NEUTRA, NOME_GENERICO } from '@/features/atletica/use-atletica'
+import { chaves } from '@/infra/query/chaves'
+import { queryClient } from '@/infra/query/query-client'
+import { configurarRede } from '@/infra/rede/online'
 
 const atletica: AtleticaPublica = {
   id: '6f1c2a7e-2f5b-4c39-9a0e-3f3b1b8d2c11',
@@ -24,20 +29,34 @@ const atletica: AtleticaPublica = {
 }
 
 const fetchMock = jest.fn<Promise<Response>, Parameters<typeof fetch>>()
+const netInfo = NetInfo as unknown as { __emitir: (estado: object) => void }
 
-function responder(corpo: unknown, status = 200) {
-  fetchMock.mockResolvedValue({
+function resposta(corpo: unknown, status = 200): Response {
+  return {
     ok: status < 400,
     status,
-    json: () => Promise.resolve(corpo),
-  } as Response)
+    headers: { get: () => null },
+    text: () => Promise.resolve(JSON.stringify(corpo)),
+  } as unknown as Response
 }
+
+function comQuery({ children }: { children: ReactNode }) {
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+}
+
+const renderAtletica = () => renderHook(() => useAtletica(), { wrapper: comQuery })
 
 beforeEach(async () => {
   global.fetch = fetchMock
   fetchMock.mockReset()
   await AsyncStorage.clear()
-  atleticaStore.setState({ dados: null })
+  queryClient.clear()
+  onlineManager.setOnline(true)
+})
+
+afterEach(() => {
+  jest.useRealTimers()
+  queryClient.clear()
 })
 
 describe('cores', () => {
@@ -62,42 +81,43 @@ describe('cores', () => {
   })
 })
 
-describe('carregarAtletica', () => {
-  it('aplica a resposta da API e grava o cache atletica.v1', async () => {
-    responder(atletica)
+describe('carregarAtletica e useAtletica', () => {
+  it('busca GET /atletica pelo cliente HTTP, sem token, e grava o cache atletica.v1', async () => {
+    fetchMock.mockResolvedValue(resposta(atletica))
 
     await carregarAtletica()
 
     const [url, init] = fetchMock.mock.calls[0] ?? []
     expect(url).toMatch(/\/atletica$/)
-    expect(JSON.stringify(init?.headers)).not.toContain('Authorization')
-    const { result } = await renderHook(() => useAtletica())
+    expect(init?.headers).not.toHaveProperty('Authorization')
+    const { result } = await renderAtletica()
     expect(result.current).toEqual(atletica)
     expect(JSON.parse((await AsyncStorage.getItem(CHAVE_CACHE_ATLETICA)) ?? '')).toEqual(atletica)
   })
 
-  it('usa o cache na hora, sem esperar a rede, e atualiza em segundo plano', async () => {
+  it('usa o cache como dado inicial, sem esperar a rede, e atualiza em segundo plano', async () => {
     await AsyncStorage.setItem(CHAVE_CACHE_ATLETICA, JSON.stringify(atletica))
     let liberarRede: (resposta: Response) => void = () => undefined
     fetchMock.mockReturnValue(new Promise<Response>((resolver) => (liberarRede = resolver)))
 
     await carregarAtletica()
-    expect(atleticaStore.getState().dados?.corPrimaria).toBe('#E11D48')
+    const { result } = await renderAtletica()
+    expect(result.current.corPrimaria).toBe('#E11D48')
 
-    const atualizada = { ...atletica, corPrimaria: '#16A34A' }
-    await act(async () => {
-      liberarRede({ ok: true, status: 200, json: () => Promise.resolve(atualizada) } as Response)
-      await new Promise((resolver) => setImmediate(resolver))
-    })
-    expect(atleticaStore.getState().dados?.corPrimaria).toBe('#16A34A')
+    await act(() => liberarRede(resposta({ ...atletica, corPrimaria: '#16A34A' })))
+    await waitFor(() => expect(result.current.corPrimaria).toBe('#16A34A'))
   })
 
   it('sem rede e sem cache usa o fallback neutro sem travar', async () => {
+    jest.useFakeTimers()
     fetchMock.mockRejectedValue(new TypeError('Network request failed'))
 
-    await carregarAtletica()
+    const carga = carregarAtletica()
+    await jest.advanceTimersByTimeAsync(3000)
+    await carga
 
-    const { result } = await renderHook(() => useAtletica())
+    expect(queryClient.getQueryData(chaves.atletica())).toBeUndefined()
+    const { result } = await renderAtletica()
     expect(result.current).toMatchObject({
       id: null,
       nome: NOME_GENERICO,
@@ -112,38 +132,49 @@ describe('carregarAtletica', () => {
 
     await carregarAtletica()
 
-    expect(atleticaStore.getState().dados).toEqual(atletica)
+    const { result } = await renderAtletica()
+    expect(result.current).toEqual(atletica)
   })
 
-  it('aborta a busca depois de 3 s', async () => {
+  it('não segura a abertura mais de 3 s esperando a rede', async () => {
     jest.useFakeTimers()
-    fetchMock.mockImplementation(
-      (_url, init) =>
-        new Promise((_resolver, rejeitar) => {
-          init?.signal?.addEventListener('abort', () => rejeitar(new Error('abortada')))
-        }),
-    )
+    fetchMock.mockReturnValue(new Promise<Response>(() => undefined))
+    let terminou = false
 
-    const carga = carregarAtletica()
-    await jest.advanceTimersByTimeAsync(3000)
+    const carga = carregarAtletica().then(() => (terminou = true))
+    await jest.advanceTimersByTimeAsync(2999)
+    expect(terminou).toBe(false)
+    await jest.advanceTimersByTimeAsync(1)
     await carga
-    jest.useRealTimers()
 
-    expect(atleticaStore.getState().dados).toBeNull()
+    expect(terminou).toBe(true)
+  })
+
+  it('primeira abertura sem rede tenta de novo ao reconectar', async () => {
+    configurarRede()
+    await act(() => netInfo.__emitir({ isConnected: false, isInternetReachable: false }))
+    fetchMock.mockResolvedValue(resposta(atletica))
+
+    const { result } = await renderAtletica()
+    expect(result.current.nome).toBe(NOME_GENERICO)
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    await act(() => netInfo.__emitir({ isConnected: true, isInternetReachable: true }))
+    await waitFor(() => expect(result.current.nome).toBe(atletica.nome))
   })
 
   it('ignora resposta fora do contrato', async () => {
-    responder({ ...atletica, corPrimaria: 'vermelho' })
+    fetchMock.mockResolvedValue(resposta({ ...atletica, corPrimaria: 'vermelho' }))
 
     await carregarAtletica()
 
-    expect(atleticaStore.getState().dados).toBeNull()
+    expect(queryClient.getQueryData(chaves.atletica())).toBeUndefined()
     expect(await AsyncStorage.getItem(CHAVE_CACHE_ATLETICA)).toBeNull()
   })
 
   it('cor nula na API cai no neutro', async () => {
-    atleticaStore.setState({ dados: { ...atletica, corSecundaria: null } })
-    const { result } = await renderHook(() => useAtletica())
+    queryClient.setQueryData(chaves.atletica(), { ...atletica, corSecundaria: null })
+    const { result } = await renderAtletica()
     expect(result.current.corSecundaria).toBe(COR_NEUTRA)
   })
 })
@@ -161,11 +192,12 @@ describe('ProvedorTema', () => {
     const espiao = jest
       .spyOn(nativewind, 'vars')
       .mockImplementation((v) => ({ variaveis: JSON.stringify(v) }))
-    atleticaStore.setState({ dados: atletica })
+    queryClient.setQueryData(chaves.atletica(), atletica)
     await render(
       <ProvedorTema>
         <Text>conteúdo</Text>
       </ProvedorTema>,
+      { wrapper: comQuery },
     )
 
     expect(StyleSheet.flatten(screen.getByTestId('provedor-tema').props.style)).toEqual({
