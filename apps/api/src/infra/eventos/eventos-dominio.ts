@@ -5,7 +5,9 @@ export interface PayloadBase {
 }
 
 /** Nome → payload dos eventos de domínio (convenções §8); cada issue emissora acrescenta o seu. */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- preenchida pelas emissoras
-export interface EventosDominio {}
+export interface EventosDominio {
+  /** #57; ouvido pela #31 (e-mail de verificação). */
+  'usuario.cadastrado': PayloadBase & { usuarioId: string; atleticaId: string; autorId: string }
+}
 
 export type NomeEventoDominio = keyof EventosDominio

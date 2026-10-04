@@ -13,6 +13,25 @@ function assinar(dados: object = payload, opcoes: JwtSignOptions = {}): string {
   return assinarToken(dados, { secret: SEGREDO, ...opcoes })
 }
 
+describe('TokenAcessoService.assinar', () => {
+  const agora = new Date('2026-10-04T12:00:00.000Z')
+
+  it('emite token aceito pelo verificar, com iss/aud e sem o papel', () => {
+    const { accessToken } = servico.assinar(payload, agora)
+    expect(servico.verificar(accessToken, agora)).toStrictEqual({
+      ...payload,
+      iat: agora.getTime() / 1000,
+      exp: agora.getTime() / 1000 + 900,
+      iss: 'atletica-api',
+      aud: 'atletica-app',
+    })
+  })
+
+  it('accessTokenExpiraEm = agora + 15 min, em ISO', () => {
+    expect(servico.assinar(payload, agora).accessTokenExpiraEm).toBe('2026-10-04T12:15:00.000Z')
+  })
+})
+
 describe('TokenAcessoService.verificar', () => {
   it('devolve o payload de um token válido', () => {
     expect(servico.verificar(assinar())).toMatchObject({

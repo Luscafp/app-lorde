@@ -27,6 +27,10 @@ describe('criarConfigLogger', () => {
       '*.senha',
       '*.email',
       '*.codigo',
+      'req.body.senha',
+      'req.body.refreshToken',
+      'res.body.accessToken',
+      'res.body.refreshToken',
     ]) {
       expect(CAMINHOS_REDIGIDOS).toContain(caminho)
     }

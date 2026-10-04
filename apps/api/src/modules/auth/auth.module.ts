@@ -3,8 +3,14 @@ import { ConfigService } from '@nestjs/config'
 import { APP_GUARD } from '@nestjs/core'
 import { JwtModule } from '@nestjs/jwt'
 import type { Env } from '../../config/env.schema'
+import { SenhaModule } from '../../infra/senha/senha.module'
+import { AtleticasModule } from '../atleticas/atleticas.module'
+import { AuthController } from './auth.controller'
+import { AuthService } from './auth.service'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { PapelGuard } from './guards/papel.guard'
+import { RateLimitService } from './rate-limit.service'
+import { SessaoService } from './sessao.service'
 import { TokenAcessoService } from './token-acesso.service'
 
 /** Guards globais na ordem `JwtAuthGuard` → `PapelGuard`. */
@@ -16,12 +22,18 @@ import { TokenAcessoService } from './token-acesso.service'
         secret: config.get('JWT_ACCESS_SECRET', { infer: true }),
       }),
     }),
+    SenhaModule,
+    AtleticasModule,
   ],
+  controllers: [AuthController],
   providers: [
     TokenAcessoService,
+    RateLimitService,
+    SessaoService,
+    AuthService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PapelGuard },
   ],
-  exports: [TokenAcessoService],
+  exports: [TokenAcessoService, RateLimitService, SessaoService],
 })
 export class AuthModule {}

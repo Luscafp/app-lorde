@@ -158,6 +158,32 @@ export class EventosController {
 - Hierarquia e rótulos (`NIVEL_PAPEL`, `temNivelMinimo`, `podeAgirSobre`, `ehDiretoria`, `ehPresidencia`, `ehAdministrador`, `ROTULO_PAPEL`) ficam em `@atletica/shared` (`src/auth/papeis.ts`).
 - Swagger: toda rota não pública recebe o cadeado e a resposta 401 (`swagger.ts`); `@PapelMinimo` acrescenta a 403.
 
+### Cadastro e login (`AuthController`, `AuthService`)
+
+`POST /api/v1/auth/cadastro` (201) e `POST /api/v1/auth/login` (200), ambas `@Publico()` e `Cache-Control: no-store`. Entrada validada por `cadastroSchema`/`loginSchema` (`@atletica/shared`, `.strict()`: campo desconhecido → 400). Resposta única, também usada pelo refresh (#58) via `montarRespostaSessao`:
+
+```ts
+{ accessToken, refreshToken, accessTokenExpiraEm, usuario: { id, nome, email, fotoUrl, papel, atleticaId } }
+```
+
+- **Cadastro:** limite de 10 tentativas por IP na hora (`CADASTRO`); `versaoTermos ≠ TERMOS_VERSAO` → `409 TERMOS_DESATUALIZADOS`; e-mail existente → `409 EMAIL_JA_CADASTRADO` (checagem prévia e `P2002`, para corrida). Uma transação cria `Usuario`, `VinculoAtletica` (`ATLETA`, atlética padrão), `PreferenciaNotificacao`, `AceiteTermos` e `Sessao`; após o commit emite `usuario.cadastrado`.
+- **Login:** chave do limite `email|ip`, 5 falhas em 15 min → `429` por 15 min (`Retry-After`); a 4ª falha avisa "Última tentativa antes do bloqueio.". E-mail inexistente verifica um hash fictício (mesmo tempo da senha errada) e responde o mesmo `401 CREDENCIAIS_INVALIDAS`. `401 CONTA_DESATIVADA` só com a senha correta. Hash com parâmetros antigos é refeito (`precisaRefazerHash`).
+- **Tokens:** `TokenAcessoService.assinar({ sub, atl, sid })` (HS256, 15 min, `iss`/`aud`); `SessaoService.criar(tx, { usuarioId, atleticaId, userAgent?, ip? })` devolve `{ sessaoId, refreshToken }` com `refreshToken = <sessaoId>.<segredo>` (32 bytes base64url); no banco fica só `hashSegredo(segredo)` (SHA-256 hex), `expiraEm = agora + 30 dias`.
+
+### Limite de tentativas (`RateLimitService`)
+
+Único mecanismo de limite do projeto (convenções §4.6, §11.3; nada de `@nestjs/throttler`), persistido em `TentativaAcesso`. Exportado pelo `AuthModule`:
+
+```ts
+verificar(tipo, chave, { maximo, janelaMs, bloqueioMs? }, agora?): Promise<number> // tentativas restantes
+registrar(tipo, chave, agora?): Promise<void>
+limpar(tipo, chave): Promise<void>
+```
+
+- Bloqueado quando as `maximo` tentativas mais recentes cabem em `janelaMs` e `agora < última + bloqueioMs` (padrão: `janelaMs`). `verificar` lança `ErroLimiteExcedido` → `429 RATE_LIMITED` com `Retry-After` em segundos (o filtro global põe o cabeçalho).
+- Fluxo: `verificar` antes da ação; `registrar` a tentativa (cadastro, presign) ou só a falha (login); `limpar` quando o sucesso zera a contagem.
+- `tipo` ∈ `TipoTentativa`: `LOGIN_FALHA`, `CADASTRO`, `RECUPERACAO_ENVIO`, `CODIGO_TENTATIVA`, `SENHA_CONFIRMACAO_FALHA`, `PRESIGN`, `VERIFICACAO_ENVIO`, `AVISO_ENVIO`. Tipo novo: acrescente ao catálogo (sem migration; `VarChar(30)`). `chave` até 300 caracteres (ex.: `email|ip`, `usuarioId`).
+
 ## Banco de dados e multi-atlética (`src/infra/prisma`, `src/infra/contexto`)
 
 `PrismaModule` e `ContextoModule` são globais (importados no `AppModule`): injete `PrismaService` e, se precisar, `ContextoAtletica`. O `PrismaService` conecta na subida e desconecta no `app.close()` (inclusive nos sinais de término, `enableShutdownHooks`).
@@ -313,7 +339,7 @@ Pública (`@Publico()`): a tela de login já usa a marca. Resposta validada por 
 
 ## Senhas (`src/infra/senha`)
 
-Importe `SenhaModule` e injete `SenhaService`: `hash(senha)` (Argon2id, `@node-rs/argon2`, parâmetros em `senha.config.ts` — convenções §5) e `verificar(hash, senha)` (`false` também para hash malformado). Valide a entrada com `senhaSchema` de `@atletica/shared` (política do UC06), sem redefini-la.
+Importe `SenhaModule` e injete `SenhaService`: `hash(senha)` (Argon2id, `@node-rs/argon2`, parâmetros em `senha.config.ts` — convenções §5) e `verificar(hash, senha)` (`false` também para hash malformado); `precisaRefazerHash(hash)` indica hash gerado com outros parâmetros (refeito no login). Valide a entrada com `senhaSchema` de `@atletica/shared` (política do UC06), sem redefini-la.
 
 ## E-mail transacional (`src/infra/email`)
 
@@ -392,7 +418,7 @@ Uma linha JSON por requisição (`pino-pretty` só com `NODE_ENV=development`), 
 Nível: `info`; `warn` para 4xx; `error` para 5xx; `debug` para `GET /api/v1/health`.
 
 - **Nunca** vão para o log: corpo da requisição/resposta, URL e query string, cabeçalhos.
-- `redact` (`[REDACTED]`) em `authorization`, `cookie`, `senha`, `senhaAtual`, `novaSenha`, `confirmacaoSenha`, `refreshToken`, `accessToken`, `codigo`, `tokenPush` e `email`, no primeiro nível e um nível abaixo (`{ corpo: { senha } }`). Mais fundo que isso não é redigido: não logue objetos de entrada inteiros.
+- `redact` (`[REDACTED]`) em `authorization`, `cookie`, `senha`, `senhaAtual`, `novaSenha`, `confirmacaoSenha`, `refreshToken`, `accessToken`, `codigo`, `tokenPush` e `email`, no primeiro nível e um nível abaixo (`{ corpo: { senha } }`), além de `req.body.senha`, `req.body.refreshToken`, `res.body.accessToken` e `res.body.refreshToken` (#57; `test/auth/logs-sem-segredos.e2e-spec.ts` garante que senha e tokens não aparecem no log). Mais fundo que isso não é redigido: não logue objetos de entrada inteiros.
 - Consultas Prisma acima de **500 ms** geram `warn` `"Consulta lenta"` com `model`, `operation` e `durationMs`, sem os parâmetros.
 
 **Onde ver na Railway:** serviço da API → aba _Deployments_ → _View logs_ (ou _Observability_). Filtre por `@requestId:<uuid>` ou `@level:50` (erros). A retenção é a do plano da Railway.
