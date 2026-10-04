@@ -184,7 +184,7 @@ jobs:
         if: steps.filtro.outputs.shared == 'true'
         run: pnpm --filter @atletica/shared test
 
-  # Sintaxe e opções do cenário k6 (#83) e validação dos workflows; o k6 nunca roda aqui.
+  # O k6 nunca roda aqui: só valida o cenário (#83).
   carga:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -199,8 +199,18 @@ jobs:
       - name: k6 inspect
         if: steps.filtro.outputs.carga == 'true'
         run: k6 inspect tests/carga/cenario-atletas.js > /dev/null
+
+  workflows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filtro
+        with:
+          filters: .github/filtros-ci.yml
       - name: actionlint
-        if: steps.filtro.outputs.carga == 'true'
+        if: steps.filtro.outputs.workflows == 'true'
         uses: docker://rhysd/actionlint:1.7.12
         with:
           args: -color

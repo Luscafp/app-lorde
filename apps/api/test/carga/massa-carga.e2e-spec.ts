@@ -170,6 +170,21 @@ describe('Massa de carga (#83)', () => {
     await expect(new SenhaService().verificar(usuario.senhaHash, 'carga2026')).resolves.toBe(true)
   })
 
+  it('eventos futuros vencidos são repostos na nova execução', async () => {
+    await semearBase()
+    await executarSeedCarga(ENV_CARGA)
+    await prismaTeste.evento.updateMany({
+      where: { status: 'AGENDADO' },
+      data: { inicio: new Date(Date.now() - 86_400_000) },
+    })
+
+    await executarSeedCarga(ENV_CARGA)
+    expect(
+      await prismaTeste.evento.count({ where: { status: 'AGENDADO', inicio: { gt: new Date() } } }),
+    ).toBe(200)
+    expect(await prismaTeste.evento.count({ where: { status: 'FINALIZADO' } })).toBe(100)
+  })
+
   it('nova CARGA_SENHA é regravada nos usuários de carga', async () => {
     await semearBase()
     await executarSeedCarga(ENV_CARGA)

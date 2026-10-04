@@ -1,5 +1,4 @@
-// Teste de carga RNF05 (200 atletas simultâneos mantendo o RNF03) — épico #30 §3.6, issue #83.
-// Uso e variáveis: tests/carga/README.md.
+// RNF05 (épico #30 §3.6); uso em tests/carga/README.md.
 import { check, sleep } from 'k6'
 import http from 'k6/http'
 
@@ -28,7 +27,7 @@ const cenarios = {
     gracefulRampDown: '30s',
   },
 }
-// Opcional [Sugestão]: mede o custo do Argon2id com logins reais, fora dos thresholds.
+// [Sugestão] fora dos thresholds.
 if (LOGINS_POR_MINUTO > 0) {
   cenarios.logins = {
     executor: 'constant-arrival-rate',
@@ -54,8 +53,7 @@ const ROTAS = [
   'POST /auth/refresh',
   'POST /auth/login',
 ]
-// O k6 só reporta submétricas citadas em thresholds: `max>=0` nunca falha e põe p50/p95/p99 de
-// cada rota no resumo exportado.
+// `max>=0` nunca falha: só faz o k6 exportar os percentis de cada rota.
 const porRota = Object.fromEntries(
   ROTAS.map((rota) => [`http_req_duration{rota:${rota}}`, ['max>=0']]),
 )
@@ -89,8 +87,49 @@ function sessaoDe(resposta) {
   }
 }
 
-// Uma sessão por VU (o refresh rotaciona o token: VUs não podem compartilhar sessão). O login
-// acontece só aqui, para não medir o Argon2id a cada iteração.
+function autenticado(sessao) {
+  return { ...JSON_HEADERS, Authorization: `Bearer ${sessao.accessToken}` }
+}
+
+function consultaDeSetup(sessao, caminho) {
+  return {
+    method: 'GET',
+    url: `${BASE}${caminho}`,
+    params: { headers: autenticado(sessao), tags: { tipo: 'setup' } },
+  }
+}
+
+// Só eventos futuros AGENDADO do próprio time aceitam resposta (#24).
+function eventosRespondiveis(sessoes) {
+  const timeDe = http
+    .batch(sessoes.map((s) => consultaDeSetup(s, '/me')))
+    .map((r) => (r.status === 200 ? (r.json('times') || [])[0]?.id : undefined))
+  const timeIds = [...new Set(timeDe.filter(Boolean))]
+  const agora = Date.now() + 60_000
+  const respostas = http.batch(
+    timeIds.map((timeId) =>
+      consultaDeSetup(
+        sessoes[timeDe.indexOf(timeId)],
+        `/eventos?status=AGENDADO&timeId=${timeId}&page=1&limit=20`,
+      ),
+    ),
+  )
+  const porTime = Object.fromEntries(
+    timeIds.map((timeId, i) => [
+      timeId,
+      itens(respostas[i])
+        .filter((e) => e.souMembro && Date.parse(e.inicio) > agora)
+        .map((e) => e.id),
+    ]),
+  )
+  const eventos = timeDe.map((timeId) => porTime[timeId] || [])
+  if (eventos.every((ids) => ids.length === 0)) {
+    throw new Error('Nenhum evento futuro da massa para responder: rode o seed-carga.')
+  }
+  return eventos
+}
+
+// Uma sessão por VU: o refresh rotaciona o token.
 export function setup() {
   if (!CARGA_SENHA) throw new Error('Defina CARGA_SENHA (a mesma usada no seed-carga).')
   const sessoes = []
@@ -113,20 +152,15 @@ export function setup() {
       sessoes.push(sessaoDe(resposta))
     }
   }
-  return { sessoes }
+  return { sessoes, eventos: eventosRespondiveis(sessoes) }
 }
 
-// Estado de cada VU (cada VU tem o próprio runtime JS).
 let sessao
-let meusTimes = []
 let eventosVistos = []
 let eventosParaResponder = []
 
 function params(tipo, rota) {
-  return {
-    headers: { ...JSON_HEADERS, Authorization: `Bearer ${sessao.accessToken}` },
-    tags: { tipo, rota },
-  }
+  return { headers: autenticado(sessao), tags: { tipo, rota } }
 }
 
 function consultar(rota, caminho) {
@@ -160,25 +194,11 @@ function detalharEvento() {
   if (evento) consultar('GET /eventos/:id', `/eventos/${evento.id}`)
 }
 
-function carregarMe() {
-  const resposta = consultar('GET /me', '/me')
-  if (resposta.status === 200) meusTimes = (resposta.json('times') || []).map((t) => t.id)
-}
-
-// Só eventos futuros AGENDADO do próprio time aceitam resposta (#24).
 function responderParticipacao() {
-  if (meusTimes.length === 0) carregarMe()
-  if (eventosParaResponder.length === 0 && meusTimes.length > 0) {
-    const timeId = meusTimes[Math.floor(Math.random() * meusTimes.length)]
-    const agora = Date.now() + 60_000
-    eventosParaResponder = itens(
-      consultar('GET /eventos', `/eventos?status=AGENDADO&timeId=${timeId}&page=1&limit=20`),
-    ).filter((e) => e.souMembro && Date.parse(e.inicio) > agora)
-  }
-  const evento = eventosParaResponder[Math.floor(Math.random() * eventosParaResponder.length)]
-  if (!evento) return
+  const eventoId = eventosParaResponder[Math.floor(Math.random() * eventosParaResponder.length)]
+  if (!eventoId) return
   const resposta = http.put(
-    `${BASE}/eventos/${evento.id}/participacao`,
+    `${BASE}/eventos/${eventoId}/participacao`,
     JSON.stringify({ confirmado: Math.random() < 0.7 }),
     params('gravacao', 'PUT /eventos/:id/participacao'),
   )
@@ -191,7 +211,7 @@ const ACOES = [
   [15, detalharEvento],
   [15, () => consultar('GET /noticias', '/noticias?page=1&limit=20')],
   [10, () => consultar('GET /eventos (placar)', '/eventos?periodo=PASSADOS&status=FINALIZADO')],
-  [10, carregarMe],
+  [10, () => consultar('GET /me', '/me')],
   [5, () => consultar('GET /atletica', '/atletica')],
   [5, () => consultar('GET /times', '/times')],
   [10, responderParticipacao],
@@ -209,7 +229,11 @@ function sortearAcao() {
 }
 
 export function atleta(dados) {
-  sessao ??= dados.sessoes[(__VU - 1) % dados.sessoes.length]
+  if (!sessao) {
+    const i = (__VU - 1) % dados.sessoes.length
+    sessao = dados.sessoes[i]
+    eventosParaResponder = dados.eventos[i]
+  }
   if (Date.now() > sessao.expiraEm - 60_000) renovarSessao()
   sortearAcao()()
   sleep(3 + Math.random() * 5)

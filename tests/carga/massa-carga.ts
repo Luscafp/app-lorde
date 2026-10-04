@@ -2,14 +2,20 @@ export type EnvCarga = Record<string, string | undefined>
 
 export const MENSAGEM_AMBIENTE_RECUSADO = 'Massa de carga só pode ser criada em homologação.'
 
-/** Falha dos scripts de carga com mensagem para quem os executa; nunca inclui valores das variáveis. */
+/** Nunca inclui valores das variáveis de ambiente. */
 export class ErroCarga extends Error {
   override readonly name = 'ErroCarga'
 }
 
 export const MASSA = { usuarios: 200, times: 10, eventosPorTime: 30, noticias: 100 } as const
 
-/** Prefixo dos nomes de times, títulos de notícias e local dos eventos da massa. */
+export interface ResumoMassaCarga {
+  usuarios: number
+  times: number
+  eventos: number
+  noticias: number
+}
+
 export const PREFIXO_CARGA = '[Carga]'
 export const SLUG_ADVERSARIA_CARGA = 'carga-adversaria'
 export const FILTRO_EMAIL_CARGA = { startsWith: 'carga+', endsWith: '@teste.local' }
@@ -20,6 +26,7 @@ const tresDigitos = (n: number) => String(n).padStart(3, '0')
 export const emailCarga = (n: number) => `carga+${tresDigitos(n)}@teste.local`
 export const nomeUsuarioCarga = (n: number) => `Atleta Carga ${tresDigitos(n)}`
 export const nomeTimeCarga = (n: number) => `${PREFIXO_CARGA} Time ${doisDigitos(n)}`
+export const nomeAdversarioCarga = (n: number) => `${PREFIXO_CARGA} Adversário ${doisDigitos(n)}`
 export const tituloNoticiaCarga = (n: number) => `${PREFIXO_CARGA} Notícia ${tresDigitos(n)}`
 
 function nomeDoBanco(url: string): string | undefined {
@@ -44,10 +51,7 @@ export function mesmoBanco(a: string, b: string): boolean {
   }
 }
 
-/**
- * Trava de ambiente (#83): só `AMBIENTE=homologacao`, ou `AMBIENTE=teste` em banco `*_test`;
- * recusa `APP_ENV=producao` e a URL de `DATABASE_URL_PRODUCAO`. Roda antes de abrir conexão.
- */
+/** Trava de ambiente (#83); roda antes de abrir conexão. */
 export function validarAmbienteDeCarga(env: EnvCarga): string {
   const url = env.DATABASE_URL?.trim()
   const ambientePermitido =
@@ -65,7 +69,6 @@ export function validarAmbienteDeCarga(env: EnvCarga): string {
   return url
 }
 
-/** Execução pela linha de comando: resumo no stdout; falha com código 1 e só a mensagem. */
 export function executarComoScript<T>(tarefa: () => Promise<T>, resumir: (r: T) => string): void {
   tarefa()
     .then((resultado) => process.stdout.write(`${resumir(resultado)}\n`))

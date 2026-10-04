@@ -22,10 +22,12 @@ const SEM_ESCOPO_PERMITIDO = [
   'apps/api/src/modules/health/**',
   'apps/api/src/infra/**',
   'apps/api/prisma/seed*.ts',
+  'tests/carga/seed-carga.ts',
+  'tests/carga/limpar-carga.ts',
 ]
 const mensagemSemEscopo =
   'prisma.semEscopo ignora o filtro por atlética: use prisma.db. Permitido só em modules/auth, ' +
-  'modules/usuarios/conta*, modules/health, infra e prisma/seed* (convenções §3).'
+  'modules/usuarios/conta*, modules/health, infra, prisma/seed* e scripts de carga (convenções §3).'
 const usoSemEscopo = [
   "MemberExpression[property.name='semEscopo']",
   "MemberExpression[property.value='semEscopo']",
@@ -76,7 +78,7 @@ export default tseslint.config(
     rules: { 'no-console': 'error' },
   },
   {
-    files: ['apps/api/**/*.ts'],
+    files: ['apps/api/**/*.ts', 'tests/carga/**/*.ts'],
     ignores: SEM_ESCOPO_PERMITIDO,
     rules: { 'no-restricted-syntax': ['error', ...usoSemEscopo] },
   },

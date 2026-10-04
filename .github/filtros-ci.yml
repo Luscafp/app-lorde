@@ -24,6 +24,8 @@ api:
 
 carga:
   - tests/carga/**
+
+workflows:
   - .github/workflows/**
   - .github/filtros-ci.yml
 

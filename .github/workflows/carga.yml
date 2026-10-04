@@ -1,7 +1,6 @@
 name: Teste de carga (k6)
 
-# RNF05 (épico #30 §3.6, #83). Só manual: nunca roda em push ou PR. A massa de carga precisa
-# existir antes (tests/carga/README.md); a execução contra homologação é a #95.
+# Só manual (#83); a massa precisa existir antes: tests/carga/README.md.
 on:
   workflow_dispatch:
     inputs:

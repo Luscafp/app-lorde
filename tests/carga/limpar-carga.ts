@@ -2,27 +2,18 @@ import { criarClientesSeed } from '../../apps/api/prisma/seed-cliente'
 import {
   executarComoScript,
   FILTRO_EMAIL_CARGA,
-  PREFIXO_CARGA,
+  MASSA,
+  nomeTimeCarga,
   SLUG_ADVERSARIA_CARGA,
   validarAmbienteDeCarga,
   type EnvCarga,
+  type ResumoMassaCarga,
 } from './massa-carga'
 
-export interface ResumoLimpezaCarga {
-  usuarios: number
-  times: number
-  eventos: number
-  noticias: number
-}
+const NOMES_TIMES_CARGA = Array.from({ length: MASSA.times }, (_, i) => nomeTimeCarga(i + 1))
 
-/**
- * Remove a massa de carga: usuários `carga+*@teste.local`, times `[Carga] *` da atlética padrão e
- * da adversária `carga-adversaria`, e o que depende deles (participações, eventos, elencos,
- * solicitações, notícias). Uma transação, na ordem das FKs; nada fora da massa é tocado.
- */
-export async function executarLimpezaCarga(
-  env: EnvCarga = process.env,
-): Promise<ResumoLimpezaCarga> {
+/** Uma transação, na ordem das FKs. Usa `semEscopo` porque cruza a atlética adversária. */
+export async function executarLimpezaCarga(env: EnvCarga = process.env): Promise<ResumoMassaCarga> {
   const databaseUrl = validarAmbienteDeCarga(env)
   const { semEscopo } = criarClientesSeed(databaseUrl)
 
@@ -36,7 +27,7 @@ export async function executarLimpezaCarga(
           await tx.time.findMany({
             where: {
               OR: [
-                { nome: { startsWith: PREFIXO_CARGA }, atletica: { usaAplicativo: true } },
+                { nome: { in: NOMES_TIMES_CARGA }, atletica: { usaAplicativo: true } },
                 { atletica: { slug: SLUG_ADVERSARIA_CARGA } },
               ],
             },

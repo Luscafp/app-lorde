@@ -9,6 +9,7 @@ import {
   executarComoScript,
   FILTRO_EMAIL_CARGA,
   MASSA,
+  nomeAdversarioCarga,
   nomeTimeCarga,
   nomeUsuarioCarga,
   PREFIXO_CARGA,
@@ -16,24 +17,15 @@ import {
   tituloNoticiaCarga,
   validarAmbienteDeCarga,
   type EnvCarga,
+  type ResumoMassaCarga,
 } from './massa-carga'
-
-export interface ResumoSeedCarga {
-  usuarios: number
-  times: number
-  eventos: number
-  noticias: number
-}
 
 const DIA_MS = 24 * 60 * 60 * 1000
 const EVENTOS_FUTUROS_POR_TIME = 20
+const JOGOS_FINALIZADOS_POR_TIME = MASSA.eventosPorTime - EVENTOS_FUTUROS_POR_TIME
 
-/**
- * Massa do teste de carga (épico #30 §3.6): 200 atletas `carga+NNN@teste.local`, 10 times com
- * elenco, 300 eventos e 100 notícias publicadas na atlética padrão. Idempotente: completa o que
- * falta e regrava a senha dos usuários de carga com `CARGA_SENHA`.
- */
-export async function executarSeedCarga(env: EnvCarga = process.env): Promise<ResumoSeedCarga> {
+/** Idempotente: completa o que falta e regrava a senha com `CARGA_SENHA`. */
+export async function executarSeedCarga(env: EnvCarga = process.env): Promise<ResumoMassaCarga> {
   const databaseUrl = validarAmbienteDeCarga(env)
   const senha = senhaSchema.safeParse(env.CARGA_SENHA)
   if (!senha.success) {
@@ -76,7 +68,7 @@ async function semearMassa(
   tx: TransacaoComEscopo,
   atleticaId: string,
   senhaHash: string,
-): Promise<ResumoSeedCarga> {
+): Promise<ResumoMassaCarga> {
   const modalidadeIds = (
     await tx.modalidade.findMany({ where: { ativa: true }, orderBy: { nome: 'asc' } })
   ).map(({ id }) => id)
@@ -104,7 +96,6 @@ async function semearMassa(
   return { usuarios, times: times.length, eventos, noticias }
 }
 
-/** Devolve os ids na ordem de `carga+001` a `carga+200`. */
 async function semearUsuarios(
   tx: TransacaoComEscopo,
   atleticaId: string,
@@ -170,7 +161,7 @@ async function semearTimes(
   return times
 }
 
-/** Um time adversário por modalidade, numa atlética sem app (os jogos exigem adversário). */
+/** Os jogos exigem adversário: um time por modalidade numa atlética sem app. */
 async function semearAdversarios(
   tx: TransacaoComEscopo,
   modalidadeIds: string[],
@@ -186,13 +177,12 @@ async function semearAdversarios(
   })
   const adversarios = new Map<string, string>()
   for (const [i, modalidadeId] of modalidadeIds.entries()) {
-    const nome = `${PREFIXO_CARGA} Adversário ${String(i + 1).padStart(2, '0')}`
+    const nome = nomeAdversarioCarga(i + 1)
     adversarios.set(modalidadeId, (await garantirTime(tx, adversaria.id, modalidadeId, nome)).id)
   }
   return adversarios
 }
 
-/** O atleta `carga+NNN` joga no time `((NNN - 1) % 10) + 1`. */
 async function semearElenco(
   tx: TransacaoComEscopo,
   atleticaId: string,
@@ -213,15 +203,14 @@ async function semearElenco(
   await tx.membroTime.createMany({ data })
 }
 
+const faltam = (alvo: number, atual: number) => Math.max(0, alvo - atual)
+
 function resultadoDe(placarTime: number, placarAdversario: number): Resultado {
   if (placarTime > placarAdversario) return 'VITORIA'
   return placarTime < placarAdversario ? 'DERROTA' : 'EMPATE'
 }
 
-/**
- * Por time: 20 eventos futuros agendados (treinos e jogos alternados, a cada 3 dias a partir de
- * amanhã) e 10 jogos finalizados com placar. Times que já têm eventos são mantidos.
- */
+/** Completa os eventos futuros que já venceram, para a massa servir a qualquer data. */
 async function semearEventos(
   tx: TransacaoComEscopo,
   atleticaId: string,
@@ -229,36 +218,43 @@ async function semearEventos(
   adversarios: Map<string, string>,
   criadoPorId: string,
 ): Promise<void> {
-  const hoje = new Date()
+  const agora = new Date()
+  const hoje = new Date(agora)
   hoje.setUTCHours(22, 0, 0, 0)
   const emDias = (dias: number) => new Date(hoje.getTime() + dias * DIA_MS)
 
   for (const [t, time] of times.entries()) {
-    if ((await tx.evento.count({ where: { timeId: time.id } })) > 0) continue
+    const [futuros, finalizados] = await Promise.all([
+      tx.evento.count({ where: { timeId: time.id, status: 'AGENDADO', inicio: { gt: agora } } }),
+      tx.evento.count({ where: { timeId: time.id, status: 'FINALIZADO' } }),
+    ])
     const timeAdversarioId = adversarios.get(time.modalidadeId) as string
     const comum = { atleticaId, timeId: time.id, criadoPorId, local: `${PREFIXO_CARGA} Quadra` }
 
-    const data = Array.from({ length: MASSA.eventosPorTime }, (_, k) => {
-      if (k < EVENTOS_FUTUROS_POR_TIME) {
-        const inicio = emDias(1 + k * 3)
-        return k % 2 === 0
-          ? { ...comum, tipo: 'TREINO' as const, inicio }
-          : { ...comum, tipo: 'JOGO' as const, inicio, timeAdversarioId }
-      }
-      const placarTime = (k + t) % 4
-      const placarAdversario = (k * 3 + t) % 3
-      return {
-        ...comum,
-        tipo: 'JOGO' as const,
-        inicio: emDias(-3 * (k - EVENTOS_FUTUROS_POR_TIME + 1)),
-        timeAdversarioId,
-        status: 'FINALIZADO' as const,
-        placarTime,
-        placarAdversario,
-        resultado: resultadoDe(placarTime, placarAdversario),
-      }
+    const agendados = Array.from({ length: faltam(EVENTOS_FUTUROS_POR_TIME, futuros) }, (_, k) => {
+      const inicio = emDias(1 + k * 3)
+      return k % 2 === 0
+        ? { ...comum, tipo: 'TREINO' as const, inicio }
+        : { ...comum, tipo: 'JOGO' as const, inicio, timeAdversarioId }
     })
-    await tx.evento.createMany({ data })
+    const jogos = Array.from(
+      { length: faltam(JOGOS_FINALIZADOS_POR_TIME, finalizados) },
+      (_, k) => {
+        const placarTime = (k + t) % 4
+        const placarAdversario = (k * 3 + t) % 3
+        return {
+          ...comum,
+          tipo: 'JOGO' as const,
+          inicio: emDias(-3 * (k + 1)),
+          timeAdversarioId,
+          status: 'FINALIZADO' as const,
+          placarTime,
+          placarAdversario,
+          resultado: resultadoDe(placarTime, placarAdversario),
+        }
+      },
+    )
+    await tx.evento.createMany({ data: [...agendados, ...jogos] })
   }
 }
 

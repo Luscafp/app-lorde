@@ -9,7 +9,7 @@ Valida o **RNF05**: 200 atletas simultâneos mantendo o **RNF03** (p95 ≤ 500 m
 | `limpar-carga.ts`    | Remove a massa de carga e nada mais.                                   |
 | `massa-carga.ts`     | Trava de ambiente e nomes da massa, compartilhados pelos dois scripts. |
 
-O teste de integração dos scripts fica em `apps/api/test/carga/` e roda na CI com os demais (`pnpm --filter api test`). A CI também roda `k6 inspect` no cenário e o `actionlint` nos workflows (job `carga`).
+O teste de integração dos scripts fica em `apps/api/test/carga/` e roda na CI com os demais (`pnpm --filter api test`). A CI também roda `k6 inspect` no cenário (job `carga`) e o `actionlint` nos workflows (job `workflows`).
 
 ## Pré-requisitos
 
@@ -44,7 +44,7 @@ O teste de integração dos scripts fica em `apps/api/test/carga/` e roda na CI 
 - 300 eventos (30 por time): 20 futuros `AGENDADO` (treinos e jogos alternados, a partir de amanhã, a cada 3 dias) e 10 jogos `FINALIZADO` com placar.
 - 100 notícias publicadas `[Carga] Notícia 001` … `100`.
 
-O seed é idempotente: completa o que falta e regrava a senha dos usuários de carga com a `CARGA_SENHA` atual. A limpeza remove os usuários `carga+*@teste.local`, os times `[Carga] *` da atlética padrão, a atlética `carga-adversaria` e tudo que depende deles (participações, eventos, elencos, solicitações, sessões, notícias). Os eventos futuros vencem em ~60 dias: para repetir o teste depois disso, limpe e semeie de novo.
+O seed é idempotente: completa o que falta e regrava a senha dos usuários de carga com a `CARGA_SENHA` atual. A limpeza remove os usuários `carga+*@teste.local`, os times `[Carga] *` da atlética padrão, a atlética `carga-adversaria` e tudo que depende deles (participações, eventos, elencos, solicitações, sessões, notícias). Os eventos futuros vencem em ~60 dias; rodar o seed de novo repõe os 20 futuros de cada time.
 
 ## Execução em homologação
 
@@ -82,7 +82,7 @@ echo $?   # 99
 
 ## Cenário
 
-- `setup()` faz **um login por VU** (cada VU tem a própria sessão, porque o refresh rotaciona o token) e reaproveita os tokens: o Argon2id não é medido a cada iteração. Requisições do `setup` têm a tag `tipo:setup` e ficam fora dos thresholds de latência.
+- `setup()` faz **um login por VU** (cada VU tem a própria sessão, porque o refresh rotaciona o token) e reaproveita os tokens: o Argon2id não é medido a cada iteração. Também descobre, por `GET /me` e `GET /eventos?status=AGENDADO&timeId=`, os eventos que cada VU pode responder, para que os 10% de participação sejam só `PUT`. Requisições do `setup` têm a tag `tipo:setup` e ficam fora dos thresholds de latência.
 - Cada iteração sorteia uma requisição e pausa 3–8 s (_think time_). O VU renova a sessão sozinho quando o access token está a menos de 1 min de vencer.
 
 | Peso | Requisição                                                      | Tag `tipo` |
