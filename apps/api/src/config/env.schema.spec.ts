@@ -136,6 +136,15 @@ describe('validarEnv', () => {
     })
   })
 
+  describe('R2_PUBLIC_BASE_URL', () => {
+    it('é opcional, vazia conta como ausente e exige URL', () => {
+      expect(validarEnv({ ...valida, R2_PUBLIC_BASE_URL: '' }).R2_PUBLIC_BASE_URL).toBeUndefined()
+      expect(() => validarEnv({ ...valida, R2_PUBLIC_BASE_URL: 'cdn' })).toThrow(
+        /R2_PUBLIC_BASE_URL/,
+      )
+    })
+  })
+
   describe('Sentry (#48)', () => {
     it('SENTRY_DSN é opcional e vazia conta como ausente', () => {
       expect(validarEnv(valida).SENTRY_DSN).toBeUndefined()

@@ -7,4 +7,6 @@ regexes = [
   '''troque-por-um-segredo-aleatorio-de-32-caracteres-ou-mais''',
   '''segredo-jwt-de-teste-com-pelo-menos-32-caracteres''',
   '''segredo-curto-31-caracteres-xxx''',
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.\.\.''',
+  '''6f1c2a7e-2f5b-4c39-9a0e-3f3b1b8d2c11\.Q2x0b2tlbi1zZWNyZXQtZXhlbXBsby0zMmJ5dGVz''',
 ]

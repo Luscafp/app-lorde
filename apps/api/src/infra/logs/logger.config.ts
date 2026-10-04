@@ -27,6 +27,10 @@ const CAMPOS_SENSIVEIS = [
 export const CAMINHOS_REDIGIDOS = [
   'req.headers.authorization',
   'req.headers.cookie',
+  'req.body.senha',
+  'req.body.refreshToken',
+  'res.body.accessToken',
+  'res.body.refreshToken',
   ...CAMPOS_SENSIVEIS.flatMap((campo) => [campo, `*.${campo}`]),
 ]
 

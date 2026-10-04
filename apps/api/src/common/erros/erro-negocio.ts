@@ -24,3 +24,13 @@ export class ErroNegocio extends Error {
     super(message)
   }
 }
+
+/** `429 RATE_LIMITED`; o filtro global devolve o cabeçalho `Retry-After` (convenções §4.1). */
+export class ErroLimiteExcedido extends ErroNegocio {
+  constructor(
+    readonly segundosParaNovaTentativa: number,
+    message = 'Muitas tentativas. Tente novamente mais tarde.',
+  ) {
+    super(429, 'RATE_LIMITED', message)
+  }
+}

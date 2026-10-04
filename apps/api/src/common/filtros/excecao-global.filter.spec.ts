@@ -14,7 +14,7 @@ import * as Sentry from '@sentry/nestjs'
 import { ZodValidationException } from 'nestjs-zod'
 import { z } from 'zod'
 import { ErroAtleticaContextoAusente, ErroAtleticaDivergente } from '../../infra/contexto/erros'
-import { ErroNegocio } from '../erros/erro-negocio'
+import { ErroLimiteExcedido, ErroNegocio } from '../erros/erro-negocio'
 import { ExcecaoGlobalFilter, MENSAGEM_ERRO_INTERNO, mapearExcecao } from './excecao-global.filter'
 
 jest.mock('@sentry/nestjs', () => ({ captureException: jest.fn() }))
@@ -250,13 +250,14 @@ describe('ExcecaoGlobalFilter', () => {
   function criarHost() {
     const json = jest.fn()
     const status = jest.fn(() => ({ json }))
+    const setHeader = jest.fn()
     const host = {
       switchToHttp: () => ({
         getRequest: () => ({ method: 'GET', originalUrl: '/api/v1/x' }),
-        getResponse: () => ({ status }),
+        getResponse: () => ({ status, setHeader }),
       }),
     } as unknown as ArgumentsHost
-    return { host, status, json }
+    return { host, status, json, setHeader }
   }
 
   it('responde com o status e o corpo mapeados', () => {
@@ -269,6 +270,20 @@ describe('ExcecaoGlobalFilter', () => {
       message: 'Inválido.',
       details: [],
     })
+  })
+
+  it('ErroLimiteExcedido → 429 RATE_LIMITED com Retry-After', () => {
+    const { host, status, json, setHeader } = criarHost()
+    new ExcecaoGlobalFilter().catch(new ErroLimiteExcedido(900), host)
+    expect(status).toHaveBeenCalledWith(429)
+    expect(setHeader).toHaveBeenCalledWith('Retry-After', '900')
+    expect(json).toHaveBeenCalledWith(expect.objectContaining({ code: 'RATE_LIMITED' }))
+  })
+
+  it('demais erros não definem Retry-After', () => {
+    const { host, setHeader } = criarHost()
+    new ExcecaoGlobalFilter().catch(new ErroNegocio(429, 'RATE_LIMITED', 'x'), host)
+    expect(setHeader).not.toHaveBeenCalled()
   })
 
   it('500 → captura no Sentry', () => {

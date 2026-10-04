@@ -13,7 +13,7 @@ import { ZodError } from 'zod'
 import { ErroAtleticaContextoAusente, ErroAtleticaDivergente } from '../../infra/contexto/erros'
 import { rotaDaRequisicao } from '../../infra/logs/rota'
 import { capturarErroHttp } from '../../infra/sentry/sentry'
-import { DetalheErro, ErroNegocio, RespostaErro } from '../erros/erro-negocio'
+import { DetalheErro, ErroLimiteExcedido, ErroNegocio, RespostaErro } from '../erros/erro-negocio'
 
 export const MENSAGEM_ERRO_INTERNO = 'Ocorreu um erro inesperado. Tente novamente.'
 
@@ -177,6 +177,9 @@ export class ExcecaoGlobalFilter implements ExceptionFilter {
       this.logger.warn({ ...rota, statusCode: corpo.statusCode, code: corpo.code }, corpo.message)
     }
 
+    if (excecao instanceof ErroLimiteExcedido) {
+      resposta.setHeader('Retry-After', String(excecao.segundosParaNovaTentativa))
+    }
     resposta.status(corpo.statusCode).json(corpo)
   }
 }
