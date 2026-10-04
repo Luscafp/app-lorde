@@ -12,7 +12,7 @@ import {
   TAMANHO_MAXIMO_IMAGEM,
   temNivelMinimo,
   TIPOS_IMAGEM,
-  type PresignRequest,
+  type PresignPedido,
   type PresignResposta,
 } from '@atletica/shared'
 import { Inject, Injectable, Logger } from '@nestjs/common'
@@ -22,7 +22,7 @@ import { erroSemPermissao } from '../auth/erros'
 import { RateLimitService, TipoTentativa, type LimiteTentativas } from '../auth/rate-limit.service'
 import type { UsuarioAutenticado } from '../auth/tipos'
 import { ASSINAR_URL, type AssinarUrl } from './armazenamento'
-import { gerarChave, lerChave } from './chaves'
+import { ehConteudoDaAtletica, gerarChave, lerChave } from './chaves'
 import { erroArmazenamentoIndisponivel, erroUploadInvalido, erroUploadNaoEncontrado } from './erros'
 
 export const EXPIRACAO_PRESIGN_SEGUNDOS = 300
@@ -58,11 +58,11 @@ export class UploadsService {
   }
 
   async presign(
-    { finalidade, contentType, tamanhoBytes }: PresignRequest,
+    { finalidade, contentType, tamanhoBytes }: PresignPedido,
     usuario: Pick<UsuarioAutenticado, 'id' | 'atleticaId' | 'papel'>,
     agora: Date = new Date(),
   ): Promise<PresignResposta> {
-    if (finalidade !== FinalidadeUpload.PERFIL && !temNivelMinimo(usuario.papel, Papel.DIRETOR)) {
+    if (ehConteudoDaAtletica(finalidade) && !temNivelMinimo(usuario.papel, Papel.DIRETOR)) {
       throw erroSemPermissao()
     }
     await this.rateLimit.verificar(TipoTentativa.PRESIGN, usuario.id, LIMITE_PRESIGN, agora)
@@ -99,7 +99,7 @@ export class UploadsService {
   /** Formato, posse, atlética e objeto no R2; chame só quando a `key` mudar. */
   async validarKey({ key, finalidade, usuarioId, atleticaId }: ValidacaoKey): Promise<void> {
     const dono = lerChave(key, finalidade)
-    const daAtletica = finalidade === FinalidadeUpload.PERFIL || dono?.atleticaId === atleticaId
+    const daAtletica = !ehConteudoDaAtletica(finalidade) || dono?.atleticaId === atleticaId
     if (dono?.usuarioId !== usuarioId || !daAtletica) throw erroUploadInvalido()
 
     const objeto = await this.consultar(key)

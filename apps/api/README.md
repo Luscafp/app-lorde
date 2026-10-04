@@ -197,7 +197,7 @@ Imagens vão do app direto ao Cloudflare R2 por URL `PUT` pré-assinada (épico 
 
 ### `POST /api/v1/uploads/presign`
 
-Qualquer autenticado; `NOTICIA` e `BANNER` exigem DIRETOR (conferido no service, `403 FORBIDDEN`). Corpo `presignRequestSchema` (`@atletica/shared`, `.strict()`): `{ finalidade, contentType: image/jpeg|png|webp, tamanhoBytes: 1–5.242.880 }`. Resposta `201 { uploadUrl, key, publicUrl, expiresAt }`, com `Cache-Control: no-store`.
+Qualquer autenticado; `NOTICIA` e `BANNER` exigem DIRETOR (conferido no service, `403 FORBIDDEN`). Corpo `presignPedidoSchema` (`@atletica/shared`, `.strict()`): `{ finalidade, contentType: image/jpeg|png|webp, tamanhoBytes: 1–5.242.880 }`. Resposta `201 { uploadUrl, key, publicUrl, expiresAt }`, com `Cache-Control: no-store`.
 
 - A API gera a chave (o app nunca a escolhe), com a extensão derivada do `contentType`:
 

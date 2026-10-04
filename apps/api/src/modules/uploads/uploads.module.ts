@@ -8,7 +8,7 @@ import { ASSINAR_URL, criarClienteS3 } from './armazenamento'
 import { UploadsController } from './uploads.controller'
 import { UploadsService } from './uploads.service'
 
-/** Presign e `UploadsService` (#54); o `S3Client` e o presigner são trocados por mocks nos testes. */
+/** O `S3Client` e o presigner são providers para serem trocados por mocks nos testes. */
 @Module({
   imports: [AuthModule],
   controllers: [UploadsController],

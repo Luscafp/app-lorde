@@ -63,4 +63,25 @@ describe('lerChave', () => {
   ])('rejeita %s', (_caso, key) => {
     expect(lerChave(key, 'PERFIL')).toBeNull()
   })
+
+  const pastas = [
+    ['NOTICIA', 'noticias'],
+    ['BANNER', 'banners'],
+  ] as const
+  const base = (pasta: string) => `atleticas/${atleticaId}/${pasta}/${usuarioId}`
+
+  it.each(
+    pastas.flatMap(([fin, pasta]) => [
+      [fin, '..', `${base(pasta)}/../${uuid}.jpg`],
+      [fin, 'barra dupla', `atleticas/${atleticaId}//${pasta}/${usuarioId}/${uuid}.jpg`],
+      [fin, 'barra inicial', `/${base(pasta)}/${uuid}.jpg`],
+      [fin, 'segmento a mais', `${base(pasta)}/x/${uuid}.jpg`],
+      [fin, 'sem o autor', `atleticas/${atleticaId}/${pasta}/${uuid}.jpg`],
+      [fin, 'atlética que não é UUID', `atleticas/lorde/${pasta}/${usuarioId}/${uuid}.jpg`],
+      [fin, 'extensão não permitida', `${base(pasta)}/${uuid}.html`],
+      [fin, 'maiúsculas', `${base(pasta).toUpperCase()}/${uuid}.jpg`],
+    ]),
+  )('%s rejeita %s', (fin, _caso, key) => {
+    expect(lerChave(key, fin)).toBeNull()
+  })
 })

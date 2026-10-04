@@ -1,4 +1,4 @@
-/** Uso da imagem enviada ao R2 (épico #9 §3 item 2). Sem enum no Prisma: a chave fica na entidade. */
+/** Uso da imagem enviada ao R2. Sem enum no Prisma: a chave fica na entidade. */
 export const FinalidadeUpload = {
   PERFIL: 'PERFIL',
   NOTICIA: 'NOTICIA',

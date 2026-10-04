@@ -1,7 +1,7 @@
 import {
-  presignRequestSchema,
+  presignPedidoSchema,
   presignRespostaSchema,
-  type PresignRequest,
+  type PresignPedido,
   type PresignResposta,
 } from '@atletica/shared'
 import { Body, Controller, Header, Post } from '@nestjs/common'
@@ -14,16 +14,18 @@ import {
   ApiServiceUnavailableResponse,
   ApiTags,
   ApiTooManyRequestsResponse,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
 import { createZodDto } from 'nestjs-zod'
+import { RESPOSTA_LIMITE_EXCEDIDO } from '../../common/swagger/respostas'
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator'
 import type { UsuarioAutenticado } from '../auth/tipos'
 import { EXPIRACAO_PRESIGN_SEGUNDOS, LIMITE_PRESIGN, UploadsService } from './uploads.service'
 
-class PresignRequestDto extends createZodDto(presignRequestSchema) {}
+class PresignPedidoDto extends createZodDto(presignPedidoSchema) {}
 class PresignRespostaDto extends createZodDto(presignRespostaSchema) {}
 
-const EXEMPLO_PEDIDO: PresignRequest = {
+const EXEMPLO_PEDIDO: PresignPedido = {
   finalidade: 'NOTICIA',
   contentType: 'image/jpeg',
   tamanhoBytes: 734512,
@@ -63,17 +65,18 @@ export class UploadsController {
       `| 429 | \`RATE_LIMITED\` | mais de ${LIMITE_PRESIGN.maximo} pedidos por hora |\n` +
       '| 503 | `ARMAZENAMENTO_INDISPONIVEL` | falha ao assinar (credenciais/R2) |',
   })
-  @ApiBody({ type: PresignRequestDto, examples: { noticia: { value: EXEMPLO_PEDIDO } } })
+  @ApiBody({ type: PresignPedidoDto, examples: { noticia: { value: EXEMPLO_PEDIDO } } })
   @ApiCreatedResponse({ type: PresignRespostaDto, example: EXEMPLO_RESPOSTA })
   @ApiBadRequestResponse({ description: '`VALIDATION_ERROR` (inclui campo desconhecido).' })
   @ApiForbiddenResponse({ description: '`FORBIDDEN`: `NOTICIA` e `BANNER` exigem DIRETOR.' })
+  @ApiUnauthorizedResponse({ description: '`UNAUTHENTICATED` ou `TOKEN_EXPIRED`.' })
   @ApiTooManyRequestsResponse({
+    ...RESPOSTA_LIMITE_EXCEDIDO,
     description: `\`RATE_LIMITED\`: mais de ${LIMITE_PRESIGN.maximo} pedidos por hora.`,
-    headers: { 'Retry-After': { description: 'Segundos até a próxima tentativa.' } },
   })
   @ApiServiceUnavailableResponse({ description: '`ARMAZENAMENTO_INDISPONIVEL`.' })
   presign(
-    @Body() dados: PresignRequestDto,
+    @Body() dados: PresignPedidoDto,
     @UsuarioAtual() usuario: UsuarioAutenticado,
   ): Promise<PresignResposta> {
     return this.uploads.presign(dados, usuario)

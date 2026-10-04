@@ -4,7 +4,7 @@ import { FinalidadeUpload, TAMANHO_MAXIMO_IMAGEM, TIPOS_IMAGEM } from './constan
 const TAMANHO_INVALIDO = 'Informe o tamanho da imagem em bytes.'
 
 /** Corpo de `POST /uploads/presign` (épico #9 §7). */
-export const presignRequestSchema = z
+export const presignPedidoSchema = z
   .object({
     finalidade: z.enum(FinalidadeUpload, { error: 'Finalidade inválida.' }),
     contentType: z.enum(TIPOS_IMAGEM, { error: 'Envie uma imagem JPEG, PNG ou WebP.' }),
@@ -16,4 +16,4 @@ export const presignRequestSchema = z
   })
   .strict()
 
-export type PresignRequest = z.infer<typeof presignRequestSchema>
+export type PresignPedido = z.infer<typeof presignPedidoSchema>

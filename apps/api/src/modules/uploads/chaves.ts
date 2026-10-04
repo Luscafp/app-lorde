@@ -1,26 +1,42 @@
 import { randomUUID } from 'node:crypto'
-import { EXTENSAO_POR_TIPO_IMAGEM, FinalidadeUpload, type TipoImagem } from '@atletica/shared'
+import {
+  EXTENSAO_POR_TIPO_IMAGEM,
+  FinalidadeUpload,
+  FORMATO_CHAVE_UPLOAD,
+  type TipoImagem,
+} from '@atletica/shared'
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
-const ARQUIVO = `${UUID}\\.(?:${Object.values(EXTENSAO_POR_TIPO_IMAGEM).join('|')})`
+const MARCADOR = /\{(usuarioId|atleticaId|uuid|ext)\}/g
 
-const PASTA = { NOTICIA: 'noticias', BANNER: 'banners' } as const
+type Marcador = 'usuarioId' | 'atleticaId' | 'uuid' | 'ext'
 
-const conteudoDaAtletica = (pasta: string) =>
-  new RegExp(`^atleticas/(?<atleticaId>${UUID})/${pasta}/(?<usuarioId>${UUID})/${ARQUIVO}$`)
-
-/** Formatos da convenção §11.5, ancorados: sem `..`, barra extra ou segmento a mais. */
-const PADRAO_CHAVE: Record<FinalidadeUpload, RegExp> = {
-  PERFIL: new RegExp(`^usuarios/(?<usuarioId>${UUID})/perfil/${ARQUIVO}$`),
-  NOTICIA: conteudoDaAtletica(PASTA.NOTICIA),
-  BANNER: conteudoDaAtletica(PASTA.BANNER),
+const GRUPO: Record<Marcador, string> = {
+  usuarioId: `(?<usuarioId>${UUID})`,
+  atleticaId: `(?<atleticaId>${UUID})`,
+  uuid: UUID,
+  ext: `(?:${Object.values(EXTENSAO_POR_TIPO_IMAGEM).join('|')})`,
 }
+
+const preencher = (formato: string, valores: Record<Marcador, string>) =>
+  formato.replace(MARCADOR, (_, nome: Marcador) => valores[nome])
+
+/** Ancorados: sem `..`, barra extra ou segmento a mais. */
+const PADRAO_CHAVE = Object.fromEntries(
+  Object.entries(FORMATO_CHAVE_UPLOAD).map(([finalidade, formato]) => [
+    finalidade,
+    new RegExp(`^${preencher(formato.replaceAll('.', '\\.'), GRUPO)}$`),
+  ]),
+) as Record<FinalidadeUpload, RegExp>
 
 export interface DonoChave {
   usuarioId: string
-  /** Ausente em `PERFIL`: `Usuario` é global (#3). */
+  /** Ausente em `PERFIL`: `Usuario` é global. */
   atleticaId?: string
 }
+
+export const ehConteudoDaAtletica = (finalidade: FinalidadeUpload) =>
+  finalidade !== FinalidadeUpload.PERFIL
 
 export function gerarChave(
   finalidade: FinalidadeUpload,
@@ -28,9 +44,8 @@ export function gerarChave(
   { usuarioId, atleticaId }: Required<DonoChave>,
   uuid: string = randomUUID(),
 ): string {
-  const arquivo = `${uuid}.${EXTENSAO_POR_TIPO_IMAGEM[contentType]}`
-  if (finalidade === FinalidadeUpload.PERFIL) return `usuarios/${usuarioId}/perfil/${arquivo}`
-  return `atleticas/${atleticaId}/${PASTA[finalidade]}/${usuarioId}/${arquivo}`
+  const ext = EXTENSAO_POR_TIPO_IMAGEM[contentType]
+  return preencher(FORMATO_CHAVE_UPLOAD[finalidade], { usuarioId, atleticaId, uuid, ext })
 }
 
 /** Dono gravado no caminho, ou `null` se a chave não segue o formato da finalidade. */
