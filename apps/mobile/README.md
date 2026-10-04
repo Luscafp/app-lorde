@@ -6,10 +6,11 @@ Development build (não Expo Go). Comandos na raiz do monorepo: `pnpm dev:mobile
 
 Copie `.env.example` para `.env`. Variáveis `EXPO_PUBLIC_*` são embutidas no bundle: nunca coloque segredos nelas.
 
-| Variável               | Exemplo                           | Uso                                                                                       |
-| ---------------------- | --------------------------------- | ----------------------------------------------------------------------------------------- |
-| `EXPO_PUBLIC_API_URL`  | `http://192.168.0.10:3000/api/v1` | URL base da API, **já com `/api/v1`**. No aparelho, use o IP da máquina, não `localhost`. |
-| `EXPO_PUBLIC_AMBIENTE` | `development`                     | `development \| homologacao \| producao` (convenções §11.11)                              |
+| Variável                 | Exemplo                           | Uso                                                                                       |
+| ------------------------ | --------------------------------- | ----------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_API_URL`    | `http://192.168.0.10:3000/api/v1` | URL base da API, **já com `/api/v1`**. No aparelho, use o IP da máquina, não `localhost`. |
+| `EXPO_PUBLIC_AMBIENTE`   | `development`                     | `development \| homologacao \| producao` (convenções §11.11)                              |
+| `EXPO_PUBLIC_SENTRY_DSN` | vazio                             | DSN do projeto `atletica-app` (#93). Vazio = Sentry desligado.                            |
 
 Novas variáveis entram em `env.d.ts` (tipagem) e em `src/config/ambiente.ts`.
 
@@ -17,16 +18,18 @@ Novas variáveis entram em `env.d.ts` (tipagem) e em `src/config/ambiente.ts`.
 
 Grupos oficiais `(publico)` e `(app)/(abas)` (convenções §3 e §11.1).
 
-| Rota        | Arquivo                       | Acesso          |
-| ----------- | ----------------------------- | --------------- |
-| `/login`    | `app/(publico)/login.tsx`     | só sem sessão   |
-| `/cadastro` | `app/(publico)/cadastro.tsx`  | só sem sessão   |
-| `/`         | `app/(app)/(abas)/index.tsx`  | com sessão      |
-| `/agenda`   | `app/(app)/(abas)/agenda.tsx` | com sessão      |
-| `/times`    | `app/(app)/(abas)/times.tsx`  | com sessão      |
-| `/perfil`   | `app/(app)/(abas)/perfil.tsx` | com sessão      |
-| `/painel`   | `app/(app)/(abas)/painel.tsx` | nível ≥ DIRETOR |
-| inexistente | `app/+not-found.tsx`          | todos           |
+| Rota           | Arquivo                       | Acesso          |
+| -------------- | ----------------------------- | --------------- |
+| `/login`       | `app/(publico)/login.tsx`     | só sem sessão   |
+| `/cadastro`    | `app/(publico)/cadastro.tsx`  | só sem sessão   |
+| `/`            | `app/(app)/(abas)/index.tsx`  | com sessão      |
+| `/agenda`      | `app/(app)/(abas)/agenda.tsx` | com sessão      |
+| `/times`       | `app/(app)/(abas)/times.tsx`  | com sessão      |
+| `/perfil`      | `app/(app)/(abas)/perfil.tsx` | com sessão      |
+| `/painel`      | `app/(app)/(abas)/painel.tsx` | nível ≥ DIRETOR |
+| `/termos`      | `app/termos.tsx`              | todos           |
+| `/privacidade` | `app/privacidade.tsx`         | todos           |
+| inexistente    | `app/+not-found.tsx`          | todos           |
 
 - **Proteção**: `Stack.Protected` no `app/_layout.tsx` (`(app)` com sessão, `(publico)` sem). Sem sessão, qualquer rota protegida cai em `/login`; ao encerrar a sessão, o app volta a `/login`.
 - **Deep link protegido sem sessão**: `app/+native-intent.tsx` guarda o caminho e, depois do login, o layout raiz navega até ele (`src/infra/sessao/destino.ts`).
@@ -76,9 +79,9 @@ await api.post('/times/1/solicitacoes', { mensagem }, { consulta: { origem: 'app
 ```
 
 - Base `EXPO_PUBLIC_API_URL` (já com `/api/v1`), JSON, timeout de 15 s. Cabeçalhos `X-Request-Id` (UUID v4), `X-App-Version` e `Authorization` — este **só** para o domínio da API (URLs pré-assinadas vão sem token).
-- Todo erro vira `ApiErro { status, code, message, details, requestId }`. Locais (`status: 0`): `SEM_CONEXAO`, `TEMPO_ESGOTADO`; `SESSAO_ENCERRADA` (`401`) quando o refresh encerrou a sessão.
+- Todo erro vira `ApiErro { status, code, message, details, requestId, segundosParaNovaTentativa }` (o último vem do `Retry-After` do `429`). Locais (`status: 0`): `SEM_CONEXAO`, `TEMPO_ESGOTADO`; `SESSAO_ENCERRADA` (`401`) quando o refresh encerrou a sessão.
 - **Regra de ouro**: só `401` de `POST /auth/refresh` encerra a sessão. Rede, timeout, 5xx, `400` (ex.: `SENHA_INCORRETA`) e qualquer outro `401` não.
-- **Single-flight** (`renovar-sessao.ts`): `401` fora de `/auth/*` chama `renovarSessao()`; chamadas simultâneas aguardam a mesma promessa. Refresh `200` grava os tokens (`atualizarTokens`) antes de liberar a fila e atualiza `usuario`; a requisição é refeita **uma** vez. Um segundo `401` falha sem novo refresh e é registrado (`definirRegistrador`, que a #49 liga ao Sentry).
+- **Single-flight** (`renovar-sessao.ts`): `401` fora de `/auth/*` chama `renovarSessao()`; chamadas simultâneas aguardam a mesma promessa. Refresh `200` grava os tokens (`atualizarTokens`) antes de liberar a fila e atualiza `usuario`; a requisição é refeita **uma** vez. Um segundo `401` falha sem novo refresh e é registrado (`Sentry.captureMessage` e, em `__DEV__`, `console.warn`).
 - Refresh `401` (qualquer `code`) → `encerrarSessao`, cache de queries limpo, volta ao `/login` e toast: `CONTA_DESATIVADA` → "Sua conta está desativada. Procure a diretoria."; demais → "Sua sessão expirou. Entre novamente.".
 - **Renovação proativa**: faltando menos de 30 s para `accessTokenExpiraEm`, renova antes de enviar.
 - Rotas `/auth/*` nunca disparam refresh: seus erros vão direto para a tela.
@@ -134,6 +137,8 @@ const { mutate, isPending, online } = useAcaoOnline({
 
 - Offline, a `mutationFn` não é chamada e aparece "Sem conexão. Conecte-se à internet para concluir esta ação." (`mutateAsync` rejeita com `SEM_CONEXAO`).
 - Erros: o `MutationCache` mostra `toast.erro(apiErro.message)` para toda mutação; o sucesso é toast da própria tela.
+- Exceção: códigos listados em `meta.errosNaTela` não geram toast, porque a própria tela os mostra (ex.: `CREDENCIAIS_INVALIDAS` no login, `EMAIL_JA_CADASTRADO` no cadastro).
+- `<AvisoOffline online={online} />` mostra a mensagem de offline abaixo do botão.
 
 ## Estados de tela — `src/components/estado`
 
@@ -167,6 +172,11 @@ A conexão vem do `onlineManager` do TanStack Query (alimentado pelo NetInfo na 
 - `Cartao`: contêiner com borda e fundo `cartao`.
 - `Botao({ titulo, variante?, carregando?, disabled? })`: `primaria` (cor da atlética, texto com `corTextoSobre`), `secundaria`, `perigo`. `carregando` mostra o spinner e desabilita. Muda de aparência no `onPressIn`; alvo ≥ 44 px.
 - `Campo({ controle, nome, rotulo, ...TextInputProps })`: React Hook Form via `Controller`; o erro aparece abaixo do campo e os valores ficam no formulário após erro da API.
+- `CampoSenha`: `Campo` com botão de mostrar/ocultar senha.
+- `CaixaSelecao({ marcada, aoAlternar, rotulo, children? })`: checkbox acessível; `children` substitui o texto visível (ex.: rótulo com links).
+- `Alerta({ variante?, titulo?, children })`: caixa com ícone + título; `erro` (padrão) ou `alerta`.
+- `AvisoOffline({ online })`: mensagem de ação offline.
+- `TelaRolavel({ centralizada? })` (`src/components`): tela com `ScrollView` e áreas seguras para formulários e textos longos.
 
 Formulário padrão (schema do shared, `zodResolver` em modo `onBlur` — convenções §4.3; `useAcaoOnline` e `aplicarErrosDaApi` são da #52):
 
@@ -185,3 +195,71 @@ const { online, mutate, isPending } = useAcaoOnline({
   onPress={() => void form.handleSubmit((dados) => mutate(dados))()}
 />
 ```
+
+## Sentry — `src/infra/sentry.ts`
+
+- `iniciarSentry()` no layout raiz: sem `EXPO_PUBLIC_SENTRY_DSN` não inicializa; `environment` = `EXPO_PUBLIC_AMBIENTE`; `release`/`dist` do `expo-application` (`<id>@<versão>+<build>`); `enabled: !__DEV__`; `sendDefaultPii: false`.
+- Scrubbers: `limparBreadcrumb` remove `Authorization` e o corpo das requisições HTTP; `limparEvento` troca e-mails por `[email]` (message, extra, breadcrumbs e exceções) e deixa o usuário só com `id`. Nada de dado pessoal em `setContext`/`setExtra`.
+- Usuário: `Sentry.setUser({ id })` ao autenticar e `setUser(null)` ao ficar anônimo (acompanha `useSessao`).
+- Resposta 5xx da API (só do domínio da API) vira breadcrumb `http` com `requestId`, método, rota (sem query) e status, para correlacionar com os logs da API.
+- `LimiteErro` (ErrorBoundary) envolve a navegação, dentro do `ProvedorTema` (a tela de erro usa o tema): erro de renderização vai ao Sentry e mostra `TelaErroFatal` ("Recarregar" → `Updates.reloadAsync()`). O layout raiz é exportado com `Sentry.wrap` e registra a navegação (rotas do Expo Router como nome de transação).
+- Source maps: plugin `@sentry/react-native/expo` no `app.config.ts` e `getSentryExpoConfig` no `metro.config.js`; o `SENTRY_AUTH_TOKEN` fica só no EAS (#93).
+
+## Imagens e uploads — `src/components/imagem`, `src/features/uploads`
+
+### `Imagem` — exibição com cache
+
+**Toda imagem remota** passa por `Imagem` (convenções §10.8, RNF04): `expo-image` com `cachePolicy="memory-disk"`, transição de 150 ms e fundo neutro enquanto carrega. Sem URL ou com erro ao carregar, mostra o fallback: as iniciais de `nome` (avatar de perfil) ou um ícone neutro.
+
+```tsx
+<Imagem uri={usuario.fotoUrl} nome={usuario.nome} rotulo="Foto de perfil" className="h-12 w-12 rounded-full" />
+<Imagem uri={noticia.imagemCapaUrl} className="aspect-video w-full rounded-xl" />
+```
+
+### `SeletorImagem` — escolher e enviar num formulário
+
+| Prop               | Descrição                                                                 |
+| ------------------ | ------------------------------------------------------------------------- |
+| `finalidade`       | `PERFIL` (recorte 1:1), `NOTICIA` ou `BANNER` (16:9)                      |
+| `valorAtualUrl?`   | URL da imagem já gravada (`fotoUrl`, `imagemCapaUrl`...)                  |
+| `onChange`         | recebe a `key` do upload concluído, ou `null` ao tocar em "Remover"       |
+| `formato`          | `circulo` ou `retangulo`                                                  |
+| `desabilitado?`    | bloqueia a seleção                                                        |
+| `podeRemover?`     | mostra "Remover" quando há imagem (padrão `true`)                         |
+| `rotulo?`, `nome?` | rótulo acessível e iniciais do fallback                                   |
+| `onMudarEnviando?` | `true` enquanto comprime/envia: o formulário mantém o salvar desabilitado |
+
+O valor do campo no React Hook Form é a **`key`**; o formulário a envia no `PATCH`/`POST` do recurso (ex.: `PUT /me/foto { fotoKey }`).
+
+```tsx
+const [enviandoFoto, setEnviandoFoto] = useState(false)
+
+<Controller
+  control={form.control}
+  name="fotoKey"
+  render={({ field }) => (
+    <SeletorImagem
+      finalidade="PERFIL"
+      formato="circulo"
+      valorAtualUrl={usuario.fotoUrl}
+      nome={usuario.nome}
+      onChange={field.onChange}
+      onMudarEnviando={setEnviandoFoto}
+    />
+  )}
+/>
+<Botao titulo="Salvar" disabled={!online || isPending || enviandoFoto} ... />
+```
+
+Estados: "Preparando imagem…" (comprimindo), barra de progresso (enviando), pré-visualização local desde a escolha, erro com "Tentar novamente" (pede **novo** presign e reenvia a mesma imagem comprimida). Offline fica desabilitado com "Disponível apenas online". Permissão negada mostra o toast "Permita o acesso às fotos nas configurações do Android." (ou "…à câmera…") — tocar nele abre as configurações.
+
+### `useUploadImagem(finalidade)` — o fluxo
+
+`{ selecionar('galeria' | 'camera'), estado, progresso, key, uriLocal, erro, podeTentarNovamente, tentarNovamente, limpar }`, `estado` ∈ `ocioso | selecionando | comprimindo | enviando | concluido | erro`.
+
+1. Permissão e seleção com recorte (`expo-image-picker`).
+2. `comprimir(uri)`: JPEG com no máximo 1080 px de largura, qualidade 0,8 → 0,6 → 0,4 até ≤ 5 MB; senão "Imagem muito grande. Escolha outra imagem."; imagem não decodificável → "Formato de imagem não suportado.".
+3. `pedirPresign({ finalidade, contentType: 'image/jpeg', tamanhoBytes })` → `POST /uploads/presign` via `useAcaoOnline` (convenções §10.5), com pedido e resposta validados pelos schemas do shared.
+4. `PUT` direto ao R2 (`createUploadTask` de `expo-file-system/legacy`, `BINARY_CONTENT`) com `Content-Type`/`Content-Length` iguais aos do presign e **sem** `Authorization`.
+
+Textos de permissão de fotos e câmera: plugin `expo-image-picker` no `app.config.ts`.

@@ -273,6 +273,31 @@ Execução manual em desenvolvimento (usa o `.env`, com o bucket do R2 configura
 pnpm --filter api uploads:limpar-orfaos
 ```
 
+## Usuários (`src/modules/usuarios`)
+
+Painel de Usuários da Presidência (UC23, #27). Todas as rotas exigem `@PapelMinimo(PRESIDENTE)` e respondem com `Cache-Control: no-store`.
+
+| Rota                                | Resposta                                                              |
+| ----------------------------------- | --------------------------------------------------------------------- |
+| `GET /api/v1/usuarios`              | `{ items, page, limit, total }`; `busca` (2–100), `papel`, `situacao` |
+| `GET /api/v1/usuarios/:id`          | perfil, times atuais, `estatisticas: null` (#35) e `permissoes`       |
+| `PATCH /api/v1/usuarios/:id/status` | `{ ativo }` → `{ id, situacao }`                                      |
+
+- A busca usa `unaccent(lower(nome)) LIKE ...` ou `email LIKE ...` via `$queryRaw` (com `atleticaId` no SQL; `%`, `_` e `\` do termo viram literais). Contas excluídas nunca aparecem na lista.
+- A desativação grava `VinculoAtletica.ativo` (não `Usuario.ativo`, reservado à exclusão da #12), revoga as sessões da atlética (`CONTA_DESATIVADA`), audita `USUARIO_DESATIVADO`/`USUARIO_REATIVADO` e emite `usuario.sessaoEncerrada` após o commit só quando houve sessão revogada. O guard responde `401 CONTA_DESATIVADA` na requisição seguinte, mesmo com a sessão já revogada.
+- Regra de nível: só sobre nível estritamente inferior (`podeAgirSobre`), com o papel do solicitante relido na transação → `403 NIVEL_INSUFICIENTE`; a própria conta → `403 ALVO_PROPRIO`; excluída → `409 USUARIO_EXCLUIDO`; repetir a situação atual → `200` sem efeito.
+
+### `regras-papel.ts` (usado por #12 e #28)
+
+```ts
+bloquearPapeis(tx, atleticaId) // pg_advisory_xact_lock(hashtext('papeis:' || atleticaId)), até o commit
+garantirNaoUltimoAdministrador(tx, atleticaId, usuarioId) // 409 ULTIMO_ADMINISTRADOR; chame depois do lock
+ehUltimoAdministrador(cliente, atleticaId, usuarioId) // mesma contagem, sem lançar
+calcularPermissoes(solicitante, alvo, ehUltimoAdmin) // permissoes do detalhe
+```
+
+"Outro Administrador" = vínculo `ADMINISTRADOR` ativo, de conta não excluída, na mesma atlética. Toda alteração de papel ou situação abre `TransacaoService.executar`, chama `bloquearPapeis` primeiro e só então lê o vínculo do alvo (`FOR UPDATE`).
+
 ## Banco de dados e multi-atlética (`src/infra/prisma`, `src/infra/contexto`)
 
 `PrismaModule` e `ContextoModule` são globais (importados no `AppModule`): injete `PrismaService` e, se precisar, `ContextoAtletica`. O `PrismaService` conecta na subida e desconecta no `app.close()` (inclusive nos sinais de término, `enableShutdownHooks`).

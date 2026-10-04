@@ -14,6 +14,17 @@ export const paginacaoQuerySchema = z
 
 export type PaginacaoQuery = z.infer<typeof paginacaoQuerySchema>
 
+export function respostaPaginadaSchema<T extends z.ZodType>(item: T) {
+  return z
+    .object({
+      items: z.array(item),
+      page: z.number().int(),
+      limit: z.number().int(),
+      total: z.number().int(),
+    })
+    .strict()
+}
+
 export interface RespostaPaginada<T> {
   items: T[]
   page: number

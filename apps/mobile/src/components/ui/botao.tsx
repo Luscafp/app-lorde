@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ActivityIndicator, Pressable, Text, type PressableProps } from 'react-native'
 import { corTextoSobre, paleta, useAtletica } from '@/features/atletica'
 
-export type VarianteBotao = 'primaria' | 'secundaria' | 'perigo'
+export type VarianteBotao = 'primaria' | 'secundaria' | 'perigo' | 'sucesso'
 
 type Props = Omit<PressableProps, 'children' | 'style'> & {
   titulo: string
@@ -15,6 +15,7 @@ const CORES: Record<VarianteBotao, (corPrimaria: string) => { fundo: string; tex
   primaria: (corPrimaria) => ({ fundo: corPrimaria, texto: corTextoSobre(corPrimaria) }),
   secundaria: () => ({ fundo: 'transparent', texto: paleta.texto }),
   perigo: () => ({ fundo: paleta.erro, texto: corTextoSobre(paleta.erro) }),
+  sucesso: () => ({ fundo: paleta.sucesso, texto: corTextoSobre(paleta.sucesso) }),
 }
 
 function useCores(variante: VarianteBotao) {

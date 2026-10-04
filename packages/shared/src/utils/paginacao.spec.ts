@@ -1,4 +1,5 @@
-import { paginacaoQuerySchema } from './paginacao'
+import { z } from 'zod'
+import { paginacaoQuerySchema, respostaPaginadaSchema } from './paginacao'
 
 describe('paginacaoQuerySchema', () => {
   it('aplica os padrões page=1 e limit=20', () => {
@@ -19,5 +20,20 @@ describe('paginacaoQuerySchema', () => {
 
   it('rejeita campos desconhecidos', () => {
     expect(paginacaoQuerySchema.safeParse({ pagina: 1 }).success).toBe(false)
+  })
+})
+
+describe('respostaPaginadaSchema', () => {
+  const schema = respostaPaginadaSchema(z.object({ id: z.string() }))
+
+  it('valida items, page, limit e total', () => {
+    const resposta = { items: [{ id: 'a' }], page: 1, limit: 20, total: 1 }
+    expect(schema.parse(resposta)).toEqual(resposta)
+  })
+
+  it('rejeita campos desconhecidos', () => {
+    expect(schema.safeParse({ items: [], page: 1, limit: 20, total: 0, extra: 1 }).success).toBe(
+      false,
+    )
   })
 })

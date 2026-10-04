@@ -17,6 +17,7 @@ import { AuthModule } from './modules/auth/auth.module'
 import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.module'
 import { HealthModule } from './modules/health/health.module'
 import { UploadsModule } from './modules/uploads/uploads.module'
+import { UsuariosModule } from './modules/usuarios/usuarios.module'
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { UploadsModule } from './modules/uploads/uploads.module'
     AtleticasModule,
     HealthModule,
     UploadsModule,
+    UsuariosModule,
     DiagnosticoForaDeProducao,
   ],
   providers: [
