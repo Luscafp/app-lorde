@@ -136,4 +136,33 @@ describe('toastConfig', () => {
 
     expect(screen.getByRole('alert', { name: `${prefixo}: Mensagem` })).toBeOnTheScreen()
   })
+
+  it('com text2, mostra a ação e o toque chama onPress', async () => {
+    const onPress = jest.fn()
+    const variante = toastConfig.erro
+    if (!variante) throw new Error('variante ausente: erro')
+    await renderizar(
+      <>
+        {variante({
+          type: 'erro',
+          text1: 'Permissão negada.',
+          text2: 'Abrir configurações',
+          position: 'top',
+          isVisible: true,
+          visibilityTime: 4000,
+          props: {},
+          show: Toast.show,
+          hide: Toast.hide,
+          onPress,
+        })}
+      </>,
+    )
+
+    const aviso = screen.getByRole('button', {
+      name: 'Erro: Permissão negada. Abrir configurações',
+    })
+    expect(screen.getByText('Abrir configurações')).toBeOnTheScreen()
+    await fireEvent.press(aviso)
+    expect(onPress).toHaveBeenCalled()
+  })
 })

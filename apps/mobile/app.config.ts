@@ -29,6 +29,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-router',
     'expo-secure-store',
     'expo-font',
+    'expo-image',
+    [
+      'expo-image-picker',
+      {
+        photosPermission:
+          'Permita acessar suas fotos para escolher a imagem de perfil ou de notícias.',
+        cameraPermission: 'Permita usar a câmera para tirar a foto de perfil ou de notícias.',
+        microphonePermission: false,
+      },
+    ],
     [
       'expo-splash-screen',
       { image: './assets/splash-icon.png', imageWidth: 200, backgroundColor: '#07090D' },
