@@ -1,13 +1,7 @@
-import { PrismaPg } from '@prisma/adapter-pg'
-import { ClsServiceManager } from 'nestjs-cls'
-import { PrismaClient, type Prisma } from '../src/generated/prisma/client'
-import {
-  ContextoAtletica,
-  type StoreContexto,
-} from '../src/infra/contexto/contexto-atletica.service'
-import { extensaoAtletica } from '../src/infra/prisma/extensao-atletica'
+import type { Prisma } from '../src/generated/prisma/client'
 import type { TransacaoComEscopo } from '../src/infra/prisma/prisma.service'
 import { SenhaService } from '../src/infra/senha/senha.service'
+import { criarClientesSeed } from './seed-cliente'
 import { semearDemo, SENHA_DEMO } from './seed-demo'
 import { ErroSeed, validarEnvSeed, type EnvSeed } from './seed-env'
 import { garantirUsuarioComVinculo } from './seed-usuario'
@@ -47,11 +41,7 @@ export async function executarSeed(
   variaveis: Record<string, string | undefined> = process.env,
 ): Promise<ResumoSeed> {
   const env = validarEnvSeed(variaveis)
-  const semEscopo = new PrismaClient({
-    adapter: new PrismaPg({ connectionString: env.DATABASE_URL }),
-  })
-  const contexto = new ContextoAtletica(ClsServiceManager.getClsService<StoreContexto>())
-  const db = semEscopo.$extends(extensaoAtletica(contexto))
+  const { semEscopo, contexto, db } = criarClientesSeed(env.DATABASE_URL)
   const senha = new SenhaService()
 
   try {

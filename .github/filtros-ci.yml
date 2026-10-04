@@ -20,6 +20,14 @@ shared: &shared
 api:
   - *shared
   - apps/api/**
+  - tests/carga/**
+
+carga:
+  - tests/carga/**
+
+workflows:
+  - .github/workflows/**
+  - .github/filtros-ci.yml
 
 mobile:
   - *shared

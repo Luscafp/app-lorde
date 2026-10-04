@@ -1,0 +1,77 @@
+name: Teste de carga (k6)
+
+# Só manual (#83); a massa precisa existir antes: tests/carga/README.md.
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: 'URL base da API, sem /api/v1 (ex.: https://api-homolog.exemplo.com.br)'
+        required: true
+        type: string
+      vus:
+        description: Usuários virtuais simultâneos
+        required: false
+        default: '200'
+        type: string
+      duracao:
+        description: 'Duração do patamar com todos os VUs (ex.: 10m)'
+        required: false
+        default: '10m'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: carga
+  cancel-in-progress: false
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Inputs e segredo só por env: nunca interpolados no script.
+    env:
+      API_URL: ${{ inputs.api_url }}
+      VUS: ${{ inputs.vus }}
+      DURACAO: ${{ inputs.duracao }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validar inputs
+        run: |
+          case "$API_URL" in
+            https://*) ;;
+            *) echo "::error::api_url deve começar com https://"; exit 1 ;;
+          esac
+          if ! [[ "$VUS" =~ ^[1-9][0-9]*$ ]]; then echo "::error::vus deve ser inteiro positivo"; exit 1; fi
+          if ! [[ "$DURACAO" =~ ^[0-9]+[smh]$ ]]; then echo "::error::duracao no formato 10m, 600s ou 1h"; exit 1; fi
+      - uses: grafana/setup-k6-action@v1
+      # Sai com código ≠ 0 (99) quando um threshold é violado, o que falha o job.
+      - name: Executar cenário
+        env:
+          CARGA_SENHA: ${{ secrets.CARGA_SENHA }}
+        run: k6 run --summary-export=resultado.json tests/carga/cenario-atletas.js
+      - name: Resumo
+        if: ${{ !cancelled() && hashFiles('resultado.json') != '' }}
+        run: |
+          {
+            echo "### Teste de carga — $VUS VUs por $DURACAO"
+            echo
+            echo "| Métrica | Valor |"
+            echo "|---|---|"
+            jq -r '.metrics as $m | [
+              ["p95 consultas (ms)", $m["http_req_duration{tipo:consulta}"]["p(95)"]],
+              ["p95 gravações (ms)", $m["http_req_duration{tipo:gravacao}"]["p(95)"]],
+              ["taxa de erro HTTP", $m.http_req_failed.value],
+              ["checks aprovados", $m.checks.value],
+              ["requisições", $m.http_reqs.count]
+            ] | .[] | "| \(.[0]) | \(.[1]) |"' resultado.json
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publicar resultado
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: resultado-carga-${{ github.run_number }}
+          path: resultado.json
+          if-no-files-found: warn
+          retention-days: 90

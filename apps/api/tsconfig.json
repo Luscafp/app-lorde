@@ -6,6 +6,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "outDir": "dist",
+    "rootDir": "../..",
     "noEmit": true,
     "types": ["node", "jest"]
   },
