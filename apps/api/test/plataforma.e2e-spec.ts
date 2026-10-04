@@ -1,38 +1,7 @@
-import { ConfigService } from '@nestjs/config'
 import type { NestExpressApplication } from '@nestjs/platform-express'
-import { PARAMS_PROVIDER_TOKEN } from 'nestjs-pino'
 import request from 'supertest'
 import type { App } from 'supertest/types'
-import { validarEnv, type Env } from '../src/config/env.schema'
-import { criarConfigLogger } from '../src/infra/logs/logger.config'
-import { criarApp } from './setup/criar-app'
-import { ExemploController } from './suporte/exemplo.controller'
-
-/** Recebe as linhas JSON escritas pelo pino, para inspecionar o log nos testes. */
-function destinoDeLog(linhas: Record<string, unknown>[]) {
-  return { write: (linha: string) => linhas.push(JSON.parse(linha) as Record<string, unknown>) }
-}
-
-async function criarAppPlataforma(
-  env: Partial<Env> = {},
-  linhasDeLog?: Record<string, unknown>[],
-): Promise<NestExpressApplication> {
-  const config = { ...validarEnv(process.env), ...env }
-  const { app } = await criarApp({
-    controllers: [ExemploController],
-    ajustar: (modulo) => {
-      const ajustado = modulo
-        .overrideProvider(ConfigService)
-        .useValue({ get: (chave: keyof Env) => config[chave] })
-      if (!linhasDeLog) return ajustado
-      const params = criarConfigLogger({ NODE_ENV: 'test', LOG_LEVEL: 'warn', APP_ENV: 'local' })
-      return ajustado
-        .overrideProvider(PARAMS_PROVIDER_TOKEN)
-        .useValue({ ...params, pinoHttp: [params.pinoHttp, destinoDeLog(linhasDeLog)] })
-    },
-  })
-  return app
-}
+import { criarAppPlataforma } from './suporte/criar-app-plataforma'
 
 describe('Plataforma da API (#1)', () => {
   let app: NestExpressApplication
@@ -132,49 +101,5 @@ describe('Swagger em produção (#1)', () => {
     } finally {
       await app.close()
     }
-  })
-})
-
-describe('Log de erros (#1)', () => {
-  const linhas: Record<string, unknown>[] = []
-  let app: NestExpressApplication
-
-  beforeAll(async () => {
-    app = await criarAppPlataforma({}, linhas)
-  })
-
-  afterAll(async () => {
-    await app.close()
-  })
-
-  beforeEach(() => {
-    linhas.length = 0
-  })
-
-  it('erro inesperado → log error com o stack', async () => {
-    await request(app.getHttpServer()).get('/api/v1/exemplo/erro')
-    const registro = linhas.find((linha) => linha.msg === 'Erro inesperado')
-    expect(registro).toMatchObject({
-      level: 50,
-      code: 'INTERNAL_ERROR',
-      method: 'GET',
-      route: '/api/v1/exemplo/erro',
-      err: { message: 'x', stack: expect.stringMatching(/^Error: x\n\s+at /) as string },
-    })
-  })
-
-  it('o cabeçalho Authorization é redigido no log', async () => {
-    await request(app.getHttpServer())
-      .get('/api/v1/exemplo/erro')
-      .set('Authorization', 'Bearer token-secreto')
-    expect(linhas.length).toBeGreaterThan(0)
-    expect(JSON.stringify(linhas)).not.toContain('token-secreto')
-  })
-
-  it('erro 4xx → log warn sem o corpo da requisição', async () => {
-    await request(app.getHttpServer()).post('/api/v1/exemplo/validacao').send({ page: 0 })
-    const registro = linhas.find((linha) => linha.code === 'VALIDATION_ERROR')
-    expect(registro).toMatchObject({ level: 40, statusCode: 400 })
-    expect(JSON.stringify(registro)).not.toMatch(/"page"/)
   })
 })
