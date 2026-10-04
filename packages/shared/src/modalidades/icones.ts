@@ -25,6 +25,31 @@ export const ICONES_MODALIDADE = [
 
 export type IconeModalidade = (typeof ICONES_MODALIDADE)[number]
 
+/** Rótulo acessível de cada ícone do catálogo. */
+export const ROTULO_ICONE_MODALIDADE: Readonly<Record<IconeModalidade, string>> = {
+  soccer: 'Futebol',
+  basketball: 'Basquete',
+  volleyball: 'Vôlei',
+  handball: 'Handebol',
+  'table-tennis': 'Tênis de mesa',
+  tennis: 'Tênis',
+  badminton: 'Badminton',
+  baseball: 'Beisebol',
+  rugby: 'Rugby',
+  football: 'Futebol americano',
+  'hockey-sticks': 'Hóquei',
+  'chess-knight': 'Xadrez',
+  swim: 'Natação',
+  run: 'Corrida',
+  bike: 'Ciclismo',
+  karate: 'Artes marciais',
+  kabaddi: 'Lutas',
+  'weight-lifter': 'Levantamento de peso',
+  golf: 'Golfe',
+  'gamepad-variant': 'E-sports',
+  trophy: 'Genérico',
+}
+
 /** Ícone genérico, também usado para chaves desconhecidas. */
 export const ICONE_MODALIDADE_PADRAO: IconeModalidade = 'trophy'
 

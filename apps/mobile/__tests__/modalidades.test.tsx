@@ -3,11 +3,13 @@ import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import type { ReactElement } from 'react'
 import { Alert, type AlertButton } from 'react-native'
+import EditarModalidade from '../app/(app)/(abas)/painel/modalidades/[id]'
 import ModalidadesPainel from '../app/(app)/(abas)/painel/modalidades/index'
 import { toast } from '@/components/ui/toast'
 import * as apiModalidades from '@/features/modalidades/api'
 import { FormModalidade, ModalidadeIcone } from '@/features/modalidades'
 import { ApiErro } from '@/infra/api/cliente'
+import { chaves } from '@/infra/query/chaves'
 import { criarQueryClient } from '@/infra/query/query-client'
 import { useSessao } from '@/infra/sessao/store'
 
@@ -15,7 +17,10 @@ jest.mock('@/components/ui/toast', () => ({
   toast: { sucesso: jest.fn(), erro: jest.fn(), info: jest.fn() },
 }))
 jest.mock('@/features/modalidades/api')
-jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }))
+jest.mock('expo-router', () => ({
+  router: { push: jest.fn(), back: jest.fn() },
+  useLocalSearchParams: () => ({ id: '6f1c2a7e-2f5b-4c39-9a0e-3f3b1b8d2c11' }),
+}))
 
 const api = jest.mocked(apiModalidades)
 
@@ -123,6 +128,14 @@ describe('FormModalidade', () => {
     await renderizar(<FormModalidade aoSalvar={jest.fn()} />)
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
     expect(screen.getByText('Modo offline')).toBeOnTheScreen()
+  })
+
+  it('edição offline mostra uma única faixa offline', async () => {
+    cliente.setQueryData(chaves.modalidades({ incluirInativas: true }), [FUTSAL])
+    onlineManager.setOnline(false)
+    await renderizar(<EditarModalidade />)
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
+    expect(screen.getAllByText(/Modo offline/)).toHaveLength(1)
   })
 })
 

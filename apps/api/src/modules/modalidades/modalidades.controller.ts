@@ -112,6 +112,7 @@ export class ModalidadesController {
   @Delete(':id')
   @PapelMinimo(Papel.PRESIDENTE)
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Exclui a modalidade sem times vinculados (exclusão física)' })
   @ApiNoContentResponse({ description: 'Excluída.' })
   @ApiBadRequestResponse({ description: '`VALIDATION_ERROR`: id não-UUID.' })

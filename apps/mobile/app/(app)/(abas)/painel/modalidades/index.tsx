@@ -5,7 +5,7 @@ import { EstadoVazio, TelaDados } from '@/components/estado'
 import { Botao, toast } from '@/components/ui'
 import {
   ListaModalidadesPainel,
-  useAlternarAtiva,
+  useAtualizarModalidade,
   useExcluirModalidade,
   useModalidades,
 } from '@/features/modalidades'
@@ -17,12 +17,14 @@ const novaModalidade = () => router.push('/painel/modalidades/nova')
 export default function ModalidadesPainel() {
   const consulta = useModalidades({ incluirInativas: true })
   const podeExcluir = useSessao((estado) => !!estado.usuario && ehPresidencia(estado.usuario.papel))
-  const alternar = useAlternarAtiva()
+  const alternar = useAtualizarModalidade()
   const excluir = useExcluirModalidade()
-  const desativar = (modalidade: Modalidade) => alternar.mutate({ id: modalidade.id, ativa: false })
+  const definirAtiva = (modalidade: Modalidade, ativa: boolean) =>
+    alternar.mutate({ id: modalidade.id, dados: { ativa } }, { onError: mostrarErroDaMutacao })
+  const desativar = (modalidade: Modalidade) => definirAtiva(modalidade, false)
 
   function aoAlternar(modalidade: Modalidade, ativa: boolean) {
-    if (ativa) return alternar.mutate({ id: modalidade.id, ativa })
+    if (ativa) return definirAtiva(modalidade, true)
     Alert.alert(`Desativar ${modalidade.nome}?`, 'Ela deixará de aparecer na aba Times.', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Desativar', style: 'destructive', onPress: () => desativar(modalidade) },
@@ -48,7 +50,7 @@ export default function ModalidadesPainel() {
 
   return (
     <View className="flex-1 bg-fundo">
-      <TelaDados consulta={consulta}>
+      <TelaDados consulta={consulta} esqueleto="lista">
         {(modalidades) =>
           modalidades.length === 0 ? (
             <EstadoVazio

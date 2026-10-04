@@ -4,16 +4,14 @@ import type { AuditoriaService } from '../auditoria/auditoria.service'
 import { ModalidadesService } from './modalidades.service'
 
 const ID = '6f1c2a7e-2f5b-4c39-9a0e-3f3b1b8d2c11'
-const OUTRO_ID = '0b6f8a52-8e5d-4a43-9d6c-1f0f3c2b7a90'
 const FUTSAL = { id: ID, nome: 'futsal', icone: 'soccer', ativa: true }
 
 function erroPrisma(code: string) {
   return new PrismaClientKnownRequestError('falha', { code, clientVersion: '7' })
 }
 
-function criarServico({ existentes = [] as { id: string }[], times = 0, atual = FUTSAL } = {}) {
+function criarServico({ times = 0, atual = FUTSAL } = {}) {
   const tx = {
-    $queryRaw: jest.fn().mockResolvedValue(existentes),
     modalidade: {
       findUnique: jest.fn().mockResolvedValue(atual),
       create: jest.fn(({ data }: { data: object }) =>
@@ -83,28 +81,20 @@ describe('ModalidadesService', () => {
       })
     })
 
-    it('nome já usado (outra caixa) → 409 MODALIDADE_DUPLICADA sem gravar', async () => {
-      const { servico, tx } = criarServico({ existentes: [{ id: OUTRO_ID }] })
+    it('P2002 do índice único (outra caixa ou corrida) → 409 MODALIDADE_DUPLICADA', async () => {
+      const { servico, tx } = criarServico()
+      tx.modalidade.create.mockRejectedValue(erroPrisma('P2002'))
       await expect(servico.criar({ nome: 'FUTSAL', icone: 'soccer' })).rejects.toMatchObject({
         statusCode: 409,
         code: 'MODALIDADE_DUPLICADA',
         details: [{ field: 'nome' }],
-      })
-      expect(tx.modalidade.create).not.toHaveBeenCalled()
-    })
-
-    it('P2002 da corrida com outro cadastro → 409 MODALIDADE_DUPLICADA', async () => {
-      const { servico, tx } = criarServico()
-      tx.modalidade.create.mockRejectedValue(erroPrisma('P2002'))
-      await expect(servico.criar({ nome: 'Futsal', icone: 'soccer' })).rejects.toMatchObject({
-        code: 'MODALIDADE_DUPLICADA',
       })
     })
   })
 
   describe('atualizar', () => {
     it('aceita renomear só a caixa do próprio nome e audita só o que mudou', async () => {
-      const { servico, tx, auditoria } = criarServico({ existentes: [{ id: ID }] })
+      const { servico, tx, auditoria } = criarServico()
       await servico.atualizar(ID, { nome: 'Futsal', icone: 'soccer' })
 
       expect(tx.modalidade.update).toHaveBeenCalled()
@@ -130,7 +120,6 @@ describe('ModalidadesService', () => {
           dados: { antes: { ativa: antes }, depois: { ativa: depois } },
         }),
       ])
-      expect(tx.$queryRaw).not.toHaveBeenCalled()
     })
 
     it('nome e ativa no mesmo PATCH geram ALTERADA e DESATIVADA', async () => {
@@ -159,8 +148,9 @@ describe('ModalidadesService', () => {
       })
     })
 
-    it('nome de outra modalidade → 409 MODALIDADE_DUPLICADA', async () => {
-      const { servico } = criarServico({ existentes: [{ id: OUTRO_ID }] })
+    it('nome de outra modalidade (P2002) → 409 MODALIDADE_DUPLICADA', async () => {
+      const { servico, tx } = criarServico()
+      tx.modalidade.update.mockRejectedValue(erroPrisma('P2002'))
       await expect(servico.atualizar(ID, { nome: 'Vôlei' })).rejects.toMatchObject({
         code: 'MODALIDADE_DUPLICADA',
       })

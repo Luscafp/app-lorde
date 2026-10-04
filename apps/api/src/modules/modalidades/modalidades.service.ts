@@ -64,7 +64,6 @@ export class ModalidadesService {
   criar(entrada: ModalidadeCriacao): Promise<Modalidade> {
     const dados = { ...entrada, nome: normalizarNomeModalidade(entrada.nome) }
     return this.gravar(async (tx) => {
-      await this.garantirNomeLivre(tx, dados.nome)
       const criada = await tx.modalidade.create({ data: dados, select: CAMPOS })
       await this.auditoria.registrar(tx, {
         entidade: 'Modalidade',
@@ -87,7 +86,6 @@ export class ModalidadesService {
       const diff = diferenca(antes, { ...antes, ...dados }, ['nome', 'icone', 'ativa'])
       if (!diff) return antes
 
-      if (dados.nome !== undefined) await this.garantirNomeLivre(tx, dados.nome, id)
       const depois = await tx.modalidade.update({ where: { id }, data: dados, select: CAMPOS })
       await this.auditoria.registrarVarios(tx, entradasDaAlteracao(id, diff))
       return depois
@@ -111,6 +109,7 @@ export class ModalidadesService {
     })
   }
 
+  /** O índice `modalidade_nome_unico` (`lower(nome)`) garante a unicidade, inclusive na corrida. */
   private async gravar<T>(fn: (tx: TransacaoComEscopo) => Promise<T>): Promise<T> {
     try {
       return await this.prisma.db.$transaction(fn)
@@ -127,12 +126,5 @@ export class ModalidadesService {
     const modalidade = await tx.modalidade.findUnique({ where: { id }, select: CAMPOS })
     if (!modalidade) throw erroModalidadeNaoEncontrada()
     return modalidade
-  }
-
-  /** Mesma regra do índice `modalidade_nome_unico` (`lower(nome)`); a própria não conta. */
-  private async garantirNomeLivre(tx: TransacaoComEscopo, nome: string, id?: string) {
-    const existentes = await tx.$queryRaw<{ id: string }[]>`
-      SELECT id FROM "Modalidade" WHERE lower(nome) = lower(${nome})`
-    if (existentes.some((existente) => existente.id !== id)) throw erroModalidadeDuplicada()
   }
 }

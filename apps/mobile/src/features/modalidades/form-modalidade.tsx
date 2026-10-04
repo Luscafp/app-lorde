@@ -11,8 +11,9 @@ import { ScrollView, View } from 'react-native'
 import { FaixaOffline } from '@/components/estado'
 import { Botao, Campo, toast } from '@/components/ui'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
+import type { ApiErro } from '@/infra/api/cliente'
 import { mostrarErroDaMutacao } from '@/infra/query/query-client'
-import { useSalvarModalidade } from './hooks'
+import { useAtualizarModalidade, useCriarModalidade } from './hooks'
 import { SeletorIcone } from './seletor-icone'
 
 type Props = {
@@ -22,7 +23,9 @@ type Props = {
 }
 
 export function FormModalidade({ modalidade, aoSalvar }: Props) {
-  const salvar = useSalvarModalidade(modalidade?.id)
+  const criar = useCriarModalidade()
+  const atualizar = useAtualizarModalidade()
+  const salvar = modalidade ? atualizar : criar
   const form = useForm<ModalidadeForm, unknown, ModalidadeCriacao>({
     resolver: zodResolver(modalidadeCreateSchema),
     mode: 'onBlur',
@@ -32,20 +35,25 @@ export function FormModalidade({ modalidade, aoSalvar }: Props) {
     },
   })
 
+  const retorno = {
+    onSuccess: () => {
+      toast.sucesso('Modalidade salva')
+      aoSalvar()
+    },
+    onError: (erro: ApiErro) => {
+      if (!aplicarErrosDaApi(form, erro)) mostrarErroDaMutacao(erro)
+    },
+  }
+
   const enviar = (dados: ModalidadeCriacao) =>
-    salvar.mutate(dados, {
-      onSuccess: () => {
-        toast.sucesso('Modalidade salva')
-        aoSalvar()
-      },
-      onError: (erro) => {
-        if (!aplicarErrosDaApi(form, erro)) mostrarErroDaMutacao(erro)
-      },
-    })
+    modalidade
+      ? atualizar.mutate({ id: modalidade.id, dados }, retorno)
+      : criar.mutate(dados, retorno)
 
   return (
     <View className="flex-1">
-      {!salvar.online && <FaixaOffline />}
+      {/* Na edição, a faixa vem do `TelaDados` da rota. */}
+      {!modalidade && !salvar.online && <FaixaOffline />}
       <ScrollView contentContainerClassName="gap-4 p-4" keyboardShouldPersistTaps="handled">
         <Campo controle={form.control} nome="nome" rotulo="Nome" autoCapitalize="words" />
         <Controller

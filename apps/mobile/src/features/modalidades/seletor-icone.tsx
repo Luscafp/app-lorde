@@ -1,32 +1,8 @@
-import { ICONES_MODALIDADE, type IconeModalidade } from '@atletica/shared'
+import { ICONES_MODALIDADE, ROTULO_ICONE_MODALIDADE, type IconeModalidade } from '@atletica/shared'
 import { Pressable, View } from 'react-native'
 import { Texto } from '@/components/ui'
 import { paleta, useAtletica } from '@/features/atletica'
 import { ModalidadeIcone } from './modalidade-icone'
-
-export const ROTULO_ICONE: Readonly<Record<IconeModalidade, string>> = {
-  soccer: 'Futebol',
-  basketball: 'Basquete',
-  volleyball: 'Vôlei',
-  handball: 'Handebol',
-  'table-tennis': 'Tênis de mesa',
-  tennis: 'Tênis',
-  badminton: 'Badminton',
-  baseball: 'Beisebol',
-  rugby: 'Rugby',
-  football: 'Futebol americano',
-  'hockey-sticks': 'Hóquei',
-  'chess-knight': 'Xadrez',
-  swim: 'Natação',
-  run: 'Corrida',
-  bike: 'Ciclismo',
-  karate: 'Artes marciais',
-  kabaddi: 'Lutas',
-  'weight-lifter': 'Levantamento de peso',
-  golf: 'Golfe',
-  'gamepad-variant': 'E-sports',
-  trophy: 'Genérico',
-}
 
 type Props = {
   valor: string | undefined
@@ -47,7 +23,7 @@ export function SeletorIcone({ valor, aoMudar, erro }: Props) {
             <Pressable
               key={icone}
               accessibilityRole="radio"
-              accessibilityLabel={ROTULO_ICONE[icone]}
+              accessibilityLabel={ROTULO_ICONE_MODALIDADE[icone]}
               accessibilityState={{ selected: selecionado }}
               onPress={() => aoMudar(icone)}
               className="h-12 w-12 items-center justify-center rounded-xl border-2 bg-superficie"

@@ -1,4 +1,4 @@
-import type { Modalidade, ModalidadeCriacao } from '@atletica/shared'
+import type { Modalidade, ModalidadeAtualizacao, ModalidadeCriacao } from '@atletica/shared'
 import { useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
@@ -11,7 +11,7 @@ import {
   type FiltroModalidades,
 } from './api'
 
-const TODAS = chaves.modalidades.todas()
+const PREFIXO = chaves.modalidades().slice(0, 1)
 
 export function useModalidades(filtro: FiltroModalidades = {}) {
   return useQuery({
@@ -22,39 +22,42 @@ export function useModalidades(filtro: FiltroModalidades = {}) {
 
 function useInvalidarModalidades() {
   const cliente = useQueryClient()
-  return () => cliente.invalidateQueries({ queryKey: TODAS })
+  return () => cliente.invalidateQueries({ queryKey: PREFIXO })
 }
 
-/** Cadastro (sem `id`) ou edição; os erros ficam com o formulário. */
-export function useSalvarModalidade(id?: string) {
+/** Os erros ficam com o formulário. */
+export function useCriarModalidade() {
   const invalidar = useInvalidarModalidades()
   return useAcaoOnline<Modalidade, ApiErro, ModalidadeCriacao>({
-    mutationFn: (dados) => (id ? atualizarModalidade(id, dados) : criarModalidade(dados)),
+    mutationFn: (dados) => criarModalidade(dados),
     meta: { toastDeErro: false },
     onSuccess: invalidar,
   })
 }
 
-type Alternancia = { id: string; ativa: boolean }
+type Atualizacao = { id: string; dados: ModalidadeAtualizacao }
 type Anteriores = { anteriores: [QueryKey, Modalidade[] | undefined][] }
 
-/** Atualização otimista; em erro volta ao estado anterior (o toast é o global). */
-export function useAlternarAtiva() {
+/** Otimista, com rollback em erro; quem chama mostra o erro (no campo ou em toast). */
+export function useAtualizarModalidade() {
   const cliente = useQueryClient()
-  return useAcaoOnline<Modalidade, ApiErro, Alternancia, Anteriores>({
-    mutationFn: ({ id, ativa }) => atualizarModalidade(id, { ativa }),
-    onMutate: async ({ id, ativa }) => {
-      await cliente.cancelQueries({ queryKey: TODAS })
-      const anteriores = cliente.getQueriesData<Modalidade[]>({ queryKey: TODAS })
-      cliente.setQueriesData<Modalidade[]>({ queryKey: TODAS }, (lista) =>
-        lista?.map((modalidade) => (modalidade.id === id ? { ...modalidade, ativa } : modalidade)),
+  return useAcaoOnline<Modalidade, ApiErro, Atualizacao, Anteriores>({
+    mutationFn: ({ id, dados }) => atualizarModalidade(id, dados),
+    meta: { toastDeErro: false },
+    onMutate: async ({ id, dados }) => {
+      await cliente.cancelQueries({ queryKey: PREFIXO })
+      const anteriores = cliente.getQueriesData<Modalidade[]>({ queryKey: PREFIXO })
+      cliente.setQueriesData<Modalidade[]>({ queryKey: PREFIXO }, (lista) =>
+        lista?.map((modalidade) =>
+          modalidade.id === id ? { ...modalidade, ...dados } : modalidade,
+        ),
       )
       return { anteriores }
     },
     onError: (_erro, _variaveis, contexto) => {
       contexto?.anteriores.forEach(([chave, dados]) => cliente.setQueryData(chave, dados))
     },
-    onSettled: () => cliente.invalidateQueries({ queryKey: TODAS }),
+    onSettled: () => cliente.invalidateQueries({ queryKey: PREFIXO }),
   })
 }
 
