@@ -1,0 +1,10 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Valores fictícios de exemplo e de teste"
+regexes = [
+  '''troque-por-um-segredo-aleatorio-de-32-caracteres-ou-mais''',
+  '''segredo-jwt-de-teste-com-pelo-menos-32-caracteres''',
+  '''segredo-curto-31-caracteres-xxx''',
+]

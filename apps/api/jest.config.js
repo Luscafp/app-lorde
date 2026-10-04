@@ -32,6 +32,8 @@ module.exports = {
   ],
   // Cobertura medida sobre a soma dos projetos, só nos services de regra de negócio (RNF11).
   collectCoverageFrom: [SERVICES],
+  // v8 mede sobre o TS original; o babel/istanbul contaria os helpers de decorator do SWC.
+  coverageProvider: 'v8',
   coverageReporters: ['text', 'lcov', 'json-summary'],
   ...(temServices && {
     coverageThreshold: {

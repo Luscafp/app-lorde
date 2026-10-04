@@ -9,6 +9,7 @@ import type { Env } from './config/env.schema'
 import { ContextoModule } from './infra/contexto/contexto.module'
 import { criarConfigLogger } from './infra/logs/logger.config'
 import { PrismaModule } from './infra/prisma/prisma.module'
+import { AuthModule } from './modules/auth/auth.module'
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { PrismaModule } from './infra/prisma/prisma.module'
     }),
     ContextoModule,
     PrismaModule,
+    AuthModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },

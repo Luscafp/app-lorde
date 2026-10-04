@@ -10,6 +10,8 @@ export function criarConfigLogger(env: Pick<Env, 'NODE_ENV' | 'LOG_LEVEL'>): Par
     forRoutes: [{ path: '{*splat}', method: RequestMethod.ALL }],
     pinoHttp: {
       level: env.LOG_LEVEL,
+      // O access token nunca vai para o log (#7 §10); a redaction completa é da #48.
+      redact: ['req.headers.authorization'],
       ...(legivel && {
         transport: {
           target: 'pino-pretty',
