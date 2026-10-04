@@ -11,11 +11,15 @@ type Props = Omit<PressableProps, 'children' | 'style'> & {
   className?: string
 }
 
+const CORES: Record<VarianteBotao, (corPrimaria: string) => { fundo: string; texto: string }> = {
+  primaria: (corPrimaria) => ({ fundo: corPrimaria, texto: corTextoSobre(corPrimaria) }),
+  secundaria: () => ({ fundo: 'transparent', texto: paleta.texto }),
+  perigo: () => ({ fundo: paleta.erro, texto: corTextoSobre(paleta.erro) }),
+}
+
 function useCores(variante: VarianteBotao) {
   const { corPrimaria } = useAtletica()
-  if (variante === 'primaria') return { fundo: corPrimaria, texto: corTextoSobre(corPrimaria) }
-  if (variante === 'perigo') return { fundo: paleta.erro, texto: corTextoSobre(paleta.erro) }
-  return { fundo: 'transparent', texto: paleta.texto }
+  return CORES[variante](corPrimaria)
 }
 
 export function Botao({
@@ -46,7 +50,7 @@ export function Botao({
         setPressionado(false)
         onPressOut?.(evento)
       }}
-      className={`min-h-11 flex-row items-center justify-center gap-2 rounded-xl px-4 py-3 ${
+      className={`min-h-[44px] flex-row items-center justify-center gap-2 rounded-xl px-4 py-3 ${
         variante === 'secundaria' ? 'border border-borda' : ''
       } ${className ?? ''}`}
       style={{

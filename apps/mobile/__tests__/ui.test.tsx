@@ -49,16 +49,26 @@ describe('Botao', () => {
 const schema = z.object({ email: z.email('Informe um e-mail válido.') })
 type Dados = z.infer<typeof schema>
 
-function Formulario({ aoEnviar }: { aoEnviar: (dados: Dados) => void }) {
+function Formulario({
+  aoEnviar,
+  erroDaApi,
+}: {
+  aoEnviar: (dados: Dados) => void
+  erroDaApi?: string
+}) {
   const form = useForm({
     resolver: zodResolver(schema),
     mode: 'onBlur',
     defaultValues: { email: '' },
   })
+  const enviar = (dados: Dados) => {
+    aoEnviar(dados)
+    if (erroDaApi) form.setError('email', { message: erroDaApi })
+  }
   return (
     <View>
       <Campo controle={form.control} nome="email" rotulo="E-mail" />
-      <Botao titulo="Enviar" onPress={() => void form.handleSubmit(aoEnviar)()} />
+      <Botao titulo="Enviar" onPress={() => void form.handleSubmit(enviar)()} />
     </View>
   )
 }
@@ -86,6 +96,16 @@ describe('Campo', () => {
     await waitFor(() => expect(aoEnviar).toHaveBeenCalled())
     expect(aoEnviar.mock.calls[0]?.[0]).toEqual({ email: 'ana@exemplo.com' })
     expect(screen.queryByText('Informe um e-mail válido.')).toBeNull()
+  })
+
+  it('mostra o erro da API abaixo do campo e mantém o valor digitado', async () => {
+    await render(<Formulario aoEnviar={jest.fn()} erroDaApi="E-mail já cadastrado." />)
+
+    await fireEvent.changeText(screen.getByLabelText('E-mail'), 'ana@exemplo.com')
+    await fireEvent.press(screen.getByRole('button', { name: 'Enviar' }))
+
+    expect(await screen.findByText('E-mail já cadastrado.')).toBeOnTheScreen()
+    expect(screen.getByLabelText('E-mail')).toHaveDisplayValue('ana@exemplo.com')
   })
 })
 

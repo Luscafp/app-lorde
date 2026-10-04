@@ -26,7 +26,7 @@ export function Campo<T extends FieldValues>({ controle, nome, rotulo, ...entrad
             accessibilityLabel={rotulo}
             accessibilityHint={error?.message}
             placeholderTextColor={paleta['texto-suave']}
-            className={`min-h-11 rounded-xl border bg-superficie px-3 py-2 text-base text-texto ${
+            className={`min-h-[44px] rounded-xl border bg-superficie px-3 py-2 text-base text-texto ${
               error ? 'border-erro' : 'border-borda'
             }`}
             {...entrada}

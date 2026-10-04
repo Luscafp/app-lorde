@@ -3,24 +3,22 @@ import { Text, View } from 'react-native'
 import type { ToastConfig, ToastConfigParams } from 'react-native-toast-message'
 import { paleta, useAtletica } from '@/features/atletica'
 
-type VarianteToast = 'sucesso' | 'erro' | 'info'
-
 const APARENCIA = {
-  sucesso: { icone: 'checkmark-circle', prefixo: 'Sucesso' },
-  erro: { icone: 'alert-circle', prefixo: 'Erro' },
-  info: { icone: 'information-circle', prefixo: 'Aviso' },
+  sucesso: { icone: 'checkmark-circle', prefixo: 'Sucesso', cor: () => paleta.sucesso },
+  erro: { icone: 'alert-circle', prefixo: 'Erro', cor: () => paleta.erro },
+  info: {
+    icone: 'information-circle',
+    prefixo: 'Aviso',
+    cor: (corPrimaria: string) => corPrimaria,
+  },
 } as const
 
-function useCor(variante: VarianteToast) {
-  const { corPrimaria } = useAtletica()
-  if (variante === 'sucesso') return paleta.sucesso
-  if (variante === 'erro') return paleta.erro
-  return corPrimaria
-}
+type VarianteToast = keyof typeof APARENCIA
 
 function AvisoToast({ variante, text1 }: { variante: VarianteToast; text1?: string }) {
-  const cor = useCor(variante)
-  const { icone, prefixo } = APARENCIA[variante]
+  const { corPrimaria } = useAtletica()
+  const { icone, prefixo, cor: corDaVariante } = APARENCIA[variante]
+  const cor = corDaVariante(corPrimaria)
 
   return (
     <View
@@ -38,10 +36,9 @@ function AvisoToast({ variante, text1 }: { variante: VarianteToast; text1?: stri
   )
 }
 
-export const toastConfig: ToastConfig = {
-  sucesso: ({ text1 }: ToastConfigParams<unknown>) => (
-    <AvisoToast variante="sucesso" text1={text1} />
-  ),
-  erro: ({ text1 }: ToastConfigParams<unknown>) => <AvisoToast variante="erro" text1={text1} />,
-  info: ({ text1 }: ToastConfigParams<unknown>) => <AvisoToast variante="info" text1={text1} />,
-}
+export const toastConfig: ToastConfig = Object.fromEntries(
+  (Object.keys(APARENCIA) as VarianteToast[]).map((variante) => [
+    variante,
+    ({ text1 }: ToastConfigParams<unknown>) => <AvisoToast variante={variante} text1={text1} />,
+  ]),
+)
