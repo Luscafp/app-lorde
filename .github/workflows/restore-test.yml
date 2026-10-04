@@ -1,0 +1,82 @@
+name: Teste de restauração
+
+on:
+  schedule:
+    - cron: '0 9 1 * *' # dia 1º, 06:00 em São Luís (depois do backup diário)
+  workflow_dispatch:
+    inputs:
+      migration-esperada:
+        description: Última migration esperada no backup (vazio = a do último deploy de produção)
+        type: string
+        required: false
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  restauracao:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://restauracao:restauracao@localhost:5432/restauracao
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/preparar-backup
+      - name: Postgres efêmero
+        run: |
+          docker run -d --name restauracao -p 5432:5432 -e POSTGRES_USER=restauracao \
+            -e POSTGRES_PASSWORD=restauracao -e POSTGRES_DB=restauracao "postgres:$PG_MAJOR"
+          for _ in $(seq 60); do pg_isready -q -d "$DATABASE_URL" && break; sleep 2; done
+          pg_isready -d "$DATABASE_URL"
+      - name: Baixar o backup mais recente
+        id: baixar
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: https://${{ secrets.R2_BACKUP_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          echo "INICIO=$(date +%s)" >>"$GITHUB_ENV"
+          nome=$(aws s3 ls "s3://$BUCKET/prod/" | awk '{print $4}' | { grep '\.dump\.age$' || true; } | sort | tail -n1)
+          [ -n "$nome" ] || { echo "::error::Nenhum backup em $BUCKET/prod/."; exit 1; }
+          aws s3 cp "s3://$BUCKET/prod/$nome" "$RUNNER_TEMP/$nome" --no-progress
+          echo "nome=$nome" >>"$GITHUB_OUTPUT"
+      - name: Restaurar
+        env:
+          AGE_PRIVATE_KEY: ${{ secrets.AGE_PRIVATE_KEY_RESTORE_TEST }}
+          NOME: ${{ steps.baixar.outputs.nome }}
+        run: scripts/backup/restaurar.sh "$RUNNER_TEMP/$NOME"
+      - name: Migration em produção
+        id: producao
+        if: ${{ inputs.migration-esperada == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          commit=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow deploy-api.yml --branch main \
+            --status success --limit 1 --json headSha --jq '.[0].headSha // empty')
+          [ -n "$commit" ] || { echo "::error::Nenhum deploy de produção concluído."; exit 1; }
+          migration=$(gh api "repos/$GITHUB_REPOSITORY/contents/apps/api/prisma/migrations?ref=$commit" \
+            --jq '[.[] | select(.type == "dir") | .name] | sort | last')
+          echo "Produção em \`${commit:0:7}\`, última migration \`$migration\`." >>"$GITHUB_STEP_SUMMARY"
+          echo "migration=$migration" >>"$GITHUB_OUTPUT"
+      - name: Consultas de sanidade
+        id: sanidade
+        env:
+          MIGRATION_ESPERADA: ${{ inputs.migration-esperada || steps.producao.outputs.migration }}
+        run: |
+          echo "### Sanidade" >>"$GITHUB_STEP_SUMMARY"
+          scripts/backup/sanidade.sh | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Resumo
+        if: ${{ !cancelled() }}
+        env:
+          NOME: ${{ steps.baixar.outputs.nome }}
+          RESULTADO: ${{ steps.sanidade.outcome == 'success' && 'sucesso' || 'falha' }}
+        run: |
+          duracao=$(( $(date +%s) - ${INICIO:-$(date +%s)} ))
+          {
+            echo "### Teste de restauração: $RESULTADO"
+            echo
+            echo "| Backup | Duração |"
+            echo "| --- | --- |"
+            echo "| \`${NOME:-nenhum}\` | $((duracao / 60)) min $((duracao % 60)) s |"
+          } >>"$GITHUB_STEP_SUMMARY"

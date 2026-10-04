@@ -131,14 +131,14 @@ pnpm --filter api exec prisma migrate diff --from-migrations prisma/migrations -
 
 O workflow `.github/workflows/ci.yml` (GitHub Actions) roda em todo PR para `main` e em todo push na `main`. Um push novo no mesmo PR cancela a execução anterior. Node vem do `.nvmrc`, pnpm do `packageManager`, com cache do pnpm (`.github/actions/preparar`). A CI não usa segredos: as variáveis de ambiente de teste são fictícias e ficam no próprio workflow.
 
-| Job         | Verifica                                                                                                                                              | Falha quando                                          |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `qualidade` | `pnpm format:check`, `pnpm lint --max-warnings=0`, `pnpm typecheck` (todos reportam, mesmo que um falhe) e `gitleaks` nos commits do PR               | segredo commitado, erro ou aviso de lint/formato/tipo |
-| `prisma`    | `prisma validate` e `prisma migrate diff --exit-code` contra um banco sombra (pulado enquanto `apps/api/prisma/schema.prisma` não existir, até a #43) | schema alterado sem migration correspondente          |
-| `api`       | Postgres 16 como serviço, `prisma migrate deploy`, `pnpm --filter api test:cov` (projetos Jest `unit` e `integration`) e resumo da cobertura no job   | teste falhando ou cobertura abaixo do limite          |
-| `mobile`    | Jest do app (`jest-expo`) e `expo-doctor` (só alerta, não bloqueia)                                                                                   | teste falhando                                        |
-| `shared`    | Jest do `@atletica/shared`                                                                                                                            | teste falhando                                        |
-| `build`     | `pnpm --filter @atletica/shared build && pnpm --filter api build`                                                                                     | build quebrado                                        |
+| Job         | Verifica                                                                                                                                                                                      | Falha quando                                                         |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `qualidade` | `pnpm format:check`, `pnpm lint --max-warnings=0`, `pnpm typecheck`, `actionlint` nos workflows, `shellcheck` nos scripts (todos reportam, mesmo que um falhe) e `gitleaks` nos commits do PR | segredo commitado, erro ou aviso de lint/formato/tipo/workflow/shell |
+| `prisma`    | `prisma validate` e `prisma migrate diff --exit-code` contra um banco sombra (pulado enquanto `apps/api/prisma/schema.prisma` não existir, até a #43)                                         | schema alterado sem migration correspondente                         |
+| `api`       | Postgres 16 como serviço, `prisma migrate deploy`, `pnpm --filter api test:cov` (projetos Jest `unit` e `integration`) e resumo da cobertura no job                                           | teste falhando ou cobertura abaixo do limite                         |
+| `mobile`    | Jest do app (`jest-expo`) e `expo-doctor` (só alerta, não bloqueia)                                                                                                                           | teste falhando                                                       |
+| `shared`    | Jest do `@atletica/shared`                                                                                                                                                                    | teste falhando                                                       |
+| `build`     | `pnpm --filter @atletica/shared build && pnpm --filter api build`                                                                                                                             | build quebrado                                                       |
 
 - **Cobertura (RNF11):** medida só em `apps/api/src/modules/**/*.service.ts`, sobre a soma dos testes unitários e de integração. Cada service precisa de linhas, comandos e funções ≥ 70% e ramos ≥ 60% (`coverageThreshold` em `apps/api/jest.config.js`). O relatório HTML fica no artefato `cobertura-api` da execução. Localmente: `pnpm --filter api test:cov`.
 - **Filtro de caminhos:** todos os jobs sempre rodam e reportam status (inclusive em PR só de `docs/`); quando nada relevante mudou, os passos são pulados e o job passa. Os caminhos de cada job ficam em `.github/filtros-ci.yml` — nunca use `paths` no gatilho do workflow, senão os checks obrigatórios ficam pendentes.
@@ -153,6 +153,16 @@ Em _Settings → Branches_ (ou _Rulesets_), para a `main`:
 - Checks obrigatórios (nomes exatos dos jobs): **`qualidade`**, **`prisma`**, **`api`**, **`mobile`**, **`shared`**, **`build`**.
 - Exigir branch atualizada com a `main` antes de mesclar.
 - Aprovações obrigatórias: conforme a decisão do PO na #97.
+
+### Deploy e backup
+
+| Workflow           | Quando                                                      | Faz                                                                                                                                                                                |
+| ------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deploy-api.yml`   | push na `main` (e manual), só depois da CI do commit verde  | `railway up` em homologação e espera o `/health` com o commit; produção só após aprovação no environment `producao`. Migrations no pre-deploy da Railway (`apps/api/railway.json`) |
+| `backup-db.yml`    | diário às 03:00 (produção) e domingo às 04:00 (homologação) | `pg_dump` criptografado com `age` no bucket privado `atletica-backups` do R2 (retenção de 30 dias)                                                                                 |
+| `restore-test.yml` | dia 1º às 06:00 (e manual)                                  | restaura o backup de produção mais recente num Postgres efêmero e roda consultas de sanidade (migration do último deploy de produção)                                              |
+
+A lógica de backup fica em `scripts/backup/` (com teste local em `scripts/backup/README.md`). Provisionamento, variáveis e segredos: `docs/runbooks/infra-railway-r2.md`; restauração manual: `docs/runbooks/restauracao-banco.md`; seed de produção: `docs/runbooks/seed-producao.md`.
 
 ### Development build Android
 
@@ -179,6 +189,7 @@ Para conferir o bundle sem aparelho: `pnpm --filter mobile exec expo export --pl
 - Diagrama de Casos de Uso (`docs/diagrama-casos-uso.mermaid`)
 - Diagrama de Arquitetura (`docs/diagrama-arquitetura.mermaid`)
 - Protótipo de interface (`docs/Prototipo interativo app atlética`) — referência visual, defasado em relação ao documento
+- Runbooks de operação (`docs/runbooks/`): infraestrutura Railway/R2, restauração do banco e seed de produção
 
 ## 🗺️ Roadmap de desenvolvimento
 

@@ -464,3 +464,5 @@ curl http://localhost:3000/api/v1/health
 ```
 
 No Linux, acrescente `--add-host=host.docker.internal:host-gateway` aos `docker run`.
+
+Na Railway, `apps/api/railway.json` define o build por este Dockerfile, o pre-deploy `node node_modules/prisma/build/index.js migrate deploy` e o healthcheck em `/api/v1/health`. O deploy é feito pelo workflow `deploy-api.yml` (runbook em `docs/runbooks/infra-railway-r2.md`).
