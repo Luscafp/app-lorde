@@ -195,7 +195,7 @@ Quem chama `revogarTodas` emite `usuario.sessaoEncerrada` com a lista devolvida 
 
 ### Agendador (`src/infra/agendador`)
 
-Único registro do `ScheduleModule` (`@nestjs/schedule`, convenções §11.6). Jobs usam `@Cron(expr, { name, timeZone: FUSO_PADRAO })` e recebem o relógio por parâmetro num método separado (o `cron` passa argumentos próprios ao `onTick`). `LimpezaDiariaJob` (`manutencao.limpeza-diaria`, 03:00) apaga `TentativaAcesso` com mais de 24 h e `Sessao` expiradas ou revogadas há mais de 30 dias. A #62 acrescenta `CodigoVerificacao` ao mesmo job.
+Único registro do `ScheduleModule` (`@nestjs/schedule`, convenções §11.6). Jobs usam `@Cron(expr, { name, timeZone: FUSO_PADRAO })` e recebem o relógio por parâmetro num método separado (o `cron` passa argumentos próprios ao `onTick`). `LimpezaDiariaJob` (`manutencao.limpeza-diaria`, 03:00) apaga `TentativaAcesso` com mais de 24 h e `Sessao` expiradas ou revogadas há mais de 30 dias. A #62 acrescenta `CodigoVerificacao` ao mesmo job. `LimpezaOrfaosJob` (`uploads.limpeza-orfaos`, 03:30) fica no `UploadsModule` (ver [Limpeza de órfãos](#limpeza-de-órfãos)).
 
 ### Limite de tentativas (`RateLimitService`)
 
@@ -256,6 +256,21 @@ await this.transacao.executar(async (tx) => {
   if (anterior && anterior !== fotoKey) aposCommit(() => this.uploads.remover(anterior))
 })
 return { fotoUrl: this.uploads.urlPublica(fotoKey) }
+```
+
+### Limpeza de órfãos
+
+`LimpezaOrfaosJob` (`uploads.limpeza-orfaos`) roda todo dia às 03:30 de `America/Fortaleza` (`FUSO_PADRAO`) e chama `LimpezaOrfaosService.executar(agora)`, que apaga do bucket as imagens que nenhum registro referencia (uploads abandonados e imagens substituídas cuja remoção falhou). Sem tabela própria:
+
+- lista o bucket com `ListObjectsV2`, página a página, e só considera objetos com mais de 24 h e chave num dos formatos acima (o resto do bucket nunca é apagado);
+- procura as chaves em `Usuario.fotoKey`, `Noticia.imagemCapaKey` e `Banner.imagemKey` via `prisma.semEscopo` (todas as atléticas, inclusive registros excluídos logicamente) e apaga as demais com `DeleteObjects` (até 1000 por página);
+- uma chave que falha só gera `warn` e entra em `falhas`; o log `info` final traz `listados`, `referenciados`, `removidos` e `falhas`. Erro na listagem ou no banco interrompe sem apagar nada e vai para `logger.error` (Sentry);
+- um disparo enquanto a execução anterior não terminou é ignorado (trava na instância).
+
+Execução manual em desenvolvimento (usa o `.env`, com o bucket do R2 configurado nele):
+
+```bash
+pnpm --filter api uploads:limpar-orfaos
 ```
 
 ## Banco de dados e multi-atlética (`src/infra/prisma`, `src/infra/contexto`)

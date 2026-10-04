@@ -20,6 +20,7 @@ const SEM_ESCOPO_PERMITIDO = [
   'apps/api/src/modules/auth/**',
   'apps/api/src/modules/usuarios/conta*.ts',
   'apps/api/src/modules/health/**',
+  'apps/api/src/modules/uploads/limpeza-orfaos.service.ts',
   'apps/api/src/infra/**',
   'apps/api/prisma/seed*.ts',
   'tests/carga/seed-carga.ts',
@@ -27,7 +28,7 @@ const SEM_ESCOPO_PERMITIDO = [
 ]
 const mensagemSemEscopo =
   'prisma.semEscopo ignora o filtro por atlética: use prisma.db. Permitido só em modules/auth, ' +
-  'modules/usuarios/conta*, modules/health, infra, prisma/seed* e scripts de carga (convenções §3).'
+  'modules/usuarios/conta*, modules/health, uploads/limpeza-orfaos, infra, prisma/seed* e scripts de carga (convenções §3).'
 const usoSemEscopo = [
   "MemberExpression[property.name='semEscopo']",
   "MemberExpression[property.value='semEscopo']",
