@@ -14,7 +14,6 @@ const ABAS: readonly Aba[] = [
   { nome: 'painel', titulo: 'Painel', icone: 'shield-checkmark-outline' },
 ]
 
-// Tocar de novo na aba ativa volta à raiz: comportamento padrão das pilhas aninhadas nas abas.
 export default function LayoutAbas() {
   const { corPrimaria } = useAtletica()
   const vePainel = useVePainel()

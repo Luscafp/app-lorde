@@ -2,9 +2,11 @@ import { vars } from 'nativewind'
 import { useMemo, type ReactNode } from 'react'
 import { View } from 'react-native'
 import { hexParaRgb } from './cores'
-import { useAtletica } from './use-atletica'
+import { useAtletica, type Atletica } from './use-atletica'
 
-export function variaveisTema(cores: { corPrimaria: string; corSecundaria: string }) {
+type CoresAtletica = Pick<Atletica, 'corPrimaria' | 'corSecundaria'>
+
+export function variaveisTema(cores: CoresAtletica) {
   return {
     '--cor-primaria': hexParaRgb(cores.corPrimaria),
     '--cor-secundaria': hexParaRgb(cores.corSecundaria),

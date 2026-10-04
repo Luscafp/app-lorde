@@ -3,7 +3,7 @@ import { atleticaPublicaSchema, type AtleticaPublica } from '@atletica/shared'
 import { ambiente } from '@/config/ambiente'
 
 export const CHAVE_CACHE_ATLETICA = 'atletica.v1'
-export const TEMPO_LIMITE_ATLETICA_MS = 3000
+const TEMPO_LIMITE_ATLETICA_MS = 3000
 
 // Busca pública e sem token; a #52 troca pelo cliente HTTP.
 export async function buscarAtletica(): Promise<AtleticaPublica> {

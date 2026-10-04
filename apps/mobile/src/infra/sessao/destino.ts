@@ -8,7 +8,7 @@ export function caminhoInterno(url: string): string {
   return '/' + url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/^\/+/, '')
 }
 
-export function exigeSessao(caminho: string): boolean {
+function exigeSessao(caminho: string): boolean {
   const semConsulta = caminho.split(/[?#]/)[0] ?? caminho
   if (ROTAS_PUBLICAS.includes(semConsulta)) return false
   return !PREFIXOS_IGNORADOS.some((prefixo) => semConsulta.startsWith(prefixo))

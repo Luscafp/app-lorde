@@ -23,8 +23,8 @@ function luminancia(hex: string): number {
 
 /** Branco ou preto, o que tiver maior contraste WCAG sobre `hex`. */
 export function corTextoSobre(hex: string): typeof BRANCO | typeof PRETO {
-  const l = luminancia(hex)
-  const contrasteBranco = 1.05 / (l + 0.05)
-  const contrastePreto = (l + 0.05) / 0.05
+  const luz = luminancia(hex)
+  const contrasteBranco = 1.05 / (luz + 0.05)
+  const contrastePreto = (luz + 0.05) / 0.05
   return contrasteBranco >= contrastePreto ? BRANCO : PRETO
 }

@@ -1,6 +1,6 @@
 import { Link } from 'expo-router'
 import { Pressable, Text } from 'react-native'
-import { TelaProvisoria } from '@/components/ui/tela-provisoria'
+import { TelaProvisoria } from '@/components/tela-provisoria'
 import { corTextoSobre, useAtletica } from '@/features/atletica'
 
 export default function PaginaNaoEncontrada() {

@@ -31,7 +31,7 @@ export type MotivoEncerramento =
 
 export type OuvinteEncerramento = (evento: { motivo: MotivoEncerramento }) => void | Promise<void>
 
-type DadosPersistidos = { usuario: UsuarioSessao; accessTokenExpiraEm: string | null }
+type DadosPersistidos = Pick<EstadoSessao, 'usuario' | 'accessTokenExpiraEm'>
 
 type EstadoSessao = {
   status: StatusSessao
@@ -62,7 +62,10 @@ export function aoEncerrarSessao(ouvinte: OuvinteEncerramento): () => void {
   return () => ouvintes.delete(ouvinte)
 }
 
-async function persistir(dados: DadosPersistidos): Promise<void> {
+async function persistir(): Promise<void> {
+  const { usuario, accessTokenExpiraEm } = useSessao.getState()
+  if (!usuario) return
+  const dados: DadosPersistidos = { usuario, accessTokenExpiraEm }
   await AsyncStorage.setItem(CHAVE_DADOS_SESSAO, JSON.stringify(dados))
 }
 
@@ -71,16 +74,9 @@ async function gravarTokens({ accessToken, refreshToken }: TokensSessao): Promis
   await SecureStore.setItemAsync(CHAVE_REFRESH_TOKEN, refreshToken)
 }
 
-/**
- * Store de sessão (convenções §10.6). Tokens só no SecureStore; o resto no AsyncStorage.
- * Fora do React: `useSessao.getState()`.
- */
 export const useSessao = create<EstadoSessao>()((set, get) => ({
+  ...SEM_SESSAO,
   status: 'carregando',
-  usuario: null,
-  accessToken: null,
-  refreshToken: null,
-  accessTokenExpiraEm: null,
 
   carregarSessao: async () => {
     try {
@@ -108,23 +104,21 @@ export const useSessao = create<EstadoSessao>()((set, get) => ({
 
   iniciarSessao: async ({ usuario, ...tokens }) => {
     await gravarTokens(tokens)
-    await persistir({ usuario, accessTokenExpiraEm: tokens.accessTokenExpiraEm })
     set({ status: 'autenticado', usuario, ...tokens })
+    await persistir()
   },
 
   atualizarUsuario: async (parcial) => {
     const atual = get().usuario
     if (!atual) return
-    const usuario = { ...atual, ...parcial }
-    set({ usuario })
-    await persistir({ usuario, accessTokenExpiraEm: get().accessTokenExpiraEm })
+    set({ usuario: { ...atual, ...parcial } })
+    await persistir()
   },
 
   atualizarTokens: async (tokens) => {
     await gravarTokens(tokens)
     set(tokens)
-    const usuario = get().usuario
-    if (usuario) await persistir({ usuario, accessTokenExpiraEm: tokens.accessTokenExpiraEm })
+    await persistir()
   },
 
   encerrarSessao: async ({ motivo }) => {

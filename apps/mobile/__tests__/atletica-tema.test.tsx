@@ -3,18 +3,12 @@ import type { AtleticaPublica } from '@atletica/shared'
 import { act, render, renderHook, screen } from '@testing-library/react-native'
 import * as nativewind from 'nativewind'
 import { StyleSheet, Text } from 'react-native'
-import {
-  carregarAtletica,
-  CHAVE_CACHE_ATLETICA,
-  COR_NEUTRA,
-  corTextoSobre,
-  hexParaRgb,
-  NOME_GENERICO,
-  ProvedorTema,
-  useAtletica,
-  variaveisTema,
-} from '@/features/atletica'
-import { atleticaStore } from '@/features/atletica/use-atletica'
+import { carregarAtletica, corTextoSobre, ProvedorTema, useAtletica } from '@/features/atletica'
+import { CHAVE_CACHE_ATLETICA } from '@/features/atletica/api'
+import { atleticaStore } from '@/features/atletica/carregar-atletica'
+import { hexParaRgb } from '@/features/atletica/cores'
+import { variaveisTema } from '@/features/atletica/provedor-tema'
+import { COR_NEUTRA, NOME_GENERICO } from '@/features/atletica/use-atletica'
 
 const atletica: AtleticaPublica = {
   id: '6f1c2a7e-2f5b-4c39-9a0e-3f3b1b8d2c11',

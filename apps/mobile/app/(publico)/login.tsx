@@ -1,6 +1,6 @@
 import { Link } from 'expo-router'
 import { Text } from 'react-native'
-import { TelaProvisoria } from '@/components/ui/tela-provisoria'
+import { TelaProvisoria } from '@/components/tela-provisoria'
 import { useAtletica } from '@/features/atletica'
 
 // Tela real na #59.

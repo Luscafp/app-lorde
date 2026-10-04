@@ -1,5 +1,5 @@
 import { Redirect } from 'expo-router'
-import { TelaProvisoria } from '@/components/ui/tela-provisoria'
+import { TelaProvisoria } from '@/components/tela-provisoria'
 import { useVePainel } from '@/infra/sessao/use-ve-painel'
 
 // Conteúdo nas issues de diretoria.

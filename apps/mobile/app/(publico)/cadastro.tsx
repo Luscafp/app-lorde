@@ -1,4 +1,4 @@
-import { TelaProvisoria } from '@/components/ui/tela-provisoria'
+import { TelaProvisoria } from '@/components/tela-provisoria'
 
 // Tela real na #59.
 export default function Cadastro() {
