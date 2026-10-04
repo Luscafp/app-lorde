@@ -14,6 +14,7 @@ import { AtleticasModule } from './modules/atleticas/atleticas.module'
 import { AuditoriaModule } from './modules/auditoria/auditoria.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.module'
+import { HealthModule } from './modules/health/health.module'
 
 @Module({
   imports: [
@@ -25,6 +26,8 @@ import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.mod
           NODE_ENV: config.get('NODE_ENV', { infer: true }),
           LOG_LEVEL: config.get('LOG_LEVEL', { infer: true }),
           APP_ENV: config.get('APP_ENV', { infer: true }),
+          GIT_COMMIT_SHA: config.get('GIT_COMMIT_SHA', { infer: true }),
+          RAILWAY_GIT_COMMIT_SHA: config.get('RAILWAY_GIT_COMMIT_SHA', { infer: true }),
         }),
     }),
     ContextoModule,
@@ -33,6 +36,7 @@ import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.mod
     AuditoriaModule,
     AuthModule,
     AtleticasModule,
+    HealthModule,
     DiagnosticoForaDeProducao,
   ],
   providers: [

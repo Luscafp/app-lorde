@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/nestjs'
 import type { Request } from 'express'
 import type { Env } from '../../config/env.schema'
-import { versaoApi } from '../../config/versao'
+import { versaoApi, type EnvCommit } from '../../config/versao'
 import { contextoDaRequisicao } from '../contexto/contexto-requisicao'
 import { rotaDaRequisicao } from '../logs/rota'
 
@@ -56,13 +56,13 @@ export function beforeSend(evento: Sentry.ErrorEvent): Sentry.ErrorEvent {
 
 /** Opções do `Sentry.init`; `undefined` sem `SENTRY_DSN` (Sentry desligado). */
 export function opcoesSentry(
-  env: Pick<Env, 'APP_ENV' | 'SENTRY_DSN' | 'SENTRY_TRACES_SAMPLE_RATE'>,
+  env: Pick<Env, 'APP_ENV' | 'SENTRY_DSN' | 'SENTRY_TRACES_SAMPLE_RATE'> & EnvCommit,
 ): Sentry.NodeOptions | undefined {
   if (!env.SENTRY_DSN) return undefined
   return {
     dsn: env.SENTRY_DSN,
     environment: env.APP_ENV,
-    release: `api@${versaoApi()}`,
+    release: `api@${versaoApi(env)}`,
     dataCollection: COLETA_MINIMA,
     tracesSampleRate: env.SENTRY_TRACES_SAMPLE_RATE,
     beforeSend,

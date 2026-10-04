@@ -12,6 +12,8 @@ export const PREFIXO_API = 'api/v1'
 export const ROTA_DOCS = 'api/docs'
 /** Imagens não passam pela API (#9); corpos maiores respondem 413. */
 export const LIMITE_CORPO = '100kb'
+/** Só o proxy da Railway é confiável: `req.ip` é o último IP do `X-Forwarded-For`, não forjável. */
+export const SALTOS_PROXY_CONFIAVEIS = 1
 
 /**
  * Configuração comum da aplicação, usada pelo `main.ts` e pelos testes de integração.
@@ -20,6 +22,7 @@ export const LIMITE_CORPO = '100kb'
 export function configurarApp(app: NestExpressApplication): void {
   const config = app.get<ConfigService<Env, true>>(ConfigService)
 
+  app.set('trust proxy', SALTOS_PROXY_CONFIAVEIS)
   app.use(requestIdMiddleware)
   app.useLogger(app.get(Logger))
   app.setGlobalPrefix(PREFIXO_API)

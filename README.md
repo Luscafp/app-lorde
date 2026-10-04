@@ -102,6 +102,7 @@ A API sobe em `http://localhost:3000/api/v1` e o Swagger em `http://localhost:30
 | `pnpm --filter api test:integration`              | só os testes de integração da API (Postgres de testes)   |
 | `pnpm --filter api test:cov`                      | testes da API com limite de cobertura                    |
 | `pnpm build`                                      | build do shared e da API                                 |
+| `pnpm --filter api docker:build`                  | imagem Docker da API (`apps/api/README.md`, Docker)      |
 
 Um hook de pre-commit (Husky + lint-staged) roda Prettier e ESLint nos arquivos alterados.
 
