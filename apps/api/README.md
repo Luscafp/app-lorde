@@ -45,11 +45,11 @@ pnpm --filter api test:unit                # só unitários, sem banco
 
 ### Utilitários (`test/setup/`)
 
-| Utilitário                           | Uso                                                                                                                                                                                                                   |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `prismaTeste` (`prisma-teste.ts`)    | Cliente Prisma **base** (sem a extensão multi-atlética): enxerga todas as atléticas. Para preparar dados e conferir o banco; o código da API usa o `PrismaService` (#44).                                             |
-| `limparBanco()` (`limpar-banco.ts`)  | `TRUNCATE ... RESTART IDENTITY CASCADE` em todas as tabelas do `public`, menos `_prisma_migrations` (lista lida de `pg_tables`). Já roda no `beforeEach`; chame direto só para limpar no meio de um teste.            |
-| `criarApp(opcoes?)` (`criar-app.ts`) | Sobe o `AppModule` real com o `configurarApp` do `main.ts` e devolve `{ app, http }`. `opcoes.controllers` acrescenta controllers de teste; `opcoes.ajustar` recebe o `TestingModuleBuilder` (`overrideProvider`...). |
+| Utilitário                           | Uso                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `prismaTeste` (`prisma-teste.ts`)    | Cliente Prisma **base** (sem a extensão multi-atlética): enxerga todas as atléticas. Para preparar dados e conferir o banco; o código da API usa o `PrismaService` (#44).                                                                                                                                                                        |
+| `limparBanco()` (`limpar-banco.ts`)  | `TRUNCATE ... RESTART IDENTITY CASCADE` em todas as tabelas do `public`, menos `_prisma_migrations` (lista lida de `pg_tables`). Já roda no `beforeEach`; chame direto só para limpar no meio de um teste.                                                                                                                                       |
+| `criarApp(opcoes?)` (`criar-app.ts`) | Sobe o `AppModule` real com o `configurarApp` do `main.ts` e devolve `{ app, http }`. `opcoes.controllers` acrescenta controllers de teste; `opcoes.ajustar` recebe o `TestingModuleBuilder` (`overrideProvider`...). Antes de subir, esvazia o banco e cria a atlética padrão (`prepararAtleticaPadrao`), exigida pelo `AtleticaPadraoService`. |
 
 ```ts
 import request from 'supertest'
@@ -78,6 +78,7 @@ describe('GET /api/v1/...', () => {
 ### Fábricas (`test/fabricas/`)
 
 - `criarAtletica(dados?)` — atlética que usa o app, com `slug`, `sigla` e cores válidas (`CHECK atletica_dados_app`). `criarAtletica({ usaAplicativo: false })` cria uma adversária só com o nome. Qualquer campo pode ser sobrescrito.
+- `prepararAtleticaPadrao(dados?)` — esvazia o banco e cria uma única atlética que usa o app (já chamado pelo `criarApp`). Como o `beforeEach` a apaga, testes que dependem dela a recriam com o id resolvido na subida: `criarAtletica({ id: app.get(AtleticaPadraoService).id() })`.
 - `criarUsuario({ papel = 'ATLETA', atleticaId?, nome?, email?, ativo?, vinculoAtivo?, senhaHash? })` — cria o `Usuario` (e-mail único, gravado em minúsculas) e o `VinculoAtletica` com o papel. Sem `atleticaId`, cria uma atlética. Devolve o usuário com `atleticaId` e `vinculo`. `senhaHash` padrão é `SENHA_HASH_FICTICIO`, que não corresponde a nenhuma senha: para login real, passe um hash do `SenhaService` (#45).
 - `proximaSequencia()` — número crescente para valores únicos nas fábricas.
 - `tokenPara(usuario, { atleticaId?, sessao? })` (`auth.ts`) — cria uma `Sessao` ativa (ou usa a informada) e devolve um access token assinado com `token.config.ts` (`iss`/`aud` incluídos), igual ao que a #10 emitirá. `atleticaId` padrão: a do `criarUsuario`. Use em todo teste de rota protegida:
@@ -223,6 +224,19 @@ Idempotente: pode rodar quantas vezes quiser, sem duplicar nem sobrescrever o qu
 4. **Demonstração** (`SEED_DEMO=true`): adversária, dois times, eventos, notícias e um usuário por papel (`<papel>@demo.exemplo.com.br`, senha `lorde2026`). Recusado com `APP_ENV=producao`.
 
 Em **produção** o seed é executado uma única vez, por uma pessoa, na implantação (#92) — nunca no deploy automático.
+
+## Atlética padrão (`src/modules/atleticas`)
+
+Enquanto só uma atlética usa o app (seção 8.4), a atlética padrão é a **única** `Atletica` com `usaAplicativo = true`. O `AtleticaPadraoService` a resolve no `onModuleInit` e guarda o `id` em memória; com zero ou mais de uma, a API **não sobe** e o log explica o motivo (`ErroAtleticaPadrao`, convenções §6).
+
+Importe `AtleticasModule` e injete `AtleticaPadraoService`:
+
+- `id()` — id da atlética padrão. Usado pelo cadastro/login (#57) para criar o `VinculoAtletica` e definir o `atl` do token, e por rotas públicas que leem modelos com escopo: `contexto.executarComAtletica(atleticaPadrao.id(), () => ...)`.
+- `obter()` — marca e contato público (`AtleticaPublica` de `@atletica/shared`), lidos do banco a cada chamada: mudanças valem sem reiniciar a API.
+
+### `GET /api/v1/atletica`
+
+Pública (`@Publico()`): a tela de login já usa a marca. Resposta validada por `atleticaPublicaSchema` (todos os campos sempre presentes, nulos como `null`; nunca `usaAplicativo`, datas internas ou vínculos). `Cache-Control: public, max-age=300`; o `ETag` e o `304` com `If-None-Match` vêm do Express. Sem rate limit (convenções §4.6).
 
 ## Senhas (`src/infra/senha`)
 

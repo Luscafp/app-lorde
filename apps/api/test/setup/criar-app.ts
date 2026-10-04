@@ -4,6 +4,7 @@ import { Test, type TestingModuleBuilder } from '@nestjs/testing'
 import type { App } from 'supertest/types'
 import { AppModule } from '../../src/app.module'
 import { configurarApp } from '../../src/configurar-app'
+import { prepararAtleticaPadrao } from '../fabricas/atletica'
 
 export interface OpcoesCriarApp {
   /** Controllers extras, só de teste (ex.: test/suporte/exemplo.controller.ts). */
@@ -22,8 +23,10 @@ export interface AppDeTeste {
  * Sobe o `AppModule` real com a mesma configuração do `main.ts` (`configurarApp`: prefixo
  * `api/v1`, helmet, limite de corpo, Swagger) — o filtro global e o `ZodValidationPipe` vêm do
  * próprio `AppModule`. Feche no `afterAll` com `await app.close()`.
+ * Esvazia o banco e cria a atlética padrão antes de subir (`prepararAtleticaPadrao`, #50).
  */
 export async function criarApp(opcoes: OpcoesCriarApp = {}): Promise<AppDeTeste> {
+  await prepararAtleticaPadrao()
   const construtor = Test.createTestingModule({
     imports: [AppModule],
     controllers: opcoes.controllers ?? [],
