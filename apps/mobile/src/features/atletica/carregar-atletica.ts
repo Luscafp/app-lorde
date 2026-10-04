@@ -1,19 +1,34 @@
 import type { AtleticaPublica } from '@atletica/shared'
-import { create } from 'zustand'
+import { queryOptions } from '@tanstack/react-query'
+import { chaves } from '@/infra/query/chaves'
+import { queryClient } from '@/infra/query/query-client'
 import { buscarAtletica, gravarAtleticaNoCache, lerAtleticaDoCache } from './api'
 
-export const atleticaStore = create<{ dados: AtleticaPublica | null }>(() => ({ dados: null }))
+export const ESPERA_MAXIMA_ATLETICA_MS = 3000
 
-async function atualizarDaRede(): Promise<void> {
-  const atletica = await buscarAtletica()
-  atleticaStore.setState({ dados: atletica })
-  await gravarAtleticaNoCache(atletica)
+let atleticaLidaNaSplash: AtleticaPublica | undefined
+
+export const consultaAtletica = queryOptions({
+  queryKey: chaves.atletica(),
+  queryFn: async ({ signal }) => {
+    const atletica = await buscarAtletica(signal)
+    await gravarAtleticaNoCache(atletica).catch(() => undefined)
+    return atletica
+  },
+})
+
+export function atleticaLidaPorCarregarAtletica(): AtleticaPublica | undefined {
+  return atleticaLidaNaSplash
 }
 
-/** Aplica o cache na hora; sem cache, espera a rede (limite de 3 s). A rede sempre atualiza o cache. */
+/** Com cache, libera a splash na hora; sem cache, espera a rede por até 3 s, sem repetir. */
 export async function carregarAtletica(): Promise<void> {
-  const cache = await lerAtleticaDoCache()
-  if (cache) atleticaStore.setState({ dados: cache })
-  const rede = atualizarDaRede().catch(() => undefined)
-  if (!cache) await rede
+  atleticaLidaNaSplash = (await lerAtleticaDoCache()) ?? undefined
+  if (atleticaLidaNaSplash) return
+  let limite: ReturnType<typeof setTimeout> | undefined
+  await Promise.race([
+    queryClient.prefetchQuery({ ...consultaAtletica, retry: false }),
+    new Promise((resolver) => (limite = setTimeout(resolver, ESPERA_MAXIMA_ATLETICA_MS))),
+  ])
+  clearTimeout(limite)
 }

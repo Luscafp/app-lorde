@@ -6,23 +6,28 @@ import {
   type LoginEntrada,
   type RespostaSessao,
 } from '@atletica/shared'
-import { Injectable, type OnModuleInit } from '@nestjs/common'
+import { Injectable, Logger, type OnModuleInit } from '@nestjs/common'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client'
+import { ErroNegocio } from '../../common/erros/erro-negocio'
 import { ContextoAtletica } from '../../infra/contexto/contexto-atletica.service'
 import { TransacaoService } from '../../infra/eventos/apos-commit'
+import type { MotivoRevogacao } from '../../infra/eventos/eventos-dominio'
 import { EventosDominioService } from '../../infra/eventos/eventos-dominio.service'
-import { PrismaService } from '../../infra/prisma/prisma.service'
+import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import { SenhaService } from '../../infra/senha/senha.service'
 import { AtleticaPadraoService } from '../atleticas/atletica-padrao.service'
 import {
   erroContaDesativada,
   erroCredenciaisInvalidas,
   erroEmailJaCadastrado,
+  erroRefreshInvalido,
+  erroRefreshJaRotacionado,
+  erroSessaoRevogada,
   erroTermosDesatualizados,
 } from './erros'
 import { RateLimitService, TipoTentativa, type LimiteTentativas } from './rate-limit.service'
 import { RespostaSessaoService } from './resposta-sessao.service'
-import { SessaoService } from './sessao.service'
+import { SessaoService, type SessaoDoUsuario } from './sessao.service'
 
 const MINUTO_MS = 60_000
 
@@ -52,8 +57,21 @@ export function chaveLogin(email: string, ip: string | undefined): string {
 
 const CAMPOS_USUARIO = { id: true, nome: true, email: true, fotoKey: true } as const
 
+function camposConta(atleticaId: string) {
+  return {
+    ...CAMPOS_USUARIO,
+    ativo: true,
+    vinculos: { where: { atleticaId }, select: { papel: true, ativo: true } },
+  } as const
+}
+
+function contaAtiva(usuario: { ativo: boolean }, vinculo: { ativo: boolean }): boolean {
+  return usuario.ativo && vinculo.ativo
+}
+
 @Injectable()
 export class AuthService implements OnModuleInit {
+  private readonly logger = new Logger(AuthService.name)
   /** Verificado quando o e-mail não existe, para o login levar o mesmo tempo (UC07 A1). */
   private hashFicticio?: Promise<string>
 
@@ -128,12 +146,7 @@ export class AuthService implements OnModuleInit {
     const atleticaId = this.atleticaPadrao.id()
     const usuario = await this.prisma.semEscopo.usuario.findFirst({
       where: { email: dados.email, excluidoEm: null },
-      select: {
-        ...CAMPOS_USUARIO,
-        senhaHash: true,
-        ativo: true,
-        vinculos: { where: { atleticaId }, select: { papel: true, ativo: true } },
-      },
+      select: { ...camposConta(atleticaId), senhaHash: true },
     })
     const vinculo = usuario?.vinculos[0]
     const senhaConfere = await this.senhas.verificar(
@@ -143,7 +156,7 @@ export class AuthService implements OnModuleInit {
     if (!usuario || !vinculo || !senhaConfere) return this.falharLogin(chave)
 
     await this.limites.limpar(TipoTentativa.LOGIN_FALHA, chave)
-    if (!usuario.ativo || !vinculo.ativo) {
+    if (!contaAtiva(usuario, vinculo)) {
       const { nome } = await this.atleticaPadrao.obter()
       throw erroContaDesativada(nome)
     }
@@ -157,6 +170,84 @@ export class AuthService implements OnModuleInit {
       }
       const sessao = await this.sessoes.criar(tx, { usuarioId: usuario.id, atleticaId, ...origem })
       return this.respostas.montar({ ...usuario, papel: vinculo.papel, atleticaId }, sessao)
+    })
+  }
+
+  /** As revogações (reuso, conta desativada ou excluída) são gravadas antes de responder `401`. */
+  async renovar(refreshToken: string): Promise<RespostaSessao> {
+    const resultado = await this.transacao.executar((tx) =>
+      this.renovarNaTransacao(tx, refreshToken),
+    )
+    if (resultado instanceof ErroNegocio) throw resultado
+    return resultado
+  }
+
+  /** Idempotente: só revoga e emite o evento se o token pertence a uma sessão ativa. */
+  async sair(refreshToken: string): Promise<void> {
+    await this.transacao.executar(async (tx) => {
+      const sessao = await this.sessoes.revogarPorToken(tx, refreshToken, 'LOGOUT')
+      if (sessao) this.emitirSessaoEncerrada(sessao, 'LOGOUT', sessao.usuarioId)
+    })
+  }
+
+  private async renovarNaTransacao(
+    tx: TransacaoComEscopo,
+    refreshToken: string,
+  ): Promise<RespostaSessao | ErroNegocio> {
+    const rotacao = await this.sessoes.rotacionar(tx, refreshToken)
+    switch (rotacao.tipo) {
+      case 'INVALIDO':
+        return erroRefreshInvalido()
+      case 'REVOGADA':
+        return erroSessaoRevogada()
+      case 'JA_ROTACIONADO':
+        return erroRefreshJaRotacionado()
+      case 'REUSO':
+        this.logger.warn(
+          { sessaoId: rotacao.sessaoId, usuarioId: rotacao.usuarioId },
+          'Reuso de refresh token: sessão revogada',
+        )
+        this.emitirSessaoEncerrada(rotacao, 'REUSO_REFRESH', null)
+        return erroSessaoRevogada()
+    }
+
+    const { atleticaId } = rotacao
+    const usuario = await tx.usuario.findUnique({
+      where: { id: rotacao.usuarioId },
+      select: { ...camposConta(atleticaId), excluidoEm: true },
+    })
+    const vinculo = usuario?.vinculos[0]
+    // Conta excluída é tratada como inexistente (épico #10 §3.3).
+    if (!usuario || usuario.excluidoEm) {
+      return this.revogarNaRenovacao(tx, rotacao, 'CONTA_EXCLUIDA', erroRefreshInvalido())
+    }
+    if (!vinculo || !contaAtiva(usuario, vinculo)) {
+      return this.revogarNaRenovacao(tx, rotacao, 'CONTA_DESATIVADA', erroContaDesativada())
+    }
+    return this.respostas.montar({ ...usuario, papel: vinculo.papel, atleticaId }, rotacao)
+  }
+
+  private async revogarNaRenovacao(
+    tx: TransacaoComEscopo,
+    sessao: SessaoDoUsuario,
+    motivo: MotivoRevogacao,
+    erro: ErroNegocio,
+  ): Promise<ErroNegocio> {
+    await this.sessoes.revogar(tx, sessao.sessaoId, motivo)
+    this.emitirSessaoEncerrada(sessao, motivo, null)
+    return erro
+  }
+
+  private emitirSessaoEncerrada(
+    { sessaoId, usuarioId }: SessaoDoUsuario,
+    motivo: MotivoRevogacao,
+    autorId: string | null,
+  ): void {
+    this.eventos.emitirAposCommit('usuario.sessaoEncerrada', {
+      usuarioId,
+      sessaoIds: [sessaoId],
+      motivo,
+      autorId,
     })
   }
 

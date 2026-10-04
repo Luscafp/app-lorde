@@ -1,0 +1,139 @@
+import { zodResolver } from '@hookform/resolvers/zod'
+import { fireEvent, screen, waitFor } from '@testing-library/react-native'
+import { useForm } from 'react-hook-form'
+import { View } from 'react-native'
+import Toast from 'react-native-toast-message'
+import { z } from 'zod'
+import { Botao, Campo, toastConfig } from '@/components/ui'
+import { renderizar } from '../test-utils/renderizar'
+
+describe('Botao', () => {
+  it('tem papel e rótulo de acessibilidade', async () => {
+    const onPress = jest.fn()
+    await renderizar(<Botao titulo="Salvar" onPress={onPress} />)
+    await fireEvent.press(screen.getByRole('button', { name: 'Salvar' }))
+    expect(onPress).toHaveBeenCalledTimes(1)
+  })
+
+  it('carregando mostra o spinner e não aceita toques', async () => {
+    const onPress = jest.fn()
+    await renderizar(<Botao titulo="Salvar" carregando onPress={onPress} />)
+    const botao = screen.getByRole('button', { name: 'Salvar' })
+
+    await fireEvent.press(botao)
+
+    expect(screen.getByTestId('botao-spinner')).toBeOnTheScreen()
+    expect(botao).toBeDisabled()
+    expect(botao).toBeBusy()
+    expect(onPress).not.toHaveBeenCalled()
+  })
+
+  it('disabled não aceita toques', async () => {
+    const onPress = jest.fn()
+    await renderizar(<Botao titulo="Salvar" disabled onPress={onPress} />)
+    await fireEvent.press(screen.getByRole('button', { name: 'Salvar' }))
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
+    expect(onPress).not.toHaveBeenCalled()
+  })
+
+  it('muda a aparência ao encostar o dedo (onPressIn)', async () => {
+    await renderizar(<Botao titulo="Salvar" />)
+    const botao = screen.getByRole('button', { name: 'Salvar' })
+    expect(botao).toHaveStyle({ opacity: 1 })
+    await fireEvent(botao, 'pressIn')
+    expect(botao).toHaveStyle({ opacity: 0.7 })
+    await fireEvent(botao, 'pressOut')
+    expect(botao).toHaveStyle({ opacity: 1 })
+  })
+})
+
+const schema = z.object({ email: z.email('Informe um e-mail válido.') })
+type Dados = z.infer<typeof schema>
+
+function Formulario({
+  aoEnviar,
+  erroDaApi,
+}: {
+  aoEnviar: (dados: Dados) => void
+  erroDaApi?: string
+}) {
+  const form = useForm({
+    resolver: zodResolver(schema),
+    mode: 'onBlur',
+    defaultValues: { email: '' },
+  })
+  const enviar = (dados: Dados) => {
+    aoEnviar(dados)
+    if (erroDaApi) form.setError('email', { message: erroDaApi })
+  }
+  return (
+    <View>
+      <Campo controle={form.control} nome="email" rotulo="E-mail" />
+      <Botao titulo="Enviar" onPress={() => void form.handleSubmit(enviar)()} />
+    </View>
+  )
+}
+
+describe('Campo', () => {
+  it('mostra o erro do Zod abaixo do campo e mantém o valor digitado', async () => {
+    const aoEnviar = jest.fn()
+    await renderizar(<Formulario aoEnviar={aoEnviar} />)
+
+    await fireEvent.changeText(screen.getByLabelText('E-mail'), 'invalido')
+    await fireEvent.press(screen.getByRole('button', { name: 'Enviar' }))
+
+    expect(await screen.findByText('Informe um e-mail válido.')).toBeOnTheScreen()
+    expect(screen.getByLabelText('E-mail')).toHaveDisplayValue('invalido')
+    expect(aoEnviar).not.toHaveBeenCalled()
+  })
+
+  it('envia com valor válido', async () => {
+    const aoEnviar = jest.fn<void, [Dados]>()
+    await renderizar(<Formulario aoEnviar={aoEnviar} />)
+
+    await fireEvent.changeText(screen.getByLabelText('E-mail'), 'ana@exemplo.com')
+    await fireEvent.press(screen.getByRole('button', { name: 'Enviar' }))
+
+    await waitFor(() => expect(aoEnviar).toHaveBeenCalled())
+    expect(aoEnviar.mock.calls[0]?.[0]).toEqual({ email: 'ana@exemplo.com' })
+    expect(screen.queryByText('Informe um e-mail válido.')).toBeNull()
+  })
+
+  it('mostra o erro da API abaixo do campo e mantém o valor digitado', async () => {
+    await renderizar(<Formulario aoEnviar={jest.fn()} erroDaApi="E-mail já cadastrado." />)
+
+    await fireEvent.changeText(screen.getByLabelText('E-mail'), 'ana@exemplo.com')
+    await fireEvent.press(screen.getByRole('button', { name: 'Enviar' }))
+
+    expect(await screen.findByText('E-mail já cadastrado.')).toBeOnTheScreen()
+    expect(screen.getByLabelText('E-mail')).toHaveDisplayValue('ana@exemplo.com')
+  })
+})
+
+describe('toastConfig', () => {
+  it.each([
+    ['sucesso', 'Sucesso'],
+    ['erro', 'Erro'],
+    ['info', 'Aviso'],
+  ] as const)('renderiza a variante %s com texto e rótulo acessível', async (tipo, prefixo) => {
+    const variante = toastConfig[tipo]
+    if (!variante) throw new Error(`variante ausente: ${tipo}`)
+    await renderizar(
+      <>
+        {variante({
+          type: tipo,
+          text1: 'Mensagem',
+          position: 'top',
+          isVisible: true,
+          visibilityTime: 4000,
+          props: {},
+          show: Toast.show,
+          hide: Toast.hide,
+          onPress: jest.fn(),
+        })}
+      </>,
+    )
+
+    expect(screen.getByRole('alert', { name: `${prefixo}: Mensagem` })).toBeOnTheScreen()
+  })
+})

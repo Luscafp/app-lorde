@@ -5,6 +5,7 @@ import {
   emailSchema,
   loginSchema,
   nomeSchema,
+  refreshTokenSchema,
   senhaSchema,
 } from './schemas'
 
@@ -132,5 +133,21 @@ describe('cadastroFormSchema', () => {
     const resultado = cadastroFormSchema.safeParse({ ...valido, confirmarSenha: 'lorde2027' })
     expect(campos(resultado)).toEqual(['confirmarSenha'])
     expect(mensagens(resultado)).toEqual(['As senhas não conferem.'])
+  })
+})
+
+describe('refreshTokenSchema', () => {
+  it.each(['malformado', '', 'a'.repeat(500)])(
+    'aceita qualquer texto (%#); o formato é conferido na API',
+    (refreshToken) => {
+      expect(refreshTokenSchema.safeParse({ refreshToken }).success).toBe(true)
+    },
+  )
+
+  it.each([
+    ['ausente', {}],
+    ['com campo desconhecido', { refreshToken: 'a.b', usuarioId: 'x' }],
+  ])('rejeita corpo %s', (_caso, corpo) => {
+    expect(refreshTokenSchema.safeParse(corpo).success).toBe(false)
   })
 })

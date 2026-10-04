@@ -1,24 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { atleticaPublicaSchema, type AtleticaPublica } from '@atletica/shared'
-import { ambiente } from '@/config/ambiente'
+import { api } from '@/infra/api/cliente'
 
 export const CHAVE_CACHE_ATLETICA = 'atletica.v1'
-const TEMPO_LIMITE_ATLETICA_MS = 3000
 
-// Busca pública e sem token; a #52 troca pelo cliente HTTP.
-export async function buscarAtletica(): Promise<AtleticaPublica> {
-  const controle = new AbortController()
-  const limite = setTimeout(() => controle.abort(), TEMPO_LIMITE_ATLETICA_MS)
-  try {
-    const resposta = await fetch(`${ambiente.apiUrl}/atletica`, {
-      headers: { Accept: 'application/json' },
-      signal: controle.signal,
-    })
-    if (!resposta.ok) throw new Error(`GET /atletica respondeu ${resposta.status}`)
-    return atleticaPublicaSchema.parse(await resposta.json())
-  } finally {
-    clearTimeout(limite)
-  }
+export async function buscarAtletica(sinal?: AbortSignal): Promise<AtleticaPublica> {
+  return atleticaPublicaSchema.parse(await api.get('/atletica', { sinal }))
 }
 
 export async function lerAtleticaDoCache(): Promise<AtleticaPublica | null> {

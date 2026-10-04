@@ -61,6 +61,10 @@ export const cadastroFormSchema = cadastroSchema
     error: 'As senhas não conferem.',
   })
 
+/** Qualquer texto: o formato `<sessaoId>.<segredo>` é conferido na API (refresh → `401`, logout → `204`). */
+export const refreshTokenSchema = z.object({ refreshToken: z.string() }).strict()
+
 export type LoginEntrada = z.infer<typeof loginSchema>
 export type CadastroEntrada = z.infer<typeof cadastroSchema>
 export type CadastroForm = z.infer<typeof cadastroFormSchema>
+export type RefreshTokenEntrada = z.infer<typeof refreshTokenSchema>

@@ -6,6 +6,7 @@ import { create } from 'zustand'
 export const CHAVE_ACCESS_TOKEN = 'auth.accessToken'
 export const CHAVE_REFRESH_TOKEN = 'auth.refreshToken'
 export const CHAVE_DADOS_SESSAO = 'sessao.v1'
+export const ANTECEDENCIA_RENOVACAO_MS = 30_000
 
 export type UsuarioSessao = {
   id: string
@@ -131,3 +132,10 @@ export const useSessao = create<EstadoSessao>()((set, get) => ({
     await Promise.allSettled([...ouvintes].map(async (ouvinte) => ouvinte({ motivo })))
   },
 }))
+
+export function accessTokenVencendo(agora = Date.now()): boolean {
+  const { refreshToken, accessToken, accessTokenExpiraEm } = useSessao.getState()
+  if (!refreshToken) return false
+  if (!accessToken || !accessTokenExpiraEm) return true
+  return Date.parse(accessTokenExpiraEm) - agora < ANTECEDENCIA_RENOVACAO_MS
+}

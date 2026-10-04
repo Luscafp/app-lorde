@@ -55,8 +55,8 @@ Tokens ficam **só** no `expo-secure-store` (`auth.accessToken`, `auth.refreshTo
 
 ## Tema por atlética — `src/features/atletica`
 
-- `carregarAtletica()` aplica o cache `atletica.v1` na hora e busca `GET /atletica` (público, sem token, limite de 3 s) para atualizar tela e cache. Sem rede e sem cache: tema neutro (`#6B7280`) e nome "Atlética".
-- `useAtletica()` devolve `{ id, nome, sigla, curso, logoUrl, corPrimaria, corSecundaria, contatoEmail, contatoInstagram, contatoWhatsapp }`, já com o fallback aplicado (`id` é `null` sem dados).
+- `carregarAtletica()` (splash) lê o cache `atletica.v1`; sem cache, espera `GET /atletica` por até 3 s, sem repetir. Sem rede e sem cache: tema neutro (`#6B7280`) e nome "Atlética".
+- `useAtletica()` usa `useQuery({ queryKey: chaves.atletica() })` com o `atletica.v1` como dado inicial (vencido): a rede atualiza tela e cache em segundo plano e tenta de novo ao reconectar (`refetchOnReconnect`). Devolve `{ id, nome, sigla, curso, logoUrl, corPrimaria, corSecundaria, contatoEmail, contatoInstagram, contatoWhatsapp }`, já com o fallback aplicado (`id` é `null` sem dados).
 - `ProvedorTema` define `--cor-primaria`/`--cor-secundaria` (`vars()` do NativeWind) no contêiner raiz. Use as classes `bg-primaria`, `text-secundaria`, `border-primaria/40` etc. A paleta escura fixa (`fundo`, `superficie`, `cartao`, `texto`, `texto-suave`, `borda`, `sucesso`, `alerta`, `erro`) está em `paleta.js` e no `tailwind.config.js`.
 - `corTextoSobre(hex)` devolve `#FFFFFF` ou `#000000` (maior contraste WCAG), para texto sobre a cor primária.
 
@@ -64,4 +64,124 @@ Nada da atlética fica fixo no código (RNF20): `__tests__/sem-nome-fixo.test.ts
 
 ## Toasts — `src/components/ui/toast.ts`
 
-`toast.sucesso(msg)`, `toast.erro(msg)`, `toast.info(msg)`. O `<Toast />` está montado no layout raiz com a aparência padrão; a aparência própria é da #53.
+`toast.sucesso(msg)`, `toast.erro(msg)`, `toast.info(msg)`. O `<Toast config={toastConfig} />` está montado no layout raiz; `src/components/ui/toast-config.tsx` define as variantes `sucesso`, `erro` e `info` (ícone + texto, lidas pelo leitor de tela como "Sucesso: …", "Erro: …", "Aviso: …").
+
+## Cliente HTTP — `src/infra/api`
+
+Telas e hooks falam com a API **só** por `api.get/post/put/patch/delete` (`cliente.ts`), nunca `fetch` direto.
+
+```ts
+const evento = await api.get<EventoDto>(`/eventos/${id}`, { sinal: signal })
+await api.post('/times/1/solicitacoes', { mensagem }, { consulta: { origem: 'app' } })
+```
+
+- Base `EXPO_PUBLIC_API_URL` (já com `/api/v1`), JSON, timeout de 15 s. Cabeçalhos `X-Request-Id` (UUID v4), `X-App-Version` e `Authorization` — este **só** para o domínio da API (URLs pré-assinadas vão sem token).
+- Todo erro vira `ApiErro { status, code, message, details, requestId }`. Locais (`status: 0`): `SEM_CONEXAO`, `TEMPO_ESGOTADO`; `SESSAO_ENCERRADA` (`401`) quando o refresh encerrou a sessão.
+- **Regra de ouro**: só `401` de `POST /auth/refresh` encerra a sessão. Rede, timeout, 5xx, `400` (ex.: `SENHA_INCORRETA`) e qualquer outro `401` não.
+- **Single-flight** (`renovar-sessao.ts`): `401` fora de `/auth/*` chama `renovarSessao()`; chamadas simultâneas aguardam a mesma promessa. Refresh `200` grava os tokens (`atualizarTokens`) antes de liberar a fila e atualiza `usuario`; a requisição é refeita **uma** vez. Um segundo `401` falha sem novo refresh e é registrado (`definirRegistrador`, que a #49 liga ao Sentry).
+- Refresh `401` (qualquer `code`) → `encerrarSessao`, cache de queries limpo, volta ao `/login` e toast: `CONTA_DESATIVADA` → "Sua conta está desativada. Procure a diretoria."; demais → "Sua sessão expirou. Entre novamente.".
+- **Renovação proativa**: faltando menos de 30 s para `accessTokenExpiraEm`, renova antes de enviar.
+- Rotas `/auth/*` nunca disparam refresh: seus erros vão direto para a tela.
+
+`aplicarErrosDaApi(form, erro)` (`aplicar-erros.ts`) leva `details[].field` (notação de ponto, ex.: `tags.0`) ao `setError` do React Hook Form e devolve `true` se aplicou algum.
+
+## Dados — TanStack Query (`src/infra/query`, `src/infra/rede`)
+
+`queryClient` (`query-client.ts`, provider no layout raiz): `staleTime` 60 s, `gcTime` 24 h, `retry` até 2 vezes só para `SEM_CONEXAO`, `TEMPO_ESGOTADO` e 5xx, `refetchOnReconnect`. NetInfo → `onlineManager` (offline quando `isConnected === false` ou `isInternetReachable === false`; `null` conta como online) e `AppState` → `focusManager`, ligados por `configurarRede()` (`online.ts`). `useOnline()` devolve se há conexão.
+
+### Chaves — `chaves.ts`
+
+Fábrica **única** de chaves (convenções §10.4). **Nunca escreva arrays literais nas telas**; chave nova = entrada nova em `chaves.ts`. Invalidação por prefixo: `queryClient.invalidateQueries({ queryKey: chaves.eventos.todos() })` invalida listas e detalhes de eventos.
+
+| Fábrica                                                       | Chave                                                                               |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `chaves.atletica()`                                           | `['atletica']`                                                                      |
+| `chaves.me()`                                                 | `['me']`                                                                            |
+| `chaves.me.estatisticas()`                                    | `['me', 'estatisticas']`                                                            |
+| `chaves.me.preferencias()`                                    | `['me', 'preferencias-notificacao']`                                                |
+| `chaves.modalidades(f?)`                                      | `['modalidades', f]`                                                                |
+| `chaves.times.lista(f)` / `.detalhe(id)` / `.elenco(id)`      | `['times', 'lista', f]` / `['times', 'detalhe', id]` / `[..., id, 'elenco']`        |
+| `chaves.eventos.lista(f)` / `.detalhe(id)` / `.presencas(id)` | `['eventos', 'lista', f]` / `['eventos', 'detalhe', id]` / `[..., id, 'presencas']` |
+| `chaves.noticias.lista(f)` / `.detalhe(id)`                   | `['noticias', 'lista', f]` / `['noticias', 'detalhe', id]`                          |
+| `chaves.tags(f)`                                              | `['tags', f]`                                                                       |
+| `chaves.banners()`                                            | `['banners']`                                                                       |
+| `chaves.solicitacoes(f)`                                      | `['solicitacoes', f]`                                                               |
+| `chaves.painel.noticias.lista(f)` / `.detalhe(id)`            | `['painel', 'noticias', 'lista', f]` / `['painel', 'noticias', 'detalhe', id]`      |
+| `chaves.painel.banners.lista()` / `.detalhe(id)`              | `['painel', 'banners', 'lista']` / `['painel', 'banners', 'detalhe', id]`           |
+| `chaves.painel.adversarias.lista(f)` / `.detalhe(id)`         | `['painel', 'atleticas-adversarias', 'lista', f]` / `[..., 'detalhe', id]`          |
+| `chaves.painel.alcanceAviso(f)`                               | `['painel', 'avisos', 'alcance', f]`                                                |
+| `chaves.usuarios.lista(f)` / `.detalhe(id)`                   | `['usuarios', 'lista', f]` / `['usuarios', 'detalhe', id]`                          |
+| `chaves.auditoria(f)`                                         | `['auditoria', f]`                                                                  |
+
+Prefixos: `chaves.times.todos()`, `chaves.eventos.todos()`, `chaves.noticias.todos()`, `chaves.painel.todos()`, `chaves.usuarios.todos()`.
+
+### Mutações — `useAcaoOnline`
+
+**Toda mutação usa `useAcaoOnline`** (`use-acao-online.ts`); `useMutation` importado em `src/features/**` é erro de lint (única exceção: logout, #60). Mesmas opções do `useMutation`; devolve o resultado dele mais `online`.
+
+```tsx
+const { mutate, isPending, online } = useAcaoOnline({
+  mutationFn: (dados: Entrada) => api.post('/times', dados),
+  onSuccess: () => {
+    toast.sucesso('Time criado.')
+    void queryClient.invalidateQueries({ queryKey: chaves.times.todos() })
+  },
+  onError: (erro) => aplicarErrosDaApi(form, erro),
+})
+
+<Botao disabled={!online || isPending} onPress={form.handleSubmit((dados) => mutate(dados))} />
+```
+
+- Offline, a `mutationFn` não é chamada e aparece "Sem conexão. Conecte-se à internet para concluir esta ação." (`mutateAsync` rejeita com `SEM_CONEXAO`).
+- Erros: o `MutationCache` mostra `toast.erro(apiErro.message)` para toda mutação; o sucesso é toast da própria tela.
+
+## Estados de tela — `src/components/estado`
+
+| Componente                                                              | Uso                                                                                      |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `Esqueleto({ variante? })`                                              | `lista` (padrão), `cartao`, `detalhe`                                                    |
+| `EstadoVazio({ mensagem, acao? })`                                      | `acao = { titulo, onPress }`                                                             |
+| `EstadoErro({ mensagem?, onTentarNovamente })`                          | padrão "Não foi possível carregar." + "Tentar novamente"                                 |
+| `FaixaOffline({ atualizadoEm? })`                                       | "Modo offline · dados de dd/mm/aaaa HH:mm" (America/Fortaleza); sem data: "Modo offline" |
+| `TelaDados({ consulta, vazio?, mensagemVazio?, esqueleto?, children })` | escolhe o estado da tela a partir da consulta                                            |
+
+```tsx
+const consulta = useQuery({ queryKey: chaves.eventos.lista(filtro), queryFn })
+
+<TelaDados
+  consulta={consulta}
+  vazio={(dados) => dados.items.length === 0}
+  mensagemVazio="Nenhum evento agendado"
+>
+  {(dados) => <ListaEventos itens={dados.items} />}
+</TelaDados>
+```
+
+Ordem: sem dados e offline → "Sem conexão. Conecte-se à internet para carregar os dados." + "Tentar novamente"; sem dados e com erro → `EstadoErro`; sem dados → `Esqueleto`; `vazio(dados)` → `EstadoVazio`; com dados (mesmo com erro de atualização) → `children(dados)`, com `FaixaOffline atualizadoEm={consulta.dataUpdatedAt}` no topo se offline. "Tentar novamente" chama `consulta.refetch()`.
+
+A conexão vem do `onlineManager` do TanStack Query (alimentado pelo NetInfo na #52). `FaixaOffline` só apresenta: quem a usa decide se está offline.
+
+## Componentes base — `src/components/ui`
+
+- `Texto({ variante? })`: `titulo` (header), `subtitulo`, `corpo` (padrão), `rotulo`, `legenda`, `erro`.
+- `Cartao`: contêiner com borda e fundo `cartao`.
+- `Botao({ titulo, variante?, carregando?, disabled? })`: `primaria` (cor da atlética, texto com `corTextoSobre`), `secundaria`, `perigo`. `carregando` mostra o spinner e desabilita. Muda de aparência no `onPressIn`; alvo ≥ 44 px.
+- `Campo({ controle, nome, rotulo, ...TextInputProps })`: React Hook Form via `Controller`; o erro aparece abaixo do campo e os valores ficam no formulário após erro da API.
+
+Formulário padrão (schema do shared, `zodResolver` em modo `onBlur` — convenções §4.3; `useAcaoOnline` e `aplicarErrosDaApi` são da #52):
+
+```tsx
+const form = useForm({ resolver: zodResolver(loginSchema), mode: 'onBlur', defaultValues })
+const { online, mutate, isPending } = useAcaoOnline({
+  mutationFn: entrar,
+  onError: (erro) => aplicarErrosDaApi(form, erro),
+})
+
+<Campo controle={form.control} nome="email" rotulo="E-mail" keyboardType="email-address" />
+<Botao
+  titulo="Entrar"
+  carregando={isPending}
+  disabled={!online || isPending}
+  onPress={() => void form.handleSubmit((dados) => mutate(dados))()}
+/>
+```
