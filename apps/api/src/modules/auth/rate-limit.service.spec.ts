@@ -1,7 +1,7 @@
+import { LIMITE_LOGIN } from './auth.service'
 import { avaliarLimite, type LimiteTentativas } from './rate-limit.service'
 
 const MINUTO = 60_000
-const LOGIN: LimiteTentativas = { maximo: 5, janelaMs: 15 * MINUTO, bloqueioMs: 15 * MINUTO }
 const t0 = new Date('2026-10-04T12:00:00.000Z')
 const em = (minutos: number) => new Date(t0.getTime() + minutos * MINUTO)
 
@@ -10,11 +10,11 @@ const tentativas = (...minutos: number[]) => minutos.map(em).reverse()
 
 describe('avaliarLimite', () => {
   it('sem tentativas → liberado com todas as restantes', () => {
-    expect(avaliarLimite([], LOGIN, t0)).toEqual({ restantes: 5, bloqueadoAte: null })
+    expect(avaliarLimite([], LIMITE_LOGIN, t0)).toEqual({ restantes: 5, bloqueadoAte: null })
   })
 
   it('4 falhas → liberado, 1 restante', () => {
-    expect(avaliarLimite(tentativas(0, 1, 2, 3), LOGIN, em(4))).toEqual({
+    expect(avaliarLimite(tentativas(0, 1, 2, 3), LIMITE_LOGIN, em(4))).toEqual({
       restantes: 1,
       bloqueadoAte: null,
     })
@@ -22,31 +22,36 @@ describe('avaliarLimite', () => {
 
   it('5ª falha → bloqueado até t5 + 15 min', () => {
     const recentes = tentativas(0, 1, 2, 3, 4)
-    expect(avaliarLimite(recentes, LOGIN, em(4))).toEqual({ restantes: 0, bloqueadoAte: em(19) })
-    expect(avaliarLimite(recentes, LOGIN, em(18.99)).bloqueadoAte).toEqual(em(19))
+    expect(avaliarLimite(recentes, LIMITE_LOGIN, em(4))).toEqual({
+      restantes: 0,
+      bloqueadoAte: em(19),
+    })
+    expect(avaliarLimite(recentes, LIMITE_LOGIN, em(18.99)).bloqueadoAte).toEqual(em(19))
   })
 
   it('bloqueio termina em t5 + 15 min', () => {
-    expect(avaliarLimite(tentativas(0, 1, 2, 3, 4), LOGIN, em(19))).toEqual({
+    expect(avaliarLimite(tentativas(0, 1, 2, 3, 4), LIMITE_LOGIN, em(19))).toEqual({
       restantes: 5,
       bloqueadoAte: null,
     })
   })
 
   it('5 falhas espalhadas por mais de 15 min não bloqueiam', () => {
-    expect(avaliarLimite(tentativas(0, 5, 10, 14, 15.01), LOGIN, em(15.02))).toEqual({
+    expect(avaliarLimite(tentativas(0, 5, 10, 14, 15.01), LIMITE_LOGIN, em(15.02))).toEqual({
       restantes: 1,
       bloqueadoAte: null,
     })
   })
 
   it('t5 − t1 = 15 min ainda bloqueia', () => {
-    expect(avaliarLimite(tentativas(0, 5, 10, 14, 15), LOGIN, em(15)).bloqueadoAte).toEqual(em(30))
+    expect(avaliarLimite(tentativas(0, 5, 10, 14, 15), LIMITE_LOGIN, em(15)).bloqueadoAte).toEqual(
+      em(30),
+    )
   })
 
   it('falhas fora da janela não contam', () => {
-    expect(avaliarLimite(tentativas(0, 1), LOGIN, em(16)).restantes).toBe(5)
-    expect(avaliarLimite(tentativas(0, 10), LOGIN, em(16)).restantes).toBe(4)
+    expect(avaliarLimite(tentativas(0, 1), LIMITE_LOGIN, em(16)).restantes).toBe(5)
+    expect(avaliarLimite(tentativas(0, 10), LIMITE_LOGIN, em(16)).restantes).toBe(4)
   })
 
   it('bloqueioMs diferente da janela', () => {

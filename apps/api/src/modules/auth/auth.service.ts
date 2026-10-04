@@ -21,9 +21,8 @@ import {
   erroTermosDesatualizados,
 } from './erros'
 import { RateLimitService, TipoTentativa, type LimiteTentativas } from './rate-limit.service'
-import { montarRespostaSessao, type UsuarioParaSessao } from './resposta-sessao'
-import { SessaoService, type SessaoCriada } from './sessao.service'
-import { TokenAcessoService } from './token-acesso.service'
+import { RespostaSessaoService } from './resposta-sessao.service'
+import { SessaoService } from './sessao.service'
 
 const MINUTO_MS = 60_000
 
@@ -41,6 +40,16 @@ export interface OrigemRequisicao {
   userAgent?: string
 }
 
+const SEM_IP = 'sem-ip'
+
+export function chaveCadastro(ip: string | undefined): string {
+  return ip ?? SEM_IP
+}
+
+export function chaveLogin(email: string, ip: string | undefined): string {
+  return `${email}|${ip ?? SEM_IP}`
+}
+
 const CAMPOS_USUARIO = { id: true, nome: true, email: true, fotoKey: true } as const
 
 @Injectable()
@@ -53,14 +62,13 @@ export class AuthService implements OnModuleInit {
     private readonly senhas: SenhaService,
     private readonly limites: RateLimitService,
     private readonly sessoes: SessaoService,
-    private readonly tokens: TokenAcessoService,
+    private readonly respostas: RespostaSessaoService,
     private readonly transacao: TransacaoService,
     private readonly eventos: EventosDominioService,
     private readonly contexto: ContextoAtletica,
     private readonly atleticaPadrao: AtleticaPadraoService,
   ) {}
 
-  /** Gerado em segundo plano: não atrasa a subida da API. */
   onModuleInit(): void {
     void this.obterHashFicticio()
   }
@@ -71,9 +79,7 @@ export class AuthService implements OnModuleInit {
   }
 
   async cadastrar(dados: CadastroEntrada, origem: OrigemRequisicao): Promise<RespostaSessao> {
-    const chave = origem.ip ?? ''
-    await this.limites.verificar(TipoTentativa.CADASTRO, chave, LIMITE_CADASTRO)
-    await this.limites.registrar(TipoTentativa.CADASTRO, chave)
+    await this.limites.consumir(TipoTentativa.CADASTRO, chaveCadastro(origem.ip), LIMITE_CADASTRO)
 
     if (dados.versaoTermos !== TERMOS_VERSAO) throw erroTermosDesatualizados()
     const existente = await this.prisma.semEscopo.usuario.findUnique({
@@ -103,7 +109,7 @@ export class AuthService implements OnModuleInit {
             atleticaId,
             autorId: usuarioId,
           })
-          return this.responder({ ...usuario, papel: Papel.ATLETA, atleticaId }, sessao)
+          return this.respostas.montar({ ...usuario, papel: Papel.ATLETA, atleticaId }, sessao)
         }),
       )
     } catch (erro) {
@@ -115,9 +121,8 @@ export class AuthService implements OnModuleInit {
     }
   }
 
-  /** Algoritmo do épico #10 §7.2. */
   async entrar(dados: LoginEntrada, origem: OrigemRequisicao): Promise<RespostaSessao> {
-    const chave = `${dados.email}|${origem.ip ?? ''}`
+    const chave = chaveLogin(dados.email, origem.ip)
     await this.limites.verificar(TipoTentativa.LOGIN_FALHA, chave, LIMITE_LOGIN)
 
     const atleticaId = this.atleticaPadrao.id()
@@ -139,7 +144,8 @@ export class AuthService implements OnModuleInit {
 
     await this.limites.limpar(TipoTentativa.LOGIN_FALHA, chave)
     if (!usuario.ativo || !vinculo.ativo) {
-      throw erroContaDesativada((await this.atleticaPadrao.obter()).nome)
+      const { nome } = await this.atleticaPadrao.obter()
+      throw erroContaDesativada(nome)
     }
 
     const novoHash = this.senhas.precisaRefazerHash(usuario.senhaHash)
@@ -150,7 +156,7 @@ export class AuthService implements OnModuleInit {
         await tx.usuario.update({ where: { id: usuario.id }, data: { senhaHash: novoHash } })
       }
       const sessao = await this.sessoes.criar(tx, { usuarioId: usuario.id, atleticaId, ...origem })
-      return this.responder({ ...usuario, papel: vinculo.papel, atleticaId }, sessao)
+      return this.respostas.montar({ ...usuario, papel: vinculo.papel, atleticaId }, sessao)
     })
   }
 
@@ -165,14 +171,5 @@ export class AuthService implements OnModuleInit {
       agora,
     )
     throw erroCredenciaisInvalidas(restantes === 1)
-  }
-
-  private responder(usuario: UsuarioParaSessao, sessao: SessaoCriada): RespostaSessao {
-    const acesso = this.tokens.assinar({
-      sub: usuario.id,
-      atl: usuario.atleticaId,
-      sid: sessao.sessaoId,
-    })
-    return montarRespostaSessao(usuario, sessao, acesso)
   }
 }

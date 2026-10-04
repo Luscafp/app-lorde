@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { ErroLimiteExcedido } from '../../common/erros/erro-negocio'
-import { PrismaService } from '../../infra/prisma/prisma.service'
+import { PrismaService, type ClienteBase } from '../../infra/prisma/prisma.service'
 
 /** Catálogo de `TentativaAcesso.tipo` (convenções §11.3); outras issues acrescentam valores. */
 export const TipoTentativa = {
@@ -56,34 +56,59 @@ export class RateLimitService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Devolve as tentativas restantes; bloqueado → `429 RATE_LIMITED` com `Retry-After`. */
-  async verificar(
+  verificar(
     tipo: TipoTentativa,
     chave: string,
     limite: LimiteTentativas,
     agora: Date = new Date(),
   ): Promise<number> {
-    const recentes = await this.prisma.semEscopo.tentativaAcesso.findMany({
-      where: { tipo, chave, criadoEm: { lte: agora } },
-      orderBy: { criadoEm: 'desc' },
-      take: limite.maximo,
-      select: { criadoEm: true },
-    })
-    const { restantes, bloqueadoAte } = avaliarLimite(
-      recentes.map(({ criadoEm }) => criadoEm),
-      limite,
-      agora,
-    )
-    if (bloqueadoAte) {
-      throw new ErroLimiteExcedido(Math.ceil((bloqueadoAte.getTime() - agora.getTime()) / 1000))
-    }
-    return restantes
+    return verificarCom(this.prisma.semEscopo, tipo, chave, limite, agora)
   }
 
   async registrar(tipo: TipoTentativa, chave: string, agora: Date = new Date()): Promise<void> {
     await this.prisma.semEscopo.tentativaAcesso.create({ data: { tipo, chave, criadoEm: agora } })
   }
 
+  /** `verificar` + `registrar` sob lock da chave: requisições simultâneas não passam do limite. */
+  consumir(
+    tipo: TipoTentativa,
+    chave: string,
+    limite: LimiteTentativas,
+    agora: Date = new Date(),
+  ): Promise<number> {
+    return this.prisma.semEscopo.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${tipo}|${chave}`}))`
+      const restantes = await verificarCom(tx, tipo, chave, limite, agora)
+      await tx.tentativaAcesso.create({ data: { tipo, chave, criadoEm: agora } })
+      return restantes - 1
+    })
+  }
+
   async limpar(tipo: TipoTentativa, chave: string): Promise<void> {
     await this.prisma.semEscopo.tentativaAcesso.deleteMany({ where: { tipo, chave } })
   }
+}
+
+async function verificarCom(
+  cliente: Pick<ClienteBase, 'tentativaAcesso'>,
+  tipo: TipoTentativa,
+  chave: string,
+  limite: LimiteTentativas,
+  agora: Date,
+): Promise<number> {
+  const recentes = await cliente.tentativaAcesso.findMany({
+    where: { tipo, chave, criadoEm: { lte: agora } },
+    orderBy: { criadoEm: 'desc' },
+    take: limite.maximo,
+    select: { criadoEm: true },
+  })
+  const { restantes, bloqueadoAte } = avaliarLimite(
+    recentes.map(({ criadoEm }) => criadoEm),
+    limite,
+    agora,
+  )
+  if (bloqueadoAte) {
+    throw new ErroLimiteExcedido(Math.ceil((bloqueadoAte.getTime() - agora.getTime()) / 1000))
+  }
+  return restantes
 }

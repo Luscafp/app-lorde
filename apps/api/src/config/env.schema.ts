@@ -34,6 +34,8 @@ export const envSchema = z
     CODIGO_PEPPER: z.string().min(32, { error: 'obrigatória, com ao menos 32 caracteres' }),
     // Segredo HS256 do access token (#7 verifica, #10 assina); distinto por ambiente (#92).
     JWT_ACCESS_SECRET: z.string().min(32, { error: 'obrigatória, com ao menos 32 caracteres' }),
+    // Base pública do bucket R2 (convenções §4.6): `fotoUrl` = `${base}/${fotoKey}`.
+    R2_PUBLIC_BASE_URL: vazioComoAusente(z.url({ error: 'deve ser uma URL' }).optional()),
     // Sentry da API (#48): ausente = desligado (local e testes).
     SENTRY_DSN: vazioComoAusente(z.url({ error: 'deve ser uma URL' }).optional()),
     SENTRY_TRACES_SAMPLE_RATE: vazioComoAusente(

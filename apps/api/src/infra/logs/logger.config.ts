@@ -27,7 +27,6 @@ const CAMPOS_SENSIVEIS = [
 export const CAMINHOS_REDIGIDOS = [
   'req.headers.authorization',
   'req.headers.cookie',
-  // Corpos não entram no log de acesso; ficam redigidos caso alguém passe a logá-los (#57).
   'req.body.senha',
   'req.body.refreshToken',
   'res.body.accessToken',

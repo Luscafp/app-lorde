@@ -10,6 +10,7 @@ import { AuthService } from './auth.service'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { PapelGuard } from './guards/papel.guard'
 import { RateLimitService } from './rate-limit.service'
+import { RespostaSessaoService } from './resposta-sessao.service'
 import { SessaoService } from './sessao.service'
 import { TokenAcessoService } from './token-acesso.service'
 
@@ -30,10 +31,11 @@ import { TokenAcessoService } from './token-acesso.service'
     TokenAcessoService,
     RateLimitService,
     SessaoService,
+    RespostaSessaoService,
     AuthService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PapelGuard },
   ],
-  exports: [TokenAcessoService, RateLimitService, SessaoService],
+  exports: [TokenAcessoService, RateLimitService, SessaoService, RespostaSessaoService],
 })
 export class AuthModule {}

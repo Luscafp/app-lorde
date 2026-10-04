@@ -1,14 +1,10 @@
 import { ErroLimiteExcedido } from '../../src/common/erros/erro-negocio'
-import {
-  RateLimitService,
-  TipoTentativa,
-  type LimiteTentativas,
-} from '../../src/modules/auth/rate-limit.service'
+import { LIMITE_CADASTRO, LIMITE_LOGIN } from '../../src/modules/auth/auth.service'
+import { RateLimitService, TipoTentativa } from '../../src/modules/auth/rate-limit.service'
 import { criarApp, type AppDeTeste } from '../setup/criar-app'
 import { prismaTeste } from '../setup/prisma-teste'
 
 const MINUTO = 60_000
-const LOGIN: LimiteTentativas = { maximo: 5, janelaMs: 15 * MINUTO, bloqueioMs: 15 * MINUTO }
 const CHAVE = 'ana@ex.com|10.0.0.1'
 const t0 = new Date('2026-10-04T12:00:00.000Z')
 const em = (minutos: number) => new Date(t0.getTime() + minutos * MINUTO)
@@ -33,7 +29,7 @@ describe('RateLimitService (#57)', () => {
 
   async function retryAfter(agora: Date, tipo: TipoTentativa = TipoTentativa.LOGIN_FALHA) {
     try {
-      await servico.verificar(tipo, CHAVE, LOGIN, agora)
+      await servico.verificar(tipo, CHAVE, LIMITE_LOGIN, agora)
       return undefined
     } catch (erro) {
       if (erro instanceof ErroLimiteExcedido) return erro.segundosParaNovaTentativa
@@ -43,7 +39,9 @@ describe('RateLimitService (#57)', () => {
 
   it('4 falhas → liberado, com 1 tentativa restante', async () => {
     await falhar(0, 1, 2, 3)
-    await expect(servico.verificar(TipoTentativa.LOGIN_FALHA, CHAVE, LOGIN, em(3))).resolves.toBe(1)
+    await expect(
+      servico.verificar(TipoTentativa.LOGIN_FALHA, CHAVE, LIMITE_LOGIN, em(3)),
+    ).resolves.toBe(1)
   })
 
   it('5ª falha → 429 até t5 + 15 min', async () => {
@@ -55,9 +53,9 @@ describe('RateLimitService (#57)', () => {
 
   it('falhas fora da janela não contam', async () => {
     await falhar(0, 1, 2, 20, 21)
-    await expect(servico.verificar(TipoTentativa.LOGIN_FALHA, CHAVE, LOGIN, em(21))).resolves.toBe(
-      3,
-    )
+    await expect(
+      servico.verificar(TipoTentativa.LOGIN_FALHA, CHAVE, LIMITE_LOGIN, em(21)),
+    ).resolves.toBe(3)
   })
 
   it('limpar zera a contagem da chave', async () => {
@@ -81,7 +79,18 @@ describe('RateLimitService (#57)', () => {
   it('chaves diferentes não se misturam', async () => {
     await falhar(0, 1, 2, 3, 4)
     await expect(
-      servico.verificar(TipoTentativa.LOGIN_FALHA, 'ana@ex.com|10.0.0.2', LOGIN, em(4)),
+      servico.verificar(TipoTentativa.LOGIN_FALHA, 'ana@ex.com|10.0.0.2', LIMITE_LOGIN, em(4)),
     ).resolves.toBe(5)
+  })
+
+  it('consumir simultâneo não passa do limite', async () => {
+    const resultados = await Promise.allSettled(
+      Array.from({ length: LIMITE_CADASTRO.maximo + 5 }, () =>
+        servico.consumir(TipoTentativa.CADASTRO, '10.0.0.1', LIMITE_CADASTRO, t0),
+      ),
+    )
+    const aceitos = resultados.filter(({ status }) => status === 'fulfilled')
+    expect(aceitos).toHaveLength(LIMITE_CADASTRO.maximo)
+    await expect(prismaTeste.tentativaAcesso.count()).resolves.toBe(LIMITE_CADASTRO.maximo)
   })
 })

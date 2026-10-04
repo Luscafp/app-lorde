@@ -19,7 +19,7 @@ import {
 } from '@nestjs/swagger'
 import type { Request } from 'express'
 import { createZodDto } from 'nestjs-zod'
-import { AuthService, type OrigemRequisicao } from './auth.service'
+import { AuthService, LIMITE_CADASTRO, LIMITE_LOGIN, type OrigemRequisicao } from './auth.service'
 import { Publico } from './decorators/publico.decorator'
 
 class CadastroDto extends createZodDto(cadastroSchema) {}
@@ -55,6 +55,9 @@ const LIMITE_EXCEDIDO = {
   headers: { 'Retry-After': { description: 'Segundos até a próxima tentativa.' } },
 }
 
+const MINUTO_MS = 60_000
+const minutos = (ms: number) => ms / MINUTO_MS
+
 function origem(req: Request): OrigemRequisicao {
   return { ip: req.ip, userAgent: req.get('user-agent') }
 }
@@ -75,7 +78,7 @@ export class AuthController {
   @ApiConflictResponse({ description: '`EMAIL_JA_CADASTRADO` ou `TERMOS_DESATUALIZADOS`.' })
   @ApiTooManyRequestsResponse({
     ...LIMITE_EXCEDIDO,
-    description: 'Mais de 10 cadastros por IP na hora.',
+    description: `Mais de ${LIMITE_CADASTRO.maximo} cadastros por IP em ${minutos(LIMITE_CADASTRO.janelaMs)} min.`,
   })
   cadastrar(@Body() dados: CadastroDto, @Req() req: Request): Promise<RespostaSessao> {
     return this.auth.cadastrar(dados, origem(req))
@@ -97,7 +100,9 @@ export class AuthController {
   })
   @ApiTooManyRequestsResponse({
     ...LIMITE_EXCEDIDO,
-    description: '5 falhas em 15 min para o mesmo e-mail + IP; bloqueio de 15 min.',
+    description:
+      `${LIMITE_LOGIN.maximo} falhas em ${minutos(LIMITE_LOGIN.janelaMs)} min para o mesmo e-mail + IP; ` +
+      `bloqueio de ${minutos(LIMITE_LOGIN.bloqueioMs ?? 0)} min.`,
   })
   entrar(@Body() dados: LoginDto, @Req() req: Request): Promise<RespostaSessao> {
     return this.auth.entrar(dados, origem(req))

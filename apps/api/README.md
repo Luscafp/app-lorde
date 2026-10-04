@@ -18,6 +18,7 @@ Validadas por `src/config/env.schema.ts` (Zod): a API não sobe com variável fa
 | `EMAIL_REMETENTE`           | sim                         | Remetente, ex.: `"Atlética Lorde <nao-responda@dominio>"` (domínio verificado no Resend)                                   |
 | `CODIGO_PEPPER`             | sim (≥ 32 caracteres)       | Segredo do HMAC dos códigos de verificação. Trocar o valor invalida os códigos pendentes                                   |
 | `JWT_ACCESS_SECRET`         | sim (≥ 32 caracteres)       | Segredo HS256 do access token (#7), distinto por ambiente. Trocar o valor invalida os access tokens em circulação          |
+| `R2_PUBLIC_BASE_URL`        | não                         | URL pública do bucket R2; as respostas expõem `fotoUrl` = `<base>/<fotoKey>` (ausente = `fotoUrl: null`)                   |
 | `SENTRY_DSN`                | não                         | DSN do Sentry da API; ausente ou vazia = Sentry desligado (veja [Observabilidade](#observabilidade))                       |
 | `SENTRY_TRACES_SAMPLE_RATE` | não (`0.1`)                 | Fração de traces de 0 a 1: `0.1` em produção, `1.0` em homologação                                                         |
 | `GIT_COMMIT_SHA`            | não                         | Commit do build, injetado no `docker build` (veja [Docker](#docker)). Ausente = `RAILWAY_GIT_COMMIT_SHA` ou `desconhecido` |
@@ -160,14 +161,14 @@ export class EventosController {
 
 ### Cadastro e login (`AuthController`, `AuthService`)
 
-`POST /api/v1/auth/cadastro` (201) e `POST /api/v1/auth/login` (200), ambas `@Publico()` e `Cache-Control: no-store`. Entrada validada por `cadastroSchema`/`loginSchema` (`@atletica/shared`, `.strict()`: campo desconhecido → 400). Resposta única, também usada pelo refresh (#58) via `montarRespostaSessao`:
+`POST /api/v1/auth/cadastro` (201) e `POST /api/v1/auth/login` (200), ambas `@Publico()` e `Cache-Control: no-store`. Entrada validada por `cadastroSchema`/`loginSchema` (`@atletica/shared`, `.strict()`: campo desconhecido → 400). Resposta única, também usada pelo refresh (#58) via `RespostaSessaoService.montar(usuario, sessao)` (assina o access token; `fotoUrl` = `R2_PUBLIC_BASE_URL/fotoKey`):
 
 ```ts
 { accessToken, refreshToken, accessTokenExpiraEm, usuario: { id, nome, email, fotoUrl, papel, atleticaId } }
 ```
 
-- **Cadastro:** limite de 10 tentativas por IP na hora (`CADASTRO`); `versaoTermos ≠ TERMOS_VERSAO` → `409 TERMOS_DESATUALIZADOS`; e-mail existente → `409 EMAIL_JA_CADASTRADO` (checagem prévia e `P2002`, para corrida). Uma transação cria `Usuario`, `VinculoAtletica` (`ATLETA`, atlética padrão), `PreferenciaNotificacao`, `AceiteTermos` e `Sessao`; após o commit emite `usuario.cadastrado`.
-- **Login:** chave do limite `email|ip`, 5 falhas em 15 min → `429` por 15 min (`Retry-After`); a 4ª falha avisa "Última tentativa antes do bloqueio.". E-mail inexistente verifica um hash fictício (mesmo tempo da senha errada) e responde o mesmo `401 CREDENCIAIS_INVALIDAS`. `401 CONTA_DESATIVADA` só com a senha correta. Hash com parâmetros antigos é refeito (`precisaRefazerHash`).
+- **Cadastro:** limite de 10 tentativas por IP na hora (`CADASTRO`, chave `chaveCadastro(ip)`, contadas antes da validação para não facilitar a enumeração de e-mails); `versaoTermos ≠ TERMOS_VERSAO` → `409 TERMOS_DESATUALIZADOS`; e-mail existente → `409 EMAIL_JA_CADASTRADO` (checagem prévia e `P2002`, para corrida). Uma transação cria `Usuario`, `VinculoAtletica` (`ATLETA`, atlética padrão), `PreferenciaNotificacao`, `AceiteTermos` e `Sessao`; após o commit emite `usuario.cadastrado`.
+- **Login:** chave do limite `chaveLogin(email, ip)` = `email|ip`, 5 falhas em 15 min → `429` por 15 min (`Retry-After`); a 4ª falha avisa "Última tentativa antes do bloqueio.". E-mail inexistente verifica um hash fictício (mesmo tempo da senha errada) e responde o mesmo `401 CREDENCIAIS_INVALIDAS`. `401 CONTA_DESATIVADA` só com a senha correta. Hash com parâmetros antigos é refeito (`precisaRefazerHash`).
 - **Tokens:** `TokenAcessoService.assinar({ sub, atl, sid })` (HS256, 15 min, `iss`/`aud`); `SessaoService.criar(tx, { usuarioId, atleticaId, userAgent?, ip? })` devolve `{ sessaoId, refreshToken }` com `refreshToken = <sessaoId>.<segredo>` (32 bytes base64url); no banco fica só `hashSegredo(segredo)` (SHA-256 hex), `expiraEm = agora + 30 dias`.
 
 ### Limite de tentativas (`RateLimitService`)
@@ -177,11 +178,12 @@ export class EventosController {
 ```ts
 verificar(tipo, chave, { maximo, janelaMs, bloqueioMs? }, agora?): Promise<number> // tentativas restantes
 registrar(tipo, chave, agora?): Promise<void>
+consumir(tipo, chave, limite, agora?): Promise<number> // verificar + registrar atômicos
 limpar(tipo, chave): Promise<void>
 ```
 
 - Bloqueado quando as `maximo` tentativas mais recentes cabem em `janelaMs`: sem `bloqueioMs`, até a mais antiga delas sair da janela (janela deslizante, ex.: 10 cadastros/h); com `bloqueioMs`, até `última + bloqueioMs` (login: 15 min após a 5ª falha). `verificar` lança `ErroLimiteExcedido` → `429 RATE_LIMITED` com `Retry-After` em segundos (o filtro global põe o cabeçalho).
-- Fluxo: `verificar` antes da ação; `registrar` a tentativa (cadastro, presign) ou só a falha (login); `limpar` quando o sucesso zera a contagem.
+- Fluxo: `consumir` quando toda tentativa conta (cadastro, presign: `verificar` + `registrar` sob `pg_advisory_xact_lock`, sem furo com requisições simultâneas); `verificar` antes e `registrar` só a falha (login); `limpar` quando o sucesso zera a contagem.
 - `tipo` ∈ `TipoTentativa`: `LOGIN_FALHA`, `CADASTRO`, `RECUPERACAO_ENVIO`, `CODIGO_TENTATIVA`, `SENHA_CONFIRMACAO_FALHA`, `PRESIGN`, `VERIFICACAO_ENVIO`, `AVISO_ENVIO`. Tipo novo: acrescente ao catálogo (sem migration; `VarChar(30)`). `chave` até 300 caracteres (ex.: `email|ip`, `usuarioId`).
 
 ## Banco de dados e multi-atlética (`src/infra/prisma`, `src/infra/contexto`)
