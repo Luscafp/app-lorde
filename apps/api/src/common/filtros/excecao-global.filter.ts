@@ -10,6 +10,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client'
 import type { Request, Response } from 'express'
 import { ZodValidationException } from 'nestjs-zod'
 import { ZodError } from 'zod'
+import { AtleticaContextoAusenteError, ErroAtleticaDivergente } from '../../infra/contexto/erros'
 import { DetalheErro, ErroNegocio, RespostaErro } from '../erros/erro-negocio'
 
 export const MENSAGEM_ERRO_INTERNO = 'Ocorreu um erro inesperado. Tente novamente.'
@@ -136,6 +137,14 @@ export function mapearExcecao(excecao: unknown): RespostaErro {
     return { statusCode, code, message, details }
   }
   if (excecao instanceof HttpException) return mapearHttpException(excecao)
+  // Bugs de programação do isolamento por atlética (épico #3 §3 item 7): 500 genérico, logado
+  // como erro (Sentry). Explícito para que nenhum mapeamento futuro os transforme em 4xx.
+  if (
+    excecao instanceof AtleticaContextoAusenteError ||
+    excecao instanceof ErroAtleticaDivergente
+  ) {
+    return respostaErroInterno(HttpStatus.INTERNAL_SERVER_ERROR)
+  }
   const erroBanco = mapearErroBanco(excecao)
   if (erroBanco) return { ...erroBanco, details: [] }
   if (ehObjeto(excecao) && typeof excecao.type === 'string') {

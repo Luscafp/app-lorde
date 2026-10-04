@@ -12,6 +12,7 @@ import {
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client'
 import { ZodValidationException } from 'nestjs-zod'
 import { z } from 'zod'
+import { AtleticaContextoAusenteError, ErroAtleticaDivergente } from '../../infra/contexto/erros'
 import { ErroNegocio } from '../erros/erro-negocio'
 import { ExcecaoGlobalFilter, MENSAGEM_ERRO_INTERNO, mapearExcecao } from './excecao-global.filter'
 
@@ -223,6 +224,20 @@ describe('mapearExcecao — erros do Prisma', () => {
     for (const interno of [SQL_INTERNO, 'Erro interno', 'Usuario', 'constraint', 'Evento']) {
       expect(corpo).not.toContain(interno)
     }
+  })
+})
+
+describe('mapearExcecao — isolamento por atlética', () => {
+  it.each([
+    ['AtleticaContextoAusenteError', new AtleticaContextoAusenteError('Evento', 'findMany')],
+    ['ErroAtleticaDivergente', new ErroAtleticaDivergente('Evento', 'create')],
+  ])('%s → 500 INTERNAL_ERROR com a mensagem genérica', (_caso, erro) => {
+    expect(mapearExcecao(erro)).toEqual({
+      statusCode: 500,
+      code: 'INTERNAL_ERROR',
+      message: MENSAGEM_ERRO_INTERNO,
+      details: [],
+    })
   })
 })
 

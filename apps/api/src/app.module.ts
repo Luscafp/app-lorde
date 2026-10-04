@@ -6,7 +6,9 @@ import { ZodValidationPipe } from 'nestjs-zod'
 import { ExcecaoGlobalFilter } from './common/filtros/excecao-global.filter'
 import { ConfiguracaoModule } from './config/config.module'
 import type { Env } from './config/env.schema'
+import { ContextoModule } from './infra/contexto/contexto.module'
 import { criarConfigLogger } from './infra/logs/logger.config'
+import { PrismaModule } from './infra/prisma/prisma.module'
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { criarConfigLogger } from './infra/logs/logger.config'
           LOG_LEVEL: config.get('LOG_LEVEL', { infer: true }),
         }),
     }),
+    ContextoModule,
+    PrismaModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
