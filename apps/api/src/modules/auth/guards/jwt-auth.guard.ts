@@ -61,7 +61,6 @@ export class JwtAuthGuard implements CanActivate {
       !sessao ||
       sessao.usuarioId !== sub ||
       sessao.atleticaId !== atl ||
-      sessao.revogadaEm !== null ||
       sessao.expiraEm <= new Date()
     ) {
       throw erroNaoAutenticado()
@@ -72,7 +71,9 @@ export class JwtAuthGuard implements CanActivate {
 
     const [vinculo] = usuario.vinculos
     if (!vinculo) throw erroNaoAutenticado()
+    // Antes da revogação: a desativação (#27) também revoga as sessões.
     if (!vinculo.ativo) throw erroContaDesativada()
+    if (sessao.revogadaEm !== null) throw erroNaoAutenticado()
 
     return {
       id: usuario.id,

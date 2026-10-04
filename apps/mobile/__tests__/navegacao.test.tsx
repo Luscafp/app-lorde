@@ -7,7 +7,8 @@ import * as rotaApp from '../app/(app)/_layout'
 import LayoutAbas from '../app/(app)/(abas)/_layout'
 import Agenda from '../app/(app)/(abas)/agenda'
 import Inicio from '../app/(app)/(abas)/index'
-import Painel from '../app/(app)/(abas)/painel'
+import LayoutPainel from '../app/(app)/(abas)/painel/_layout'
+import Painel from '../app/(app)/(abas)/painel/index'
 import Perfil from '../app/(app)/(abas)/perfil'
 import Times from '../app/(app)/(abas)/times'
 import * as rotaPublica from '../app/(publico)/_layout'
@@ -36,7 +37,8 @@ const rotas = {
   '(app)/(abas)/agenda': Agenda,
   '(app)/(abas)/times': Times,
   '(app)/(abas)/perfil': Perfil,
-  '(app)/(abas)/painel': Painel,
+  '(app)/(abas)/painel/_layout': LayoutPainel,
+  '(app)/(abas)/painel/index': Painel,
 }
 
 const itensSeguros = (SecureStore as unknown as { __itens: Map<string, string> }).__itens
@@ -119,6 +121,17 @@ describe('navegação', () => {
     await comSessaoSalva('DIRETOR')
     const caminho = await abrir('/painel')
     expect(caminho()).toBe('/painel')
+  })
+
+  it.each<[Papel, boolean]>([
+    ['DIRETOR', false],
+    ['VICE_PRESIDENTE', true],
+    ['PRESIDENTE', true],
+    ['ADMINISTRADOR', true],
+  ])('Painel de %s mostra "Usuários": %s (#27)', async (papel, ve) => {
+    await comSessaoSalva(papel)
+    await abrir('/painel')
+    expect(screen.queryByRole('link', { name: 'Usuários' }) !== null).toBe(ve)
   })
 
   it('a aba Painel acompanha o papel da store', async () => {
