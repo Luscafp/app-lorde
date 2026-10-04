@@ -1,5 +1,4 @@
 import { DeleteObjectsCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
-import { FUSO_PADRAO } from '@atletica/shared'
 import { SchedulerRegistry } from '@nestjs/schedule'
 import { gerarChave } from '../../src/modules/uploads/chaves'
 import {
@@ -7,7 +6,11 @@ import {
   JOB_LIMPEZA_ORFAOS,
   LimpezaOrfaosService,
 } from '../../src/modules/uploads/limpeza-orfaos.service'
-import { simularArmazenamento, type ArmazenamentoSimulado } from '../fabricas/uploads'
+import {
+  chavesApagadas,
+  simularArmazenamento,
+  type ArmazenamentoSimulado,
+} from '../fabricas/uploads'
 import { criarUsuario } from '../fabricas/usuario'
 import { criarApp, type AppDeTeste } from '../setup/criar-app'
 import { prismaTeste } from '../setup/prisma-teste'
@@ -32,8 +35,7 @@ describe('Limpeza de órfãos (#56)', () => {
     const job = contexto.app.get(SchedulerRegistry).getCronJob(JOB_LIMPEZA_ORFAOS)
 
     expect(job.cronTime.source).toBe('30 3 * * *')
-    expect(job.cronTime.timeZone).toBe(FUSO_PADRAO)
-    expect(FUSO_PADRAO).toBe('America/Fortaleza')
+    expect(job.cronTime.timeZone).toBe('America/Fortaleza')
   })
 
   it('mantém as chaves de Usuario, Noticia (inclusive excluída) e Banner de várias atléticas', async () => {
@@ -75,11 +77,7 @@ describe('Limpeza de órfãos (#56)', () => {
 
     const resultado = await contexto.app.get(LimpezaOrfaosService).executar(AGORA)
 
-    const apagadas = armazenamento.s3.send.mock.calls
-      .map(([comando]: [unknown]) => comando)
-      .filter((comando): comando is DeleteObjectsCommand => comando instanceof DeleteObjectsCommand)
-      .flatMap(({ input }) => (input.Delete?.Objects ?? []).map(({ Key }) => Key))
-    expect(apagadas.sort()).toEqual([...orfas].sort())
+    expect(chavesApagadas(armazenamento.s3.send).sort()).toEqual([...orfas].sort())
     expect(resultado).toEqual({ listados: 6, referenciados: 3, removidos: 3, falhas: 0 })
   })
 })

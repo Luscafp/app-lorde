@@ -8,9 +8,12 @@ import { ehChaveDeUpload } from './chaves'
 export const JOB_LIMPEZA_ORFAOS = 'uploads.limpeza-orfaos'
 /** Margem para o upload recém-feito que ainda não foi gravado na entidade. */
 export const IDADE_MINIMA_ORFAO_MS = 24 * 60 * 60 * 1000
+/** Limite do `DeleteObjects`; usado também como tamanho da página da listagem. */
+export const LIMITE_DELETE_OBJECTS = 1000
 
 export interface ResultadoLimpezaOrfaos {
   listados: number
+  /** Candidatas (mais de 24 h, formato conhecido) ainda referenciadas por algum registro. */
   referenciados: number
   removidos: number
   falhas: number
@@ -41,7 +44,11 @@ export class LimpezaOrfaosService {
     let continuacao: string | undefined
     do {
       const pagina = await this.s3.send(
-        new ListObjectsV2Command({ Bucket: this.bucket, ContinuationToken: continuacao }),
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          ContinuationToken: continuacao,
+          MaxKeys: LIMITE_DELETE_OBJECTS,
+        }),
       )
       const objetos = pagina.Contents ?? []
       const candidatas = objetos.flatMap(({ Key, LastModified }) =>
@@ -52,7 +59,6 @@ export class LimpezaOrfaosService {
 
       resultado.listados += objetos.length
       resultado.referenciados += referenciadas.size
-      // Uma página do ListObjectsV2 tem no máximo 1000 chaves, o limite do DeleteObjects.
       const { removidos, falhas } = await this.apagar(orfas)
       resultado.removidos += removidos
       resultado.falhas += falhas

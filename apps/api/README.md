@@ -262,12 +262,12 @@ return { fotoUrl: this.uploads.urlPublica(fotoKey) }
 
 `LimpezaOrfaosJob` (`uploads.limpeza-orfaos`) roda todo dia às 03:30 de `America/Fortaleza` (`FUSO_PADRAO`) e chama `LimpezaOrfaosService.executar(agora)`, que apaga do bucket as imagens que nenhum registro referencia (uploads abandonados e imagens substituídas cuja remoção falhou). Sem tabela própria:
 
-- lista o bucket com `ListObjectsV2`, página a página, e só considera objetos com mais de 24 h e chave num dos formatos acima (o resto do bucket nunca é apagado);
-- procura as chaves em `Usuario.fotoKey`, `Noticia.imagemCapaKey` e `Banner.imagemKey` via `prisma.semEscopo` (todas as atléticas, inclusive registros excluídos logicamente) e apaga as demais com `DeleteObjects` (até 1000 por página);
-- uma chave que falha só gera `warn` e entra em `falhas`; o log `info` final traz `listados`, `referenciados`, `removidos` e `falhas`. Erro na listagem ou no banco interrompe sem apagar nada e vai para `logger.error` (Sentry);
+- lista o bucket com `ListObjectsV2`, em páginas de até 1000 objetos (`MaxKeys`), e só considera objetos com mais de 24 h e chave num dos formatos acima (o resto do bucket nunca é apagado);
+- procura as chaves em `Usuario.fotoKey`, `Noticia.imagemCapaKey` e `Banner.imagemKey` via `prisma.semEscopo` (todas as atléticas, inclusive registros excluídos logicamente) e apaga as demais com um `DeleteObjects` por página, antes de buscar a próxima;
+- uma chave que falha só gera `warn` e entra em `falhas`; o log `info` final traz `listados`, `referenciados` (candidatas ainda em uso), `removidos` e `falhas`. Erro na listagem ou no banco interrompe o job e vai para `logger.error` (Sentry): as páginas anteriores já foram limpas, e a próxima execução retoma o restante;
 - um disparo enquanto a execução anterior não terminou é ignorado (trava na instância).
 
-Execução manual em desenvolvimento (usa o `.env`, com o bucket do R2 configurado nele):
+Execução manual em desenvolvimento (usa o `.env`, com o bucket do R2 configurado nele; os crons da API ficam parados durante o script, e o `.env` não deve apontar para o bucket de produção):
 
 ```bash
 pnpm --filter api uploads:limpar-orfaos
@@ -284,7 +284,7 @@ pnpm --filter api uploads:limpar-orfaos
 | `prisma.db`        | sim (RNF20)         | **Padrão**, em todos os services.                                                                                                                             |
 | `prisma.semEscopo` | não                 | Só operações de conta que atravessam atléticas ou acontecem antes do contexto (login, sessão no guard, exclusão de conta), `/health`, seed e jobs de limpeza. |
 
-A regra de lint `no-restricted-syntax` só permite `semEscopo` em `src/modules/auth/**`, `src/modules/usuarios/conta*.ts`, `src/modules/health/**`, `src/infra/**` e `prisma/seed*.ts` (convenções §3). Qualquer outro uso exige justificativa no PR.
+A regra de lint `no-restricted-syntax` só permite `semEscopo` em `src/modules/auth/**`, `src/modules/usuarios/conta*.ts`, `src/modules/health/**`, `src/modules/uploads/limpeza-orfaos.service.ts` (a limpeza cruza todas as atléticas, #56), `src/infra/**` e `prisma/seed*.ts` (convenções §3). Qualquer outro uso exige justificativa no PR.
 
 ### Como o filtro funciona
 

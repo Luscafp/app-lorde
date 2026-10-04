@@ -9,8 +9,13 @@ import { Logger } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import type { Env } from '../../config/env.schema'
 import type { PrismaService } from '../../infra/prisma/prisma.service'
+import { chavesApagadas, comandosEnviados } from '../../../test/fabricas/uploads'
 import { gerarChave } from './chaves'
-import { IDADE_MINIMA_ORFAO_MS, LimpezaOrfaosService } from './limpeza-orfaos.service'
+import {
+  IDADE_MINIMA_ORFAO_MS,
+  LIMITE_DELETE_OBJECTS,
+  LimpezaOrfaosService,
+} from './limpeza-orfaos.service'
 
 const dono = {
   usuarioId: '0b6f8a52-8e5d-4a43-9d6c-1f0f3c2b7a90',
@@ -74,10 +79,7 @@ describe('LimpezaOrfaosService', () => {
     jest.restoreAllMocks()
   })
 
-  const apagadas = () =>
-    apagar.mock.calls.flatMap(([comando]) =>
-      (comando.input.Delete?.Objects ?? []).map(({ Key }) => Key),
-    )
+  const apagadas = () => chavesApagadas(s3.send)
 
   it('remove só os não referenciados com mais de 24 h e mantém referenciados e recentes', async () => {
     const [orfaPerfil, orfaNoticia, orfaBanner] = [perfil(), noticia(), banner()]
@@ -136,12 +138,10 @@ describe('LimpezaOrfaosService', () => {
 
     const resultado = await servico.executar(AGORA)
 
-    const listagens = s3.send.mock.calls
-      .map(([comando]: [unknown]) => comando)
-      .filter((comando): comando is ListObjectsV2Command => comando instanceof ListObjectsV2Command)
+    const listagens = comandosEnviados(s3.send, ListObjectsV2Command)
     expect(listagens.map(({ input }) => input)).toEqual([
-      { Bucket: 'imagens', ContinuationToken: undefined },
-      { Bucket: 'imagens', ContinuationToken: 'p2' },
+      { Bucket: 'imagens', ContinuationToken: undefined, MaxKeys: LIMITE_DELETE_OBJECTS },
+      { Bucket: 'imagens', ContinuationToken: 'p2', MaxKeys: LIMITE_DELETE_OBJECTS },
     ])
     expect(apagadas()).toEqual([primeira, segunda])
     expect(resultado).toMatchObject({ listados: 2, removidos: 2 })
