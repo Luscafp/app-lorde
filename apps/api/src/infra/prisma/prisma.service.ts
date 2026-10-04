@@ -1,13 +1,22 @@
-import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common'
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaPg } from '@prisma/adapter-pg'
 import type { ITXClientDenyList } from '@prisma/client/runtime/client'
 import type { Env } from '../../config/env.schema'
 import { PrismaClient } from '../../generated/prisma/client'
 import { ContextoAtletica } from '../contexto/contexto-atletica.service'
+import { extensaoConsultasLentas } from './consultas-lentas'
 import { extensaoAtletica } from './extensao-atletica'
 
-function criarClienteComEscopo(base: PrismaClient, contexto: ContextoAtletica) {
+function criarClienteBase(connectionString: string) {
+  const cliente = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
+  return cliente.$extends(extensaoConsultasLentas(new Logger('Prisma')))
+}
+
+/** Cliente sem filtro por atlética, com o log de consultas lentas. */
+export type ClienteBase = ReturnType<typeof criarClienteBase>
+
+function criarClienteComEscopo(base: ClienteBase, contexto: ContextoAtletica) {
   return base.$extends(extensaoAtletica(contexto))
 }
 
@@ -24,14 +33,12 @@ export type TransacaoComEscopo = Omit<ClienteComEscopo, ITXClientDenyList>
 @Injectable()
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
   /** Cliente base, **sem** filtro por atlética. Uso restrito (lint). */
-  readonly semEscopo: PrismaClient
+  readonly semEscopo: ClienteBase
   /** Cliente com o filtro por atlética do contexto (RNF20). Padrão. */
   readonly db: ClienteComEscopo
 
   constructor(config: ConfigService<Env, true>, contexto: ContextoAtletica) {
-    this.semEscopo = new PrismaClient({
-      adapter: new PrismaPg({ connectionString: config.get('DATABASE_URL', { infer: true }) }),
-    })
+    this.semEscopo = criarClienteBase(config.get('DATABASE_URL', { infer: true }))
     this.db = criarClienteComEscopo(this.semEscopo, contexto)
   }
 

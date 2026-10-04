@@ -6,18 +6,20 @@ Visão geral, scripts e primeiros passos no [README da raiz](../../README.md). C
 
 Validadas por `src/config/env.schema.ts` (Zod): a API não sobe com variável faltando ou inválida e a mensagem lista as variáveis com problema, sem os valores. Exemplo comentado em `.env.example`; nos testes os valores vêm de `.env.test.example` (veja [Testes](#testes)).
 
-| Variável            | Obrigatória                 | Descrição                                                                                                         |
-| ------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `NODE_ENV`          | não (`development`)         | `development \| test \| production`                                                                               |
-| `APP_ENV`           | com `NODE_ENV=production`   | `local \| development \| homologacao \| producao` (padrão `local`)                                                |
-| `PORT`              | não (`3000`)                | Porta HTTP                                                                                                        |
-| `DATABASE_URL`      | sim                         | `postgresql://...`                                                                                                |
-| `LOG_LEVEL`         | não (`info`)                | Nível do pino                                                                                                     |
-| `EMAIL_PROVIDER`    | sim                         | `resend` (homologação/produção — obrigatório com `NODE_ENV=production`), `fake` (testes), `log` (desenvolvimento) |
-| `RESEND_API_KEY`    | com `EMAIL_PROVIDER=resend` | Chave da API do Resend (vazia conta como ausente)                                                                 |
-| `EMAIL_REMETENTE`   | sim                         | Remetente, ex.: `"Atlética Lorde <nao-responda@dominio>"` (domínio verificado no Resend)                          |
-| `CODIGO_PEPPER`     | sim (≥ 32 caracteres)       | Segredo do HMAC dos códigos de verificação. Trocar o valor invalida os códigos pendentes                          |
-| `JWT_ACCESS_SECRET` | sim (≥ 32 caracteres)       | Segredo HS256 do access token (#7), distinto por ambiente. Trocar o valor invalida os access tokens em circulação |
+| Variável                    | Obrigatória                 | Descrição                                                                                                         |
+| --------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                  | não (`development`)         | `development \| test \| production`                                                                               |
+| `APP_ENV`                   | com `NODE_ENV=production`   | `local \| development \| homologacao \| producao` (padrão `local`)                                                |
+| `PORT`                      | não (`3000`)                | Porta HTTP                                                                                                        |
+| `DATABASE_URL`              | sim                         | `postgresql://...`                                                                                                |
+| `LOG_LEVEL`                 | não (`info`)                | Nível do pino                                                                                                     |
+| `EMAIL_PROVIDER`            | sim                         | `resend` (homologação/produção — obrigatório com `NODE_ENV=production`), `fake` (testes), `log` (desenvolvimento) |
+| `RESEND_API_KEY`            | com `EMAIL_PROVIDER=resend` | Chave da API do Resend (vazia conta como ausente)                                                                 |
+| `EMAIL_REMETENTE`           | sim                         | Remetente, ex.: `"Atlética Lorde <nao-responda@dominio>"` (domínio verificado no Resend)                          |
+| `CODIGO_PEPPER`             | sim (≥ 32 caracteres)       | Segredo do HMAC dos códigos de verificação. Trocar o valor invalida os códigos pendentes                          |
+| `JWT_ACCESS_SECRET`         | sim (≥ 32 caracteres)       | Segredo HS256 do access token (#7), distinto por ambiente. Trocar o valor invalida os access tokens em circulação |
+| `SENTRY_DSN`                | não                         | DSN do Sentry da API; ausente ou vazia = Sentry desligado (veja [Observabilidade](#observabilidade))              |
+| `SENTRY_TRACES_SAMPLE_RATE` | não (`0.1`)                 | Fração de traces de 0 a 1: `0.1` em produção, `1.0` em homologação                                                |
 
 ## Testes
 
@@ -280,3 +282,43 @@ email.simularFalha() // próximos envios rejeitam (limpar() desfaz)
 - `codigoConfere(hash, usuarioId, codigo)` — comparação em tempo constante (`timingSafeEqual`).
 
 O código em claro só existe no e-mail: nunca em log, URL, resposta ou Sentry. A única exceção é `EMAIL_PROVIDER=log` com `NODE_ENV=development`, que escreve o corpo do e-mail (com o código) no log para testar o fluxo localmente.
+
+## Observabilidade (`src/infra/logs`, `src/infra/sentry`, `src/instrument.ts`)
+
+### requestId
+
+`request-id.middleware.ts` é o primeiro middleware: aceita o `X-Request-Id` do cliente (#52) **só se for UUID v4**; senão gera um. O valor volta no cabeçalho `X-Request-Id` da resposta, vai para o CLS (`contexto.requestId()`) e para **todo** log da requisição. Use-o para cruzar o erro do app com o log e o evento do Sentry.
+
+### Log de acesso
+
+Uma linha JSON por requisição (`pino-pretty` só com `NODE_ENV=development`), com `msg: "Requisição concluída"`:
+
+| Campo                       | Origem                                                      |
+| --------------------------- | ----------------------------------------------------------- |
+| `service`, `env`, `version` | fixos: `"api"`, `APP_ENV`, `<versao>+<commit>`              |
+| `requestId`                 | `X-Request-Id`                                              |
+| `method`, `route`           | padrão da rota (`/api/v1/eventos/:id`), nunca a URL com IDs |
+| `statusCode`, `durationMs`  | resposta                                                    |
+| `usuarioId`, `atleticaId`   | contexto CLS, preenchido pelo `JwtAuthGuard` (#7)           |
+| `appVersion`                | cabeçalho `X-App-Version` (#52)                             |
+
+Nível: `info`; `warn` para 4xx; `error` para 5xx; `debug` para `GET /api/v1/health`.
+
+- **Nunca** vão para o log: corpo da requisição/resposta, URL e query string, cabeçalhos.
+- `redact` (`[REDACTED]`) em `authorization`, `cookie`, `senha`, `senhaAtual`, `novaSenha`, `confirmacaoSenha`, `refreshToken`, `accessToken`, `codigo`, `tokenPush` e `email`, no primeiro nível e um nível abaixo (`{ corpo: { senha } }`). Mais fundo que isso não é redigido: não logue objetos de entrada inteiros.
+- Consultas Prisma acima de **500 ms** geram `warn` `"Consulta lenta"` com `model`, `operation` e `durationMs`, sem os parâmetros.
+
+**Onde ver na Railway:** serviço da API → aba _Deployments_ → _View logs_ (ou _Observability_). Filtre por `@requestId:<uuid>` ou `@level:50` (erros). A retenção é a do plano da Railway.
+
+### Sentry
+
+- `src/instrument.ts` é a **primeira linha** do `main.ts` e chama `Sentry.init` só se `SENTRY_DSN` estiver definida (lê o `.env` como o `ConfigModule`). Sem DSN, nada é enviado.
+- `environment` = `APP_ENV`; `release` = `api@<versao>+<commit>` (commit de `RAILWAY_GIT_COMMIT_SHA`, `local` fora da Railway).
+- **Só 5xx** vão ao Sentry, capturados pelo filtro global (`capturarErroHttp`) com tags `requestId`, `route`, `atleticaId` e usuário só com `id`. 4xx nunca.
+- Dados pessoais: `dataCollection` mínimo (sem corpos, cookies, query string, variáveis locais dos frames, dados de usuário automáticos — o SDK 11 substituiu `sendDefaultPii` por essa opção) e `beforeSend` remove `request.data`, cookies e `Authorization`, troca e-mails por `[email]` em `message`, `extra` e na mensagem da exceção e deixa o usuário só com `id`.
+- Jobs (`@nestjs/schedule` #58, pg-boss #86): capture o erro com `capturarErroJob(nome, erro, contexto)` (tag `job=<nome>`); `contexto` vai para `extra`, sem dado pessoal.
+- Testes: `jest.mock('@sentry/nestjs', () => ({ captureException: jest.fn() }))`.
+
+### Rota de diagnóstico
+
+`GET /api/v1/diagnostico/erro` lança um erro inesperado (`500 INTERNAL_ERROR`) para conferir a chegada do evento ao Sentry (#93). Qualquer usuário autenticado acessa (guard global da #7). O módulo **não é registrado** com `APP_ENV=producao`: lá a rota responde `404`.

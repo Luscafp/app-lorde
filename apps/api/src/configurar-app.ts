@@ -5,6 +5,7 @@ import helmet from 'helmet'
 import { Logger } from 'nestjs-pino'
 import { cleanupOpenApiDoc } from 'nestjs-zod'
 import type { Env } from './config/env.schema'
+import { requestIdMiddleware } from './infra/logs/request-id.middleware'
 import { documentarAutenticacao } from './modules/auth/swagger'
 
 export const PREFIXO_API = 'api/v1'
@@ -19,6 +20,7 @@ export const LIMITE_CORPO = '100kb'
 export function configurarApp(app: NestExpressApplication): void {
   const config = app.get<ConfigService<Env, true>>(ConfigService)
 
+  app.use(requestIdMiddleware)
   app.useLogger(app.get(Logger))
   app.setGlobalPrefix(PREFIXO_API)
   app.enableShutdownHooks()

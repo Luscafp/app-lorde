@@ -34,6 +34,11 @@ export const envSchema = z
     CODIGO_PEPPER: z.string().min(32, { error: 'obrigatória, com ao menos 32 caracteres' }),
     // Segredo HS256 do access token (#7 verifica, #10 assina); distinto por ambiente (#92).
     JWT_ACCESS_SECRET: z.string().min(32, { error: 'obrigatória, com ao menos 32 caracteres' }),
+    // Sentry da API (#48): ausente = desligado (local e testes).
+    SENTRY_DSN: vazioComoAusente(z.url({ error: 'deve ser uma URL' }).optional()),
+    SENTRY_TRACES_SAMPLE_RATE: vazioComoAusente(
+      z.coerce.number({ error: 'deve ser um número de 0 a 1' }).min(0).max(1).default(0.1),
+    ),
   })
   .refine(...appEnvExigidaEmProducao)
   .refine((env) => env.EMAIL_PROVIDER !== 'resend' || env.RESEND_API_KEY !== undefined, {

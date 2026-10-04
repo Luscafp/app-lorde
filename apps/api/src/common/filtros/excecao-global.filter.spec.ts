@@ -10,11 +10,14 @@ import {
   UnauthorizedException,
 } from '@nestjs/common'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client'
+import * as Sentry from '@sentry/nestjs'
 import { ZodValidationException } from 'nestjs-zod'
 import { z } from 'zod'
 import { ErroAtleticaContextoAusente, ErroAtleticaDivergente } from '../../infra/contexto/erros'
 import { ErroNegocio } from '../erros/erro-negocio'
 import { ExcecaoGlobalFilter, MENSAGEM_ERRO_INTERNO, mapearExcecao } from './excecao-global.filter'
+
+jest.mock('@sentry/nestjs', () => ({ captureException: jest.fn() }))
 
 describe('mapearExcecao', () => {
   it('ZodValidationException → 400 VALIDATION_ERROR com details em notação de ponto', () => {
@@ -242,6 +245,8 @@ describe('mapearExcecao — isolamento por atlética', () => {
 })
 
 describe('ExcecaoGlobalFilter', () => {
+  beforeEach(() => jest.mocked(Sentry.captureException).mockClear())
+
   function criarHost() {
     const json = jest.fn()
     const status = jest.fn(() => ({ json }))
@@ -264,5 +269,16 @@ describe('ExcecaoGlobalFilter', () => {
       message: 'Inválido.',
       details: [],
     })
+  })
+
+  it('500 → captura no Sentry', () => {
+    const erro = new Error('segredo interno')
+    new ExcecaoGlobalFilter().catch(erro, criarHost().host)
+    expect(Sentry.captureException).toHaveBeenCalledWith(erro, expect.any(Object))
+  })
+
+  it.each([400, 401, 403, 404, 409, 422, 429])('%i → não captura no Sentry', (status) => {
+    new ExcecaoGlobalFilter().catch(new ErroNegocio(status, 'X', 'Y'), criarHost().host)
+    expect(Sentry.captureException).not.toHaveBeenCalled()
   })
 })

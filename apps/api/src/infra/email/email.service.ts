@@ -11,8 +11,7 @@ import { mascararEmail } from './mascarar-email'
  * e rejeita a promessa. Em rotas que não devem esperar o envio:
  * `void this.emailService.enviar(mensagem).catch(() => undefined)` (o erro já foi logado).
  * Quem aguarda o envio não deve deixar o erro chegar ao filtro global como 5xx: ele já foi
- * reportado aqui e seria reportado de novo. O SDK do Sentry é inicializado pela #48 (épico #5);
- * até lá `captureException` não faz nada.
+ * reportado aqui e seria reportado de novo. Sem `SENTRY_DSN`, `captureException` não faz nada.
  */
 @Injectable()
 export class EmailService {

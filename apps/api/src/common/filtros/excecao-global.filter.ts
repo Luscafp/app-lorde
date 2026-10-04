@@ -11,6 +11,8 @@ import type { Request, Response } from 'express'
 import { ZodValidationException } from 'nestjs-zod'
 import { ZodError } from 'zod'
 import { ErroAtleticaContextoAusente, ErroAtleticaDivergente } from '../../infra/contexto/erros'
+import { rotaDaRequisicao } from '../../infra/logs/rota'
+import { capturarErroHttp } from '../../infra/sentry/sentry'
 import { DetalheErro, ErroNegocio, RespostaErro } from '../erros/erro-negocio'
 
 export const MENSAGEM_ERRO_INTERNO = 'Ocorreu um erro inesperado. Tente novamente.'
@@ -164,10 +166,13 @@ export class ExcecaoGlobalFilter implements ExceptionFilter {
     const requisicao = contexto.getRequest<Request>()
     const resposta = contexto.getResponse<Response>()
     const corpo = mapearExcecao(excecao)
-    const rota = { method: requisicao.method, url: requisicao.originalUrl }
+    // Sem a URL: a query string não pode ir para o log (épico #5 §3 item 3).
+    const rota = { method: requisicao.method, route: rotaDaRequisicao(requisicao) }
 
+    // Só 5xx vão ao Sentry; 4xx são comportamento esperado (épico #5 §14, opção a).
     if (corpo.statusCode >= 500) {
       this.logger.error({ err: excecao, ...rota, code: corpo.code }, 'Erro inesperado')
+      capturarErroHttp(excecao, requisicao)
     } else {
       this.logger.warn({ ...rota, statusCode: corpo.statusCode, code: corpo.code }, corpo.message)
     }

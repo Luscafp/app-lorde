@@ -26,7 +26,7 @@ describe('Log de erros (#1)', () => {
       level: 50,
       code: 'INTERNAL_ERROR',
       method: 'GET',
-      url: '/api/v1/exemplo/erro',
+      route: '/api/v1/exemplo/erro',
       err: { message: 'x', stack: expect.stringMatching(/^Error: x\n\s+at /) as string },
     })
   })

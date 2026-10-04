@@ -5,7 +5,7 @@ import { ClsService, type ClsStore } from 'nestjs-cls'
 export interface StoreContexto extends ClsStore {
   atleticaId?: string
   usuarioId?: string
-  /** Gravado pelo middleware de request id (#48); até lá, sempre `undefined`. */
+  /** `X-Request-Id` da requisição (infra/logs/request-id.middleware.ts). */
   requestId?: string
 }
 

@@ -10,6 +10,7 @@ import { ContextoModule } from './infra/contexto/contexto.module'
 import { criarConfigLogger } from './infra/logs/logger.config'
 import { PrismaModule } from './infra/prisma/prisma.module'
 import { AuthModule } from './modules/auth/auth.module'
+import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.module'
 
 @Module({
   imports: [
@@ -20,11 +21,13 @@ import { AuthModule } from './modules/auth/auth.module'
         criarConfigLogger({
           NODE_ENV: config.get('NODE_ENV', { infer: true }),
           LOG_LEVEL: config.get('LOG_LEVEL', { infer: true }),
+          APP_ENV: config.get('APP_ENV', { infer: true }),
         }),
     }),
     ContextoModule,
     PrismaModule,
     AuthModule,
+    DiagnosticoForaDeProducao,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },

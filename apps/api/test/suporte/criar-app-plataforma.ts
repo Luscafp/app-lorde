@@ -23,7 +23,7 @@ export async function criarAppPlataforma(
         .overrideProvider(ConfigService)
         .useValue({ get: (chave: keyof Env) => config[chave] })
       if (!linhasDeLog) return ajustado
-      const params = criarConfigLogger({ NODE_ENV: 'test', LOG_LEVEL: 'warn' })
+      const params = criarConfigLogger({ NODE_ENV: 'test', LOG_LEVEL: 'warn', APP_ENV: 'local' })
       return ajustado
         .overrideProvider(PARAMS_PROVIDER_TOKEN)
         .useValue({ ...params, pinoHttp: [params.pinoHttp, destinoDeLog(linhasDeLog)] })
