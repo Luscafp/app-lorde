@@ -52,7 +52,7 @@ Cadastre em _Variables_ de cada ambiente. Segredos **diferentes** por ambiente: 
 | `RESEND_API_KEY`, `EMAIL_REMETENTE`                                                                    | chave e remetente de homologação (#94)                        | de produção (#94)              | #61                  |
 | `SENTRY_DSN`                                                                                           | DSN da API (#93)                                              | idem                           | #48                  |
 | `SENTRY_TRACES_SAMPLE_RATE`                                                                            | `1.0`                                                         | `0.1`                          | #48                  |
-| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_IMAGENS`, `R2_PUBLIC_BASE_URL` | bucket `atletica-imagens-hml`                                 | bucket `atletica-imagens-prod` | #54 (quando existir) |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_IMAGENS`, `R2_PUBLIC_BASE_URL` | bucket `atletica-imagens-hml`                                 | bucket `atletica-imagens-prod` | #54                  |
 | `GIT_COMMIT_SHA`                                                                                       | **não cadastre**: o workflow grava a cada deploy              | idem                           | #47                  |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_NOME`, `SEED_ADMIN_SENHA`                                              | **não cadastre**: só na execução do seed (`seed-producao.md`) | idem                           | #45                  |
 

@@ -16,6 +16,7 @@ import { AuditoriaModule } from './modules/auditoria/auditoria.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.module'
 import { HealthModule } from './modules/health/health.module'
+import { UploadsModule } from './modules/uploads/uploads.module'
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { HealthModule } from './modules/health/health.module'
     AuthModule,
     AtleticasModule,
     HealthModule,
+    UploadsModule,
     DiagnosticoForaDeProducao,
   ],
   providers: [
