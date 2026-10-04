@@ -7,13 +7,16 @@ import { PrismaClient } from '../../generated/prisma/client'
 import { ContextoAtletica } from '../contexto/contexto-atletica.service'
 import { extensaoConsultasLentas } from './consultas-lentas'
 import { extensaoAtletica } from './extensao-atletica'
+import { extensaoAuditoriaImutavel } from './extensao-auditoria-imutavel'
 
 function criarClienteBase(connectionString: string) {
   const cliente = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
-  return cliente.$extends(extensaoConsultasLentas(new Logger('Prisma')))
+  return cliente
+    .$extends(extensaoConsultasLentas(new Logger('Prisma')))
+    .$extends(extensaoAuditoriaImutavel)
 }
 
-/** Cliente sem filtro por atlética, com o log de consultas lentas. */
+/** Cliente sem filtro por atlética, com o log de consultas lentas e a auditoria imutável. */
 export type ClienteBase = ReturnType<typeof criarClienteBase>
 
 function criarClienteComEscopo(base: ClienteBase, contexto: ContextoAtletica) {
@@ -23,8 +26,10 @@ function criarClienteComEscopo(base: ClienteBase, contexto: ContextoAtletica) {
 /** Cliente com o filtro por atlética (`prisma.db`). */
 export type ClienteComEscopo = ReturnType<typeof criarClienteComEscopo>
 
-/** Cliente recebido em `prisma.db.$transaction(async (tx) => ...)`, também com o filtro. */
-export type TransacaoComEscopo = Omit<ClienteComEscopo, ITXClientDenyList>
+/** Cliente recebido em `prisma.db.$transaction(async (tx) => ...)`; `prisma.db` não é aceito. */
+export type TransacaoComEscopo = Omit<ClienteComEscopo, ITXClientDenyList> & {
+  [K in ITXClientDenyList]?: never
+}
 
 /**
  * Acesso ao banco (épico #3 §3 item 3). Use `db` em todos os services; `semEscopo` só nos caminhos
