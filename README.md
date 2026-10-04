@@ -97,9 +97,37 @@ A API sobe em `http://localhost:3000/api/v1` e o Swagger em `http://localhost:30
 | `pnpm lint` / `pnpm format` / `pnpm format:check` | ESLint / Prettier                           |
 | `pnpm typecheck`                                  | `tsc --noEmit` em todos os pacotes          |
 | `pnpm test`                                       | Jest em todos os pacotes                    |
+| `pnpm --filter api test:cov`                      | testes da API com limite de cobertura       |
 | `pnpm build`                                      | build do shared e da API                    |
 
 Um hook de pre-commit (Husky + lint-staged) roda Prettier e ESLint nos arquivos alterados.
+
+### CI
+
+O workflow `.github/workflows/ci.yml` (GitHub Actions) roda em todo PR para `main` e em todo push na `main`. Um push novo no mesmo PR cancela a execução anterior. Node vem do `.nvmrc`, pnpm do `packageManager`, com cache do pnpm (`.github/actions/preparar`). A CI não usa segredos: as variáveis de ambiente de teste são fictícias e ficam no próprio workflow.
+
+| Job         | Verifica                                                                                                                                              | Falha quando                                          |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `qualidade` | `gitleaks` nos commits do PR, `pnpm format:check`, `pnpm lint --max-warnings=0`, `pnpm typecheck`                                                     | segredo commitado, erro ou aviso de lint/formato/tipo |
+| `prisma`    | `prisma validate` e `prisma migrate diff --exit-code` contra um banco sombra (pulado enquanto `apps/api/prisma/schema.prisma` não existir, até a #43) | schema alterado sem migration correspondente          |
+| `api`       | Postgres 16 como serviço, `prisma migrate deploy`, `pnpm --filter api test:cov` (projetos Jest `unit` e `integration`) e resumo da cobertura no job   | teste falhando ou cobertura abaixo do limite          |
+| `mobile`    | Jest do app (`jest-expo`) e `expo-doctor` (só alerta, não bloqueia)                                                                                   | teste falhando                                        |
+| `shared`    | Jest do `@atletica/shared`                                                                                                                            | teste falhando                                        |
+| `build`     | `pnpm --filter @atletica/shared build && pnpm --filter api build`                                                                                     | build quebrado                                        |
+
+- **Cobertura (RNF11):** medida só em `apps/api/src/modules/**/*.service.ts`, sobre a soma dos testes unitários e de integração. Cada service precisa de linhas, comandos e funções ≥ 70% e ramos ≥ 60% (`coverageThreshold` em `apps/api/jest.config.js`). O relatório HTML fica no artefato `cobertura-api` da execução. Localmente: `pnpm --filter api test:cov`.
+- **Filtro de caminhos:** todos os jobs sempre rodam e reportam status (inclusive em PR só de `docs/`); quando nada relevante mudou, os passos são pulados e o job passa. Os caminhos de cada job ficam em `.github/filtros-ci.yml` — nunca use `paths` no gatilho do workflow, senão os checks obrigatórios ficam pendentes.
+- **Dependabot** (`.github/dependabot.yml`): PRs semanais de dependências npm (minor e patch agrupados) e das actions. Majors do Expo SDK e do React Native não são propostos (decisão D5, #97).
+- **Template de PR** (`.github/pull_request_template.md`): checklist de issue vinculada, testes 401/403/404, migration, auditoria, eventos de domínio e Swagger.
+
+#### Proteção da `main` (configurada na #91)
+
+Em _Settings → Branches_ (ou _Rulesets_), para a `main`:
+
+- Exigir Pull Request para mesclar; bloquear push direto e force-push.
+- Checks obrigatórios (nomes exatos dos jobs): **`qualidade`**, **`prisma`**, **`api`**, **`mobile`**, **`shared`**, **`build`**.
+- Exigir branch atualizada com a `main` antes de mesclar.
+- Aprovações obrigatórias: conforme a decisão do PO na #97.
 
 ### Development build Android
 
