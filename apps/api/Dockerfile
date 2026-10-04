@@ -24,12 +24,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 RUN rm -f /out/node_modules/.pnpm/@prisma+engines@*/node_modules/@prisma/engines/schema-engine-* \
     && node /out/node_modules/.pnpm/@prisma+engines@*/node_modules/@prisma/engines/scripts/postinstall.js
 # O Prisma CLI só lê o config em JS na imagem (sem fontes .ts).
-RUN cd apps/api && node -e " \
-    const ts = require('typescript'); \
-    const fs = require('node:fs'); \
-    const { outputText } = ts.transpileModule(fs.readFileSync('prisma.config.ts', 'utf8'), \
-      { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2023 } }); \
-    fs.writeFileSync('/out/prisma.config.mjs', outputText);"
+RUN cd apps/api && node scripts/transpilar-prisma-config.mjs /out/prisma.config.mjs
 
 FROM base AS runtime
 ARG GIT_COMMIT_SHA

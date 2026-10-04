@@ -39,6 +39,9 @@ export const envSchema = z
     SENTRY_TRACES_SAMPLE_RATE: vazioComoAusente(
       z.coerce.number({ error: 'deve ser um número de 0 a 1' }).min(0).max(1).default(0.1),
     ),
+    // Commit do build (#46): build-arg do `docker build`; a Railway define RAILWAY_GIT_COMMIT_SHA.
+    GIT_COMMIT_SHA: vazioComoAusente(z.string().trim().optional()),
+    RAILWAY_GIT_COMMIT_SHA: vazioComoAusente(z.string().trim().optional()),
   })
   .refine(...appEnvExigidaEmProducao)
   .refine((env) => env.EMAIL_PROVIDER !== 'resend' || env.RESEND_API_KEY !== undefined, {

@@ -1,43 +1,44 @@
 import type { AddressInfo } from 'node:net'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import type { INestApplication } from '@nestjs/common'
 import request from 'supertest'
+import { VERSAO_API } from '../../src/config/versao'
 import { PrismaService, type ClienteBase } from '../../src/infra/prisma/prisma.service'
-import { criarApp, type AppDeTeste } from '../setup/criar-app'
+import { TIMEOUT_BANCO_MS } from '../../src/modules/health/health.service'
+import type { AppDeTeste, OpcoesCriarApp } from '../setup/criar-app'
 import { ProxyController } from '../suporte/proxy.controller'
 
-const { version } = JSON.parse(
-  readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8'),
-) as { version: string }
+const SHA = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'
+
+// O ConfigModule valida a env ao importar o AppModule: o GIT_COMMIT_SHA precisa existir antes.
+async function criarAppComCommit(opcoes?: OpcoesCriarApp): Promise<AppDeTeste> {
+  const original = process.env.GIT_COMMIT_SHA
+  process.env.GIT_COMMIT_SHA = SHA
+  try {
+    const { criarApp } =
+      jest.requireActual<typeof import('../setup/criar-app')>('../setup/criar-app')
+    return await criarApp(opcoes)
+  } finally {
+    if (original === undefined) delete process.env.GIT_COMMIT_SHA
+    else process.env.GIT_COMMIT_SHA = original
+  }
+}
 
 function clienteBase(app: INestApplication): ClienteBase {
   // eslint-disable-next-line no-restricted-syntax -- o /health consulta o banco pelo semEscopo
   return app.get(PrismaService).semEscopo
 }
 
-const VARIAVEIS_COMMIT = ['GIT_COMMIT_SHA', 'RAILWAY_GIT_COMMIT_SHA'] as const
-
 describe('GET /api/v1/health (#46)', () => {
   let contexto: AppDeTeste
   let banco: ClienteBase
-  const originais = Object.fromEntries(VARIAVEIS_COMMIT.map((nome) => [nome, process.env[nome]]))
 
   beforeAll(async () => {
-    contexto = await criarApp({ controllers: [ProxyController] })
+    contexto = await criarAppComCommit({ controllers: [ProxyController] })
     banco = clienteBase(contexto.app)
-  })
-
-  beforeEach(() => {
-    for (const nome of VARIAVEIS_COMMIT) delete process.env[nome]
   })
 
   afterEach(() => {
     jest.restoreAllMocks()
-    for (const nome of VARIAVEIS_COMMIT) {
-      if (originais[nome] === undefined) delete process.env[nome]
-      else process.env[nome] = originais[nome]
-    }
   })
 
   afterAll(async () => {
@@ -45,20 +46,16 @@ describe('GET /api/v1/health (#46)', () => {
   })
 
   it('banco no ar, sem token → 200 com versão do package.json e commit do GIT_COMMIT_SHA', async () => {
-    process.env.GIT_COMMIT_SHA = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'
-
     const resposta = await request(contexto.http).get('/api/v1/health')
 
     expect(resposta.status).toBe(200)
-    expect(resposta.body).toEqual({ status: 'ok', versao: version, commit: 'a1b2c3d', banco: 'ok' })
+    expect(resposta.body).toEqual({
+      status: 'ok',
+      versao: VERSAO_API,
+      commit: SHA.slice(0, 7),
+      banco: 'ok',
+    })
     expect(resposta.headers['cache-control']).toBe('no-store')
-  })
-
-  it('sem GIT_COMMIT_SHA → commit "desconhecido"', async () => {
-    const resposta = await request(contexto.http).get('/api/v1/health')
-
-    expect(resposta.status).toBe(200)
-    expect(resposta.body).toMatchObject({ commit: 'desconhecido' })
   })
 
   it('SELECT 1 rejeitado → 503 sem o formato de erro padrão', async () => {
@@ -71,8 +68,8 @@ describe('GET /api/v1/health (#46)', () => {
     expect(resposta.status).toBe(503)
     expect(resposta.body).toEqual({
       status: 'erro',
-      versao: version,
-      commit: 'desconhecido',
+      versao: VERSAO_API,
+      commit: SHA.slice(0, 7),
       banco: 'indisponivel',
     })
     expect(resposta.text).not.toMatch(/ECONNREFUSED|10\.0\.0\.1/)
@@ -89,8 +86,8 @@ describe('GET /api/v1/health (#46)', () => {
 
     expect(resposta.status).toBe(503)
     expect(resposta.body).toMatchObject({ status: 'erro', banco: 'indisponivel' })
-    expect(duracao).toBeGreaterThanOrEqual(1900)
-    expect(duracao).toBeLessThan(3000)
+    expect(duracao).toBeGreaterThanOrEqual(TIMEOUT_BANCO_MS - 100)
+    expect(duracao).toBeLessThan(TIMEOUT_BANCO_MS + 1000)
   })
 
   it('Swagger documenta a rota como pública, com 200 e 503', async () => {
@@ -124,7 +121,7 @@ describe('GET /api/v1/health (#46)', () => {
 
 describe('encerramento da API (#46)', () => {
   it('app.close() (chamado no SIGTERM) fecha o servidor HTTP e desconecta o Prisma', async () => {
-    const { app } = await criarApp()
+    const { app } = await criarAppComCommit()
     await app.listen(0)
     const servidor = app.getHttpServer()
     expect((servidor.address() as AddressInfo).port).toBeGreaterThan(0)

@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import type { Env } from '../../config/env.schema'
 import { commitApi, VERSAO_API } from '../../config/versao'
 import { PrismaService } from '../../infra/prisma/prisma.service'
-import type { RespostaHealth } from './health.dto'
+import type { RespostaSaude } from './health.dto'
 
 export const TIMEOUT_BANCO_MS = 2000
 
@@ -9,13 +11,25 @@ export const TIMEOUT_BANCO_MS = 2000
 export class HealthService {
   private readonly logger = new Logger(HealthService.name)
 
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly identificacao: { versao: string; commit: string }
 
-  async verificar(): Promise<RespostaHealth> {
-    const identificacao = { versao: VERSAO_API, commit: commitApi() ?? 'desconhecido' }
+  constructor(
+    private readonly prisma: PrismaService,
+    config: ConfigService<Env, true>,
+  ) {
+    this.identificacao = {
+      versao: VERSAO_API,
+      commit: commitApi({
+        GIT_COMMIT_SHA: config.get('GIT_COMMIT_SHA', { infer: true }),
+        RAILWAY_GIT_COMMIT_SHA: config.get('RAILWAY_GIT_COMMIT_SHA', { infer: true }),
+      }),
+    }
+  }
+
+  async verificar(): Promise<RespostaSaude> {
     return (await this.bancoResponde())
-      ? { status: 'ok', ...identificacao, banco: 'ok' }
-      : { status: 'erro', ...identificacao, banco: 'indisponivel' }
+      ? { status: 'ok', ...this.identificacao, banco: 'ok' }
+      : { status: 'erro', ...this.identificacao, banco: 'indisponivel' }
   }
 
   private async bancoResponde(): Promise<boolean> {

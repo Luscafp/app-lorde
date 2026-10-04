@@ -23,6 +23,8 @@ import { HealthModule } from './modules/health/health.module'
           NODE_ENV: config.get('NODE_ENV', { infer: true }),
           LOG_LEVEL: config.get('LOG_LEVEL', { infer: true }),
           APP_ENV: config.get('APP_ENV', { infer: true }),
+          GIT_COMMIT_SHA: config.get('GIT_COMMIT_SHA', { infer: true }),
+          RAILWAY_GIT_COMMIT_SHA: config.get('RAILWAY_GIT_COMMIT_SHA', { infer: true }),
         }),
     }),
     ContextoModule,

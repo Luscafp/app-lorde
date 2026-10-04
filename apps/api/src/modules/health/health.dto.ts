@@ -18,7 +18,7 @@ const saudeErroSchema = z.object({
   banco: z.literal('indisponivel'),
 })
 
-export type RespostaHealth = z.infer<typeof saudeOkSchema> | z.infer<typeof saudeErroSchema>
+export type RespostaSaude = z.infer<typeof saudeOkSchema> | z.infer<typeof saudeErroSchema>
 
 export class SaudeOkDto extends createZodDto(saudeOkSchema) {}
 export class SaudeErroDto extends createZodDto(saudeErroSchema) {}

@@ -4,7 +4,7 @@ import type { Request } from 'express'
 import type { Params } from 'nestjs-pino'
 import type { Level } from 'pino'
 import type { Env } from '../../config/env.schema'
-import { versaoApi } from '../../config/versao'
+import { versaoApi, type EnvCommit } from '../../config/versao'
 import { PREFIXO_API } from '../../configurar-app'
 import { contextoDaRequisicao } from '../contexto/contexto-requisicao'
 import { rotaDaRequisicao } from './rota'
@@ -55,14 +55,16 @@ function dadosDeAcesso(req: IncomingMessage, res: ServerResponse, durationMs: nu
 }
 
 /** JSON de uma linha fora do desenvolvimento; `pino-pretty` em desenvolvimento. */
-export function criarConfigLogger(env: Pick<Env, 'NODE_ENV' | 'LOG_LEVEL' | 'APP_ENV'>): Params {
+export function criarConfigLogger(
+  env: Pick<Env, 'NODE_ENV' | 'LOG_LEVEL' | 'APP_ENV'> & EnvCommit,
+): Params {
   const legivel = env.NODE_ENV === 'development'
   return {
     // Sintaxe do path-to-regexp v8 (Express 5); o padrão '*' gera aviso.
     forRoutes: [{ path: '{*splat}', method: RequestMethod.ALL }],
     pinoHttp: {
       level: env.LOG_LEVEL,
-      base: { service: 'api', env: env.APP_ENV, version: versaoApi() },
+      base: { service: 'api', env: env.APP_ENV, version: versaoApi(env) },
       redact: { paths: CAMINHOS_REDIGIDOS, censor: '[REDACTED]' },
       // `req.id` vem do request-id.middleware; todo log da requisição recebe só o `requestId`.
       quietReqLogger: true,

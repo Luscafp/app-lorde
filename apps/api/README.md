@@ -6,21 +6,21 @@ Visão geral, scripts e primeiros passos no [README da raiz](../../README.md). C
 
 Validadas por `src/config/env.schema.ts` (Zod): a API não sobe com variável faltando ou inválida e a mensagem lista as variáveis com problema, sem os valores. Exemplo comentado em `.env.example`; nos testes os valores vêm de `.env.test.example` (veja [Testes](#testes)).
 
-| Variável                    | Obrigatória                 | Descrição                                                                                                         |
-| --------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `NODE_ENV`                  | não (`development`)         | `development \| test \| production`                                                                               |
-| `APP_ENV`                   | com `NODE_ENV=production`   | `local \| development \| homologacao \| producao` (padrão `local`)                                                |
-| `PORT`                      | não (`3000`)                | Porta HTTP                                                                                                        |
-| `DATABASE_URL`              | sim                         | `postgresql://...`                                                                                                |
-| `LOG_LEVEL`                 | não (`info`)                | Nível do pino                                                                                                     |
-| `EMAIL_PROVIDER`            | sim                         | `resend` (homologação/produção — obrigatório com `NODE_ENV=production`), `fake` (testes), `log` (desenvolvimento) |
-| `RESEND_API_KEY`            | com `EMAIL_PROVIDER=resend` | Chave da API do Resend (vazia conta como ausente)                                                                 |
-| `EMAIL_REMETENTE`           | sim                         | Remetente, ex.: `"Atlética Lorde <nao-responda@dominio>"` (domínio verificado no Resend)                          |
-| `CODIGO_PEPPER`             | sim (≥ 32 caracteres)       | Segredo do HMAC dos códigos de verificação. Trocar o valor invalida os códigos pendentes                          |
-| `JWT_ACCESS_SECRET`         | sim (≥ 32 caracteres)       | Segredo HS256 do access token (#7), distinto por ambiente. Trocar o valor invalida os access tokens em circulação |
-| `SENTRY_DSN`                | não                         | DSN do Sentry da API; ausente ou vazia = Sentry desligado (veja [Observabilidade](#observabilidade))              |
-| `SENTRY_TRACES_SAMPLE_RATE` | não (`0.1`)                 | Fração de traces de 0 a 1: `0.1` em produção, `1.0` em homologação                                                |
-| `GIT_COMMIT_SHA`            | não                         | Commit do build, injetado no `docker build` (veja [Docker](#docker)); fora do schema. Ausente = `desconhecido`    |
+| Variável                    | Obrigatória                 | Descrição                                                                                                                  |
+| --------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                  | não (`development`)         | `development \| test \| production`                                                                                        |
+| `APP_ENV`                   | com `NODE_ENV=production`   | `local \| development \| homologacao \| producao` (padrão `local`)                                                         |
+| `PORT`                      | não (`3000`)                | Porta HTTP                                                                                                                 |
+| `DATABASE_URL`              | sim                         | `postgresql://...`                                                                                                         |
+| `LOG_LEVEL`                 | não (`info`)                | Nível do pino                                                                                                              |
+| `EMAIL_PROVIDER`            | sim                         | `resend` (homologação/produção — obrigatório com `NODE_ENV=production`), `fake` (testes), `log` (desenvolvimento)          |
+| `RESEND_API_KEY`            | com `EMAIL_PROVIDER=resend` | Chave da API do Resend (vazia conta como ausente)                                                                          |
+| `EMAIL_REMETENTE`           | sim                         | Remetente, ex.: `"Atlética Lorde <nao-responda@dominio>"` (domínio verificado no Resend)                                   |
+| `CODIGO_PEPPER`             | sim (≥ 32 caracteres)       | Segredo do HMAC dos códigos de verificação. Trocar o valor invalida os códigos pendentes                                   |
+| `JWT_ACCESS_SECRET`         | sim (≥ 32 caracteres)       | Segredo HS256 do access token (#7), distinto por ambiente. Trocar o valor invalida os access tokens em circulação          |
+| `SENTRY_DSN`                | não                         | DSN do Sentry da API; ausente ou vazia = Sentry desligado (veja [Observabilidade](#observabilidade))                       |
+| `SENTRY_TRACES_SAMPLE_RATE` | não (`0.1`)                 | Fração de traces de 0 a 1: `0.1` em produção, `1.0` em homologação                                                         |
+| `GIT_COMMIT_SHA`            | não                         | Commit do build, injetado no `docker build` (veja [Docker](#docker)). Ausente = `RAILWAY_GIT_COMMIT_SHA` ou `desconhecido` |
 
 ## Testes
 
@@ -314,7 +314,7 @@ Nível: `info`; `warn` para 4xx; `error` para 5xx; `debug` para `GET /api/v1/hea
 ### Sentry
 
 - `src/instrument.ts` é a **primeira linha** do `main.ts` e chama `Sentry.init` só se `SENTRY_DSN` estiver definida (lê o `.env` como o `ConfigModule`). Sem DSN, nada é enviado.
-- `environment` = `APP_ENV`; `release` = `api@<versao>+<commit>` (7 primeiros caracteres de `GIT_COMMIT_SHA`, ou de `RAILWAY_GIT_COMMIT_SHA`; `local` sem nenhuma das duas).
+- `environment` = `APP_ENV`; `release` = `api@<versao>+<commit>` (7 primeiros caracteres de `GIT_COMMIT_SHA`, ou de `RAILWAY_GIT_COMMIT_SHA`; `desconhecido` sem nenhuma das duas).
 - **Só 5xx** vão ao Sentry, capturados pelo filtro global (`capturarErroHttp`) com tags `requestId`, `route`, `atleticaId` e usuário só com `id`. 4xx nunca.
 - Dados pessoais: `dataCollection` mínimo (sem corpos, cookies, query string, variáveis locais dos frames, dados de usuário automáticos — o SDK 11 substituiu `sendDefaultPii` por essa opção) e `beforeSend` remove `request.data`, cookies e `Authorization`, troca e-mails por `[email]` em `message`, `extra` e na mensagem da exceção e deixa o usuário só com `id`.
 - Jobs (`@nestjs/schedule` #58, pg-boss #86): capture o erro com `capturarErroJob(nome, erro, contexto)` (tag `job=<nome>`); `contexto` vai para `extra`, sem dado pessoal.
@@ -335,7 +335,7 @@ Público (`@Publico()`), usado pelo healthcheck do deploy e pelo monitor de upti
 | banco responde   | `200`  | `{ "status": "ok", "versao": "0.0.0", "commit": "a1b2c3d", "banco": "ok" }`       |
 | falha ou timeout | `503`  | `{ "status": "erro", "versao": "...", "commit": "...", "banco": "indisponivel" }` |
 
-- `versao` vem do `package.json` da API; `commit`, dos 7 primeiros caracteres de `GIT_COMMIT_SHA` (`desconhecido` se ausente).
+- `versao` vem do `package.json` da API; `commit`, dos 7 primeiros caracteres de `GIT_COMMIT_SHA` (ou `RAILWAY_GIT_COMMIT_SHA`; `desconhecido` sem nenhuma das duas).
 - O `503` **não** usa o formato de erro padrão (é lido por monitores, não pelo app) e não expõe o motivo da falha, que vai só para o log (`warn`).
 - O log de acesso da rota é `debug` (veja [Log de acesso](#log-de-acesso)).
 
@@ -354,6 +354,7 @@ Público (`@Publico()`), usado pelo healthcheck do deploy e pelo monitor de upti
 - `build`: `pnpm install --frozen-lockfile` só da API e do shared, client Prisma, build dos dois e `pnpm deploy --prod` para uma árvore enxuta. O `prisma.config.ts` é transpilado para `prisma.config.mjs`.
 - `runtime`: `node:24-slim` + OpenSSL, usuário `node`, `NODE_ENV=production`, `HEALTHCHECK` no `/health`, `CMD ["node", "dist/main.js"]`. Leva `dist/`, as dependências de produção, `prisma/schema.prisma` e `prisma/migrations` — sem fontes `.ts`, devDependencies ou `.env`.
 - `prisma` e `dotenv` são dependências de produção para o `migrate deploy` rodar dentro da imagem (pre-deploy, #47), com o `schema-engine` já incluído (sem download na hora).
+- Tamanho: ~1 GB descompactado, quase todo do CLI do Prisma e do `@sentry/nestjs`. É o custo de rodar o `migrate deploy` de dentro da imagem.
 
 ```bash
 # na raiz; GIT_COMMIT_SHA vira o "commit" do /health
