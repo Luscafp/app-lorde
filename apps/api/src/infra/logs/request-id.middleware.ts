@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from 'express'
 
 export const CABECALHO_REQUEST_ID = 'X-Request-Id'
 
-const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+export const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 /** Só aceita o valor do cliente se for UUID v4 (evita injeção em logs); senão gera um. */
 export function resolverRequestId(recebido: unknown): string {

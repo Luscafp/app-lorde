@@ -23,7 +23,7 @@ export function medirConsulta(
     } finally {
       const durationMs = Math.round(relogio() - inicio)
       if (durationMs > LIMITE_CONSULTA_LENTA_MS) {
-        logger.warn({ modelo: model, operacao: operation, durationMs }, 'Consulta lenta')
+        logger.warn({ model, operation, durationMs }, 'Consulta lenta')
       }
     }
   }

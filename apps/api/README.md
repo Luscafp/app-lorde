@@ -222,7 +222,7 @@ Nível: `info`; `warn` para 4xx; `error` para 5xx; `debug` para `GET /api/v1/hea
 
 - **Nunca** vão para o log: corpo da requisição/resposta, URL e query string, cabeçalhos.
 - `redact` (`[REDACTED]`) em `authorization`, `cookie`, `senha`, `senhaAtual`, `novaSenha`, `confirmacaoSenha`, `refreshToken`, `accessToken`, `codigo`, `tokenPush` e `email`, no primeiro nível e um nível abaixo (`{ corpo: { senha } }`). Mais fundo que isso não é redigido: não logue objetos de entrada inteiros.
-- Consultas Prisma acima de **500 ms** geram `warn` `"Consulta lenta"` com `modelo`, `operacao` e `durationMs`, sem os parâmetros.
+- Consultas Prisma acima de **500 ms** geram `warn` `"Consulta lenta"` com `model`, `operation` e `durationMs`, sem os parâmetros.
 
 **Onde ver na Railway:** serviço da API → aba _Deployments_ → _View logs_ (ou _Observability_). Filtre por `@requestId:<uuid>` ou `@level:50` (erros). A retenção é a do plano da Railway.
 

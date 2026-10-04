@@ -4,6 +4,7 @@ import { PARAMS_PROVIDER_TOKEN } from 'nestjs-pino'
 import request from 'supertest'
 import type { App } from 'supertest/types'
 import { criarConfigLogger } from '../src/infra/logs/logger.config'
+import { UUID_V4 } from '../src/infra/logs/request-id.middleware'
 import { criarApp } from './setup/criar-app'
 import {
   ATLETICA_TESTE,
@@ -12,8 +13,6 @@ import {
 } from './suporte/observabilidade.controller'
 
 jest.mock('@sentry/nestjs', () => ({ captureException: jest.fn() }))
-
-const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
 type Linha = Record<string, unknown>
 

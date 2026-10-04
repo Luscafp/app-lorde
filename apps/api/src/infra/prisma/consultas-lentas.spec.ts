@@ -13,7 +13,7 @@ describe('medirConsulta', () => {
     const { logger, resultado } = executar(600)
     await expect(resultado).resolves.toEqual([])
     expect(logger.warn).toHaveBeenCalledWith(
-      { modelo: 'Usuario', operacao: 'findMany', durationMs: 600 },
+      { model: 'Usuario', operation: 'findMany', durationMs: 600 },
       'Consulta lenta',
     )
     expect(JSON.stringify(logger.warn.mock.calls)).not.toContain('fulano')
