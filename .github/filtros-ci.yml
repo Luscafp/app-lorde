@@ -1,0 +1,36 @@
+# Filtros do dorny/paths-filter usados dentro dos jobs do ci.yml.
+# O job sempre roda e reporta status (checks obrigatórios); sem alteração relevante, os passos
+# são pulados e o job termina com sucesso. Nunca use `paths` no gatilho do workflow.
+
+raiz: &raiz
+  - package.json
+  - pnpm-lock.yaml
+  - pnpm-workspace.yaml
+  - .nvmrc
+  - tsconfig.base.json
+  - .github/workflows/ci.yml
+  - .github/filtros-ci.yml
+  - .github/actions/**
+  - .github/scripts/**
+
+shared: &shared
+  - *raiz
+  - packages/shared/**
+
+api:
+  - *shared
+  - apps/api/**
+
+mobile:
+  - *shared
+  - apps/mobile/**
+
+prisma:
+  - *raiz
+  - apps/api/package.json
+  - apps/api/prisma.config.ts
+  - apps/api/prisma/**
+
+# Prettier e ESLint ignoram docs/; qualquer outra alteração passa pela qualidade.
+qualidade:
+  - '!docs/**'
