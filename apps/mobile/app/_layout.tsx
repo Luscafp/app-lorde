@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar'
 import { useEffect, useRef, useState } from 'react'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import Toast from 'react-native-toast-message'
+import { toastConfig } from '@/components/ui'
 import { carregarAtletica, paleta, ProvedorTema } from '@/features/atletica'
 import { queryClient } from '@/infra/query/query-client'
 import { configurarRede } from '@/infra/rede/online'
@@ -70,7 +71,7 @@ export default function LayoutRaiz() {
           <StatusBar style="light" />
           <Navegacao />
         </ProvedorTema>
-        <Toast />
+        <Toast config={toastConfig} />
       </SafeAreaProvider>
     </QueryClientProvider>
   )

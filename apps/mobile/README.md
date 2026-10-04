@@ -64,7 +64,7 @@ Nada da atlética fica fixo no código (RNF20): `__tests__/sem-nome-fixo.test.ts
 
 ## Toasts — `src/components/ui/toast.ts`
 
-`toast.sucesso(msg)`, `toast.erro(msg)`, `toast.info(msg)`. O `<Toast />` está montado no layout raiz com a aparência padrão; a aparência própria é da #53.
+`toast.sucesso(msg)`, `toast.erro(msg)`, `toast.info(msg)`. O `<Toast config={toastConfig} />` está montado no layout raiz; `src/components/ui/toast-config.tsx` define as variantes `sucesso`, `erro` e `info` (ícone + texto, lidas pelo leitor de tela como "Sucesso: …", "Erro: …", "Aviso: …").
 
 ## Cliente HTTP — `src/infra/api`
 
@@ -134,3 +134,54 @@ const { mutate, isPending, online } = useAcaoOnline({
 
 - Offline, a `mutationFn` não é chamada e aparece "Sem conexão. Conecte-se à internet para concluir esta ação." (`mutateAsync` rejeita com `SEM_CONEXAO`).
 - Erros: o `MutationCache` mostra `toast.erro(apiErro.message)` para toda mutação; o sucesso é toast da própria tela.
+
+## Estados de tela — `src/components/estado`
+
+| Componente                                                              | Uso                                                                                      |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `Esqueleto({ variante? })`                                              | `lista` (padrão), `cartao`, `detalhe`                                                    |
+| `EstadoVazio({ mensagem, acao? })`                                      | `acao = { titulo, onPress }`                                                             |
+| `EstadoErro({ mensagem?, onTentarNovamente })`                          | padrão "Não foi possível carregar." + "Tentar novamente"                                 |
+| `FaixaOffline({ atualizadoEm? })`                                       | "Modo offline · dados de dd/mm/aaaa HH:mm" (America/Fortaleza); sem data: "Modo offline" |
+| `TelaDados({ consulta, vazio?, mensagemVazio?, esqueleto?, children })` | escolhe o estado da tela a partir da consulta                                            |
+
+```tsx
+const consulta = useQuery({ queryKey: chaves.eventos.lista(filtro), queryFn })
+
+<TelaDados
+  consulta={consulta}
+  vazio={(dados) => dados.items.length === 0}
+  mensagemVazio="Nenhum evento agendado"
+>
+  {(dados) => <ListaEventos itens={dados.items} />}
+</TelaDados>
+```
+
+Ordem: sem dados e offline → "Sem conexão. Conecte-se à internet para carregar os dados." + "Tentar novamente"; sem dados e com erro → `EstadoErro`; sem dados → `Esqueleto`; `vazio(dados)` → `EstadoVazio`; com dados (mesmo com erro de atualização) → `children(dados)`, com `FaixaOffline atualizadoEm={consulta.dataUpdatedAt}` no topo se offline. "Tentar novamente" chama `consulta.refetch()`.
+
+A conexão vem do `onlineManager` do TanStack Query (alimentado pelo NetInfo na #52). `FaixaOffline` só apresenta: quem a usa decide se está offline.
+
+## Componentes base — `src/components/ui`
+
+- `Texto({ variante? })`: `titulo` (header), `subtitulo`, `corpo` (padrão), `rotulo`, `legenda`, `erro`.
+- `Cartao`: contêiner com borda e fundo `cartao`.
+- `Botao({ titulo, variante?, carregando?, disabled? })`: `primaria` (cor da atlética, texto com `corTextoSobre`), `secundaria`, `perigo`. `carregando` mostra o spinner e desabilita. Muda de aparência no `onPressIn`; alvo ≥ 44 px.
+- `Campo({ controle, nome, rotulo, ...TextInputProps })`: React Hook Form via `Controller`; o erro aparece abaixo do campo e os valores ficam no formulário após erro da API.
+
+Formulário padrão (schema do shared, `zodResolver` em modo `onBlur` — convenções §4.3; `useAcaoOnline` e `aplicarErrosDaApi` são da #52):
+
+```tsx
+const form = useForm({ resolver: zodResolver(loginSchema), mode: 'onBlur', defaultValues })
+const { online, mutate, isPending } = useAcaoOnline({
+  mutationFn: entrar,
+  onError: (erro) => aplicarErrosDaApi(form, erro),
+})
+
+<Campo controle={form.control} nome="email" rotulo="E-mail" keyboardType="email-address" />
+<Botao
+  titulo="Entrar"
+  carregando={isPending}
+  disabled={!online || isPending}
+  onPress={() => void form.handleSubmit((dados) => mutate(dados))()}
+/>
+```
