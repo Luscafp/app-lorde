@@ -65,7 +65,13 @@ function lerDetalhes(valor: unknown): DetalheErro[] {
   )
 }
 
-function erroDaResposta(status: number, corpo: CorpoErro | null, requestId: string): ApiErro {
+function lerSegundos(valor: string | null): number | null {
+  const segundos = Number(valor)
+  return valor && Number.isInteger(segundos) && segundos > 0 ? segundos : null
+}
+
+function erroDaResposta(resposta: Response, corpo: CorpoErro | null, requestId: string): ApiErro {
+  const { status } = resposta
   return new ApiErro({
     status,
     code:
@@ -76,7 +82,8 @@ function erroDaResposta(status: number, corpo: CorpoErro | null, requestId: stri
           : CodigoLocal.ERRO_HTTP,
     message: typeof corpo?.message === 'string' ? corpo.message : MENSAGEM_ERRO_GENERICO,
     details: lerDetalhes(corpo?.details),
-    requestId,
+    requestId: resposta.headers.get('x-request-id') ?? requestId,
+    segundosParaNovaTentativa: lerSegundos(resposta.headers.get('retry-after')),
   })
 }
 
@@ -123,10 +130,7 @@ export async function enviar<T>(
       signal: controle.signal,
     })
     const dados = await lerJson(resposta)
-    if (!resposta.ok) {
-      const idResposta = resposta.headers.get('x-request-id') ?? requestId
-      throw erroDaResposta(resposta.status, dados as CorpoErro | null, idResposta)
-    }
+    if (!resposta.ok) throw erroDaResposta(resposta, dados as CorpoErro | null, requestId)
     return dados as T
   } catch (erro) {
     if (erro instanceof ApiErro) throw erro
