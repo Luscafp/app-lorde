@@ -1,14 +1,10 @@
 import { Logger } from '@nestjs/common'
 import type { ContextoAtletica } from '../../infra/contexto/contexto-atletica.service'
 import { ErroAtleticaContextoAusente } from '../../infra/contexto/erros'
-import type { TransacaoComEscopo } from '../../infra/prisma/prisma.service'
+import type { ClienteComEscopo, TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import type { Prisma } from '../../generated/prisma/client'
-import {
-  AuditoriaService,
-  ErroAuditoria,
-  TAMANHO_MAXIMO_DADOS,
-  type EntradaAuditoria,
-} from './auditoria.service'
+import { AuditoriaService, TAMANHO_MAXIMO_DADOS, type EntradaAuditoria } from './auditoria.service'
+import { ErroAuditoria } from './erros'
 
 const ATLETICA = '11111111-1111-4111-8111-111111111111'
 const USUARIO = '22222222-2222-4222-8222-222222222222'
@@ -138,8 +134,44 @@ describe('AuditoriaService', () => {
       entidadeId: EVENTO,
       dados,
     })
+    expect(createMany).toHaveBeenCalledTimes(1)
     expect(gravados(createMany)[0]?.dados).toEqual(dados)
-    expect(gravados(createMany, 1)[0]?.dados).toEqual({ antes: {}, depois: {} })
+  })
+
+  it('nome de pessoa no contexto é removido mesmo em entidades de domínio', async () => {
+    const { servico, tx, createMany } = criar({ atleticaId: ATLETICA, usuarioId: USUARIO })
+    await servico.registrar(tx, {
+      acao: 'CAPITAO_DEFINIDO',
+      entidade: 'Time',
+      entidadeId: EVENTO,
+      dados: {
+        antes: null,
+        depois: { capitaoId: USUARIO },
+        contexto: { capitao: { usuarioId: USUARIO, nome: 'Ana' } },
+      },
+    })
+    expect(gravados(createMany)[0]?.dados).toEqual({
+      antes: null,
+      depois: { capitaoId: USUARIO },
+      contexto: { capitao: { usuarioId: USUARIO } },
+    })
+  })
+
+  it('alteração com diferença vazia não grava', async () => {
+    const { servico, tx, createMany } = criar({ atleticaId: ATLETICA, usuarioId: USUARIO })
+    await servico.registrar(tx, entrada({ dados: { antes: {}, depois: {} } }))
+    expect(createMany).not.toHaveBeenCalled()
+  })
+
+  it('exclusão grava mesmo com todos os campos sanitizados', async () => {
+    const { servico, tx, createMany } = criar({ atleticaId: ATLETICA, usuarioId: USUARIO })
+    await servico.registrar(tx, {
+      acao: 'CONTA_EXCLUIDA',
+      entidade: 'Usuario',
+      entidadeId: USUARIO,
+      dados: { antes: { email: 'a@b.c' }, depois: null },
+    })
+    expect(gravados(createMany)[0]?.dados).toEqual({ antes: {}, depois: null })
   })
 
   describe('registrarVarios', () => {
@@ -170,9 +202,20 @@ describe('AuditoriaService', () => {
   })
 })
 
-// Critério 11: combinações fora do catálogo não compilam. Só verificado pelo `pnpm typecheck`.
-export function catalogoTipado(servico: AuditoriaService, tx: TransacaoComEscopo): void {
+// Critério 11 e `tx` obrigatório: verificados só pelo `pnpm typecheck`.
+export function catalogoTipado(
+  servico: AuditoriaService,
+  tx: TransacaoComEscopo,
+  db: ClienteComEscopo,
+): void {
   const dados = { antes: null, depois: {} }
+  // @ts-expect-error cliente fora de transação
+  void servico.registrar(db, {
+    acao: 'EVENTO_CRIADO',
+    entidade: 'Evento',
+    entidadeId: EVENTO,
+    dados,
+  })
   // @ts-expect-error ação fora do catálogo
   void servico.registrar(tx, { acao: 'CRIAR', entidade: 'Evento', entidadeId: EVENTO, dados })
   // @ts-expect-error entidade fora do catálogo

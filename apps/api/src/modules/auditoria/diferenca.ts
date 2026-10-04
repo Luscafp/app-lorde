@@ -7,8 +7,10 @@ export interface DiferencaAuditoria {
 
 const IGNORADOS = new Set(['criadoEm', 'atualizadoEm'])
 
-function ehObjetoSimples(valor: unknown): valor is Registro {
-  return typeof valor === 'object' && valor !== null && !Array.isArray(valor)
+export function ehObjetoSimples(valor: unknown): valor is Registro {
+  return (
+    typeof valor === 'object' && valor !== null && !Array.isArray(valor) && !(valor instanceof Date)
+  )
 }
 
 function iguais(a: unknown, b: unknown): boolean {

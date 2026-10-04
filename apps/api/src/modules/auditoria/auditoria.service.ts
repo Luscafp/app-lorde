@@ -4,6 +4,7 @@ import { ContextoAtletica } from '../../infra/contexto/contexto-atletica.service
 import { ErroAtleticaContextoAusente } from '../../infra/contexto/erros'
 import type { TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import type { Prisma } from '../../generated/prisma/client'
+import { ErroAuditoria } from './erros'
 import { sanitizar } from './sanitizar'
 
 type Campos = Record<string, unknown>
@@ -27,17 +28,21 @@ export type EntradaAuditoria = {
   }
 }[EntidadeAuditoria]
 
-/** Uso incorreto do `AuditoriaService`. Bug de programação: vira 500. */
-export class ErroAuditoria extends Error {
-  override readonly name = 'ErroAuditoria'
-}
-
 export const TAMANHO_MAXIMO_DADOS = 16 * 1024
 export const LIMITE_POR_LOTE = 500
 
 /** Entidades em que `nome` é dado de domínio, não de pessoa. */
 const NOME_DE_DOMINIO: ReadonlySet<EntidadeAuditoria> = new Set(['Modalidade', 'Atletica', 'Time'])
-const PERMITE_NOME: ReadonlySet<string> = new Set(['nome'])
+
+/** Alteração com diferença vazia não grava (§7); criação e exclusão sempre gravam. */
+function semMudanca({ antes, depois }: DadosAuditoria): boolean {
+  return (
+    antes !== null &&
+    depois !== null &&
+    Object.keys(antes).length === 0 &&
+    Object.keys(depois).length === 0
+  )
+}
 
 /** Único meio de gravar `RegistroAuditoria`, sempre na transação da alteração (convenções §7). */
 @Injectable()
@@ -51,24 +56,26 @@ export class AuditoriaService {
   }
 
   async registrarVarios(tx: TransacaoComEscopo, entradas: EntradaAuditoria[]): Promise<void> {
-    if (entradas.length === 0) return
-    const registros = entradas.map((entrada) => this.montar(entrada))
+    const registros = entradas.flatMap((entrada) => this.montar(entrada) ?? [])
     for (let i = 0; i < registros.length; i += LIMITE_POR_LOTE) {
       await tx.registroAuditoria.createMany({ data: registros.slice(i, i + LIMITE_POR_LOTE) })
     }
   }
 
-  private montar(entrada: EntradaAuditoria): Prisma.RegistroAuditoriaCreateManyInput {
+  private montar(entrada: EntradaAuditoria): Prisma.RegistroAuditoriaCreateManyInput | null {
     const atleticaId = this.contexto.atleticaId()
     if (!atleticaId) throw new ErroAtleticaContextoAusente('RegistroAuditoria', 'createMany')
+    const usuarioId = this.ator(entrada)
+    const dados = this.sanitizar(entrada)
+    if (semMudanca(dados)) return null
 
     return {
       atleticaId,
-      usuarioId: this.ator(entrada),
+      usuarioId,
       acao: entrada.acao,
       entidade: entrada.entidade,
       entidadeId: entrada.entidadeId,
-      dados: this.serializar(entrada),
+      dados: this.serializar(entrada.acao, dados),
       requestId: this.contexto.requestId() ?? null,
     }
   }
@@ -84,20 +91,19 @@ export class AuditoriaService {
     return usuarioId
   }
 
-  private serializar(entrada: EntradaAuditoria): Prisma.InputJsonObject {
-    const permitidos = NOME_DE_DOMINIO.has(entrada.entidade) ? PERMITE_NOME : undefined
-    const { valor, removidos } = sanitizar(entrada.dados, permitidos)
+  private sanitizar({ acao, entidade, dados }: EntradaAuditoria): DadosAuditoria {
+    const { valor, removidos } = sanitizar(dados, NOME_DE_DOMINIO.has(entidade))
     if (removidos.length > 0) {
-      this.logger.warn(
-        { acao: entrada.acao, entidade: entrada.entidade, removidos },
-        'Campos proibidos removidos da auditoria',
-      )
+      this.logger.warn({ acao, entidade, removidos }, 'Campos proibidos removidos da auditoria')
     }
+    return valor
+  }
 
-    const json = JSON.stringify(valor)
+  private serializar(acao: string, dados: DadosAuditoria): Prisma.InputJsonObject {
+    const json = JSON.stringify(dados)
     if (Buffer.byteLength(json) > TAMANHO_MAXIMO_DADOS) {
       throw new ErroAuditoria(
-        `${entrada.acao}: dados da auditoria acima de ${TAMANHO_MAXIMO_DADOS} bytes. ` +
+        `${acao}: dados da auditoria acima de ${TAMANHO_MAXIMO_DADOS} bytes. ` +
           'Registre indicadores (ex.: { conteudoAlterado: true }) em vez de textos longos.',
       )
     }

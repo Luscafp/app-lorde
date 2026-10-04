@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { ClsService, ClsServiceManager } from 'nestjs-cls'
 import type { StoreContexto } from '../contexto/contexto-atletica.service'
 import { PrismaService, type TransacaoComEscopo } from '../prisma/prisma.service'
+import { ErroForaDeTransacao } from './erros'
 
 type Callback = () => unknown
 
@@ -15,15 +16,6 @@ interface StoreTransacao extends StoreContexto {
 }
 
 const logger = new Logger('AposCommit')
-
-/** `aposCommit` fora de `TransacaoService.executar`. Bug de programação: vira 500. */
-export class ErroForaDeTransacao extends Error {
-  override readonly name = 'ErroForaDeTransacao'
-
-  constructor() {
-    super('aposCommit chamado fora de TransacaoService.executar.')
-  }
-}
 
 function unidadeAtual(cls: ClsService<StoreTransacao>): UnidadeTransacao | undefined {
   return cls.isActive() ? cls.get('transacao') : undefined
@@ -41,13 +33,12 @@ async function rodarCallbacks(callbacks: Callback[]): Promise<void> {
     try {
       await callback()
     } catch (erro) {
-      const { message, stack } = erro instanceof Error ? erro : new Error(String(erro))
-      logger.error(`Falha em callback de pós-commit: ${message}`, stack)
+      logger.error({ err: erro }, 'Falha em callback de pós-commit')
     }
   }
 }
 
-/** Transação com fila de pós-commit (convenções §8); aninhada, reutiliza a unidade externa. */
+/** Transação com fila de pós-commit (convenções §8); aninhada, reutiliza a transação externa. */
 @Injectable()
 export class TransacaoService {
   constructor(
@@ -55,19 +46,34 @@ export class TransacaoService {
     private readonly cls: ClsService<StoreTransacao>,
   ) {}
 
-  async executar<T>(fn: (tx: TransacaoComEscopo) => Promise<T>): Promise<T> {
+  executar<T>(fn: (tx: TransacaoComEscopo) => Promise<T>): Promise<T> {
     const externa = unidadeAtual(this.cls)
-    if (externa) return fn(externa.tx)
+    return this.cls.run({ ifNested: 'inherit' }, () =>
+      externa ? this.executarAninhada(externa, fn) : this.executarRaiz(fn),
+    )
+  }
 
-    return this.cls.run({ ifNested: 'inherit' }, async () => {
-      const callbacks: Callback[] = []
-      const resultado = await this.prisma.db.$transaction(async (tx) => {
-        this.cls.set('transacao', { tx, callbacks })
-        return fn(tx)
-      })
-      this.cls.set('transacao', undefined)
-      await rodarCallbacks(callbacks)
-      return resultado
+  /** A fila só passa para a unidade externa se a interna concluir. */
+  private async executarAninhada<T>(
+    externa: UnidadeTransacao,
+    fn: (tx: TransacaoComEscopo) => Promise<T>,
+  ): Promise<T> {
+    const callbacks: Callback[] = []
+    this.cls.set('transacao', { tx: externa.tx, callbacks })
+    const resultado = await fn(externa.tx)
+    externa.callbacks.push(...callbacks)
+    return resultado
+  }
+
+  /** Os callbacks rodam em segundo plano, sem atrasar a resposta. */
+  private async executarRaiz<T>(fn: (tx: TransacaoComEscopo) => Promise<T>): Promise<T> {
+    const callbacks: Callback[] = []
+    const resultado = await this.prisma.db.$transaction(async (tx) => {
+      this.cls.set('transacao', { tx, callbacks })
+      return fn(tx)
     })
+    this.cls.set('transacao', undefined)
+    void rodarCallbacks(callbacks)
+    return resultado
   }
 }

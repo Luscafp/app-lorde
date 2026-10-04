@@ -12,10 +12,7 @@ export interface EspiaoEventos {
   nomes(): string[]
 }
 
-/**
- * Spy no `EventEmitter2` (convenções §9). Chame no `beforeEach`: reaproveita o spy e o limpa,
- * então cada teste vê só os próprios eventos.
- */
+/** Spy no `EventEmitter2` (convenções §9); chame no `beforeEach` para limpar a cada teste. */
 export function espiarEventos(app: INestApplicationContext): EspiaoEventos {
   const spy = jest.spyOn(app.get(EventEmitter2), 'emit')
   spy.mockClear()

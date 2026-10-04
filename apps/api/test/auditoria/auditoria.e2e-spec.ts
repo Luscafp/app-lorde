@@ -6,14 +6,14 @@ import { AppModule } from '../../src/app.module'
 import type { StoreContexto } from '../../src/infra/contexto/contexto-atletica.service'
 import { ErroAtleticaContextoAusente } from '../../src/infra/contexto/erros'
 import { TransacaoService } from '../../src/infra/eventos/apos-commit'
+import { ErroAuditoriaImutavel } from '../../src/infra/prisma/erros'
 import { PrismaService, type TransacaoComEscopo } from '../../src/infra/prisma/prisma.service'
 import {
   AuditoriaService,
-  ErroAuditoria,
   type EntradaAuditoria,
 } from '../../src/modules/auditoria/auditoria.service'
 import { diferenca } from '../../src/modules/auditoria/diferenca'
-import { ErroAuditoriaImutavel } from '../../src/modules/auditoria/extensao-imutavel'
+import { ErroAuditoria } from '../../src/modules/auditoria/erros'
 import { proximaSequencia } from '../fabricas/sequencia'
 import { criarUsuario, type UsuarioCriado } from '../fabricas/usuario'
 import { prismaTeste } from '../setup/prisma-teste'

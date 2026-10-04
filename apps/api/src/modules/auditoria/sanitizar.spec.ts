@@ -37,9 +37,20 @@ describe('sanitizar', () => {
     expect(sanitizar(dados)).toEqual({ valor: dados, removidos: [] })
   })
 
-  it('permitidos libera nomes de domínio', () => {
-    expect(sanitizar({ depois: { nome: 'Futsal', email: 'x' } }, new Set(['nome'])).valor).toEqual({
-      depois: { nome: 'Futsal' },
+  it('nomeDeDominio mantém só antes.nome e depois.nome', () => {
+    const { valor, removidos } = sanitizar(
+      {
+        antes: { nome: 'Futsal' },
+        depois: { nome: 'Futebol', email: 'x', capitao: { nome: 'Ana' } },
+        contexto: { nome: 'Bia' },
+      },
+      true,
+    )
+    expect(valor).toEqual({
+      antes: { nome: 'Futsal' },
+      depois: { nome: 'Futebol', capitao: {} },
+      contexto: {},
     })
+    expect(removidos).toEqual(['depois.email', 'depois.capitao.nome', 'contexto.nome'])
   })
 })

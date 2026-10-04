@@ -1,13 +1,5 @@
 import { Prisma } from '../../generated/prisma/client'
-
-/** Tentativa de alterar ou apagar auditoria. Bug de programação: vira 500. */
-export class ErroAuditoriaImutavel extends Error {
-  override readonly name = 'ErroAuditoriaImutavel'
-
-  constructor(readonly operacao: string) {
-    super(`RegistroAuditoria é imutável: ${operacao} não é permitido.`)
-  }
-}
+import { ErroAuditoriaImutavel } from './erros'
 
 const OPERACOES_PROIBIDAS = new Set([
   'update',

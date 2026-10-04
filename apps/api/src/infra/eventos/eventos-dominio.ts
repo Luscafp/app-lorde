@@ -4,10 +4,7 @@ export interface PayloadBase {
   autorId: string | null
 }
 
-/**
- * Nome → payload dos eventos de domínio (convenções §8). Cada issue emissora acrescenta o seu:
- * `'evento.criado': PayloadBase & { atleticaId: string; eventoId: string; ... }`.
- */
+/** Nome → payload dos eventos de domínio (convenções §8); cada issue emissora acrescenta o seu. */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- preenchida pelas emissoras
 export interface EventosDominio {}
 
