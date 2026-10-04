@@ -1,5 +1,5 @@
 import * as childProcess from 'node:child_process'
-import globalSetup, { ErroBancoDeTeste, garantirBancoDeTeste } from '../setup/global-setup'
+import globalSetup, { ErroGlobalSetup, garantirBancoDeTeste } from '../setup/global-setup'
 
 describe('globalSetup dos testes de integração (#42)', () => {
   const urlOriginal = process.env.DATABASE_URL
@@ -13,7 +13,7 @@ describe('globalSetup dos testes de integração (#42)', () => {
     const exec = jest.spyOn(childProcess, 'execFileSync')
     process.env.DATABASE_URL = 'postgresql://atletica:segredo@localhost:5432/atletica_dev'
 
-    expect(() => globalSetup()).toThrow(ErroBancoDeTeste)
+    expect(() => globalSetup()).toThrow(ErroGlobalSetup)
     expect(() => globalSetup()).toThrow(/"atletica_dev" não termina em "_test"/)
     expect(exec).not.toHaveBeenCalled()
   })
