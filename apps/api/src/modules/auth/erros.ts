@@ -84,3 +84,8 @@ export function erroTermosDesatualizados(): ErroNegocio {
     'Os Termos de Uso foram atualizados. Leia e aceite a versão vigente.',
   )
 }
+
+/** Código errado, expirado, usado, substituído ou e-mail sem código: mesma resposta (UC09 A1). */
+export function erroCodigoInvalido(): ErroNegocio {
+  return new ErroNegocio(HttpStatus.BAD_REQUEST, 'CODIGO_INVALIDO', 'Código inválido ou expirado.')
+}

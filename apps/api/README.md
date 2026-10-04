@@ -193,9 +193,23 @@ revogar(tx, sessaoId, motivo, agora?): Promise<boolean>
 
 Quem chama `revogarTodas` emite `usuario.sessaoEncerrada` com a lista devolvida como `sessaoIds`, e só se ela não for vazia (convenções §11.8). `motivo` ∈ `MotivoRevogacao` (`eventos-dominio.ts`).
 
+### Recuperação de senha (`RecuperacaoSenhaService`)
+
+Rotas `@Publico()` do `AuthController` (UC09, épico #11), entrada pelos schemas `esqueciSenhaSchema`, `verificarCodigoSchema` e `redefinirSenhaSchema` (`@atletica/shared`, `.strict()`):
+
+| Rota                                                        | Resposta                         | Faz                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /auth/senha/esqueci` `{ email }`                      | `202 { message }` (sempre igual) | Conta o pedido (3/h por e-mail, exista ou não; 10/h por IP). Só conta ativa, não excluída e com vínculo ativo recebe o código: grava `CodigoVerificacao` (`RECUPERAR_SENHA`, `hashCodigo`, 15 min) e envia o template `recuperar-senha` **sem aguardar**.                            |
+| `POST /auth/senha/verificar-codigo` `{ email, codigo }`     | `200 { valido: true }`           | Confere sem consumir.                                                                                                                                                                                                                                                                |
+| `POST /auth/senha/redefinir` `{ email, codigo, novaSenha }` | `204`                            | Transação: consome o código (`UPDATE ... WHERE usadoEm IS NULL`, protege corrida), grava o `senhaHash`, `revogarTodas(..., 'RECUPERACAO_SENHA')` e apaga as falhas de login do e-mail. Após o commit, se revogou alguma sessão, emite `usuario.sessaoEncerrada` com `autorId: null`. |
+
+- Só vale o código **mais recente** do usuário: um pedido novo invalida os anteriores, mesmo não usados. Código errado, expirado, usado, de outro tipo ou e-mail sem código → o mesmo `400 CODIGO_INVALIDO`. Cada erro soma `tentativas`; na 5ª o código expira. Erros também contam por IP (`CODIGO_TENTATIVA`, 30/h).
+- `novaSenha` é validada pelo pipe antes do código: senha fraca → `400 VALIDATION_ERROR` sem gastar tentativa.
+- `429` do limite por e-mail: "Limite de 3 envios por hora atingido. Tente novamente em X min." (o app mostra a `message`).
+
 ### Agendador (`src/infra/agendador`)
 
-Único registro do `ScheduleModule` (`@nestjs/schedule`, convenções §11.6). Jobs usam `@Cron(expr, { name, timeZone: FUSO_PADRAO })` e recebem o relógio por parâmetro num método separado (o `cron` passa argumentos próprios ao `onTick`). `LimpezaDiariaJob` (`manutencao.limpeza-diaria`, 03:00) apaga `TentativaAcesso` com mais de 24 h e `Sessao` expiradas ou revogadas há mais de 30 dias. A #62 acrescenta `CodigoVerificacao` ao mesmo job.
+Único registro do `ScheduleModule` (`@nestjs/schedule`, convenções §11.6). Jobs usam `@Cron(expr, { name, timeZone: FUSO_PADRAO })` e recebem o relógio por parâmetro num método separado (o `cron` passa argumentos próprios ao `onTick`). `LimpezaDiariaJob` (`manutencao.limpeza-diaria`, 03:00) apaga `TentativaAcesso` e `CodigoVerificacao` com mais de 24 h e `Sessao` expiradas ou revogadas há mais de 30 dias.
 
 ### Limite de tentativas (`RateLimitService`)
 
@@ -206,6 +220,7 @@ verificar(tipo, chave, { maximo, janelaMs, bloqueioMs? }, agora?): Promise<numbe
 registrar(tipo, chave, agora?): Promise<void>
 consumir(tipo, chave, limite, agora?): Promise<number> // verificar + registrar atômicos
 limpar(tipo, chave): Promise<void>
+limparPorPrefixo(tipo, prefixo, cliente?): Promise<void> // ex.: falhas de login `email|*`; aceita a `tx`
 ```
 
 - Bloqueado quando as `maximo` tentativas mais recentes cabem em `janelaMs`: sem `bloqueioMs`, até a mais antiga delas sair da janela (janela deslizante, ex.: 10 cadastros/h); com `bloqueioMs`, até `última + bloqueioMs` (login: 15 min após a 5ª falha). `verificar` lança `ErroLimiteExcedido` → `429 RATE_LIMITED` com `Retry-After` em segundos (o filtro global põe o cabeçalho).

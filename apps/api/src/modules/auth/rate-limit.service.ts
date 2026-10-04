@@ -87,6 +87,16 @@ export class RateLimitService {
   async limpar(tipo: TipoTentativa, chave: string): Promise<void> {
     await this.prisma.semEscopo.tentativaAcesso.deleteMany({ where: { tipo, chave } })
   }
+
+  /** Apaga as chaves que começam com `prefixo` (ex.: as falhas de login `email|ip` de um e-mail). */
+  async limparPorPrefixo(
+    tipo: TipoTentativa,
+    prefixo: string,
+    cliente: Pick<ClienteBase, '$executeRaw'> = this.prisma.semEscopo,
+  ): Promise<void> {
+    // `left()` em vez de LIKE: `_` e `%` são válidos num e-mail.
+    await cliente.$executeRaw`DELETE FROM "TentativaAcesso" WHERE tipo = ${tipo} AND left(chave, ${prefixo.length}) = ${prefixo}`
+  }
 }
 
 async function verificarCom(

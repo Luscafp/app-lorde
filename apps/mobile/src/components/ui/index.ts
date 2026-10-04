@@ -1,5 +1,6 @@
 export { Botao, type VarianteBotao } from './botao'
 export { Campo } from './campo'
+export { CampoCodigo, DIGITOS_CODIGO } from './campo-codigo'
 export { Cartao } from './cartao'
 export { Texto, type VarianteTexto } from './texto'
 export { toast } from './toast'

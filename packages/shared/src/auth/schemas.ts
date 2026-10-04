@@ -64,7 +64,31 @@ export const cadastroFormSchema = cadastroSchema
 /** Qualquer texto: o formato `<sessaoId>.<segredo>` é conferido na API (refresh → `401`, logout → `204`). */
 export const refreshTokenSchema = z.object({ refreshToken: z.string() }).strict()
 
+export const codigoSchema = z
+  .string()
+  .regex(/^\d{6}$/, { error: 'Informe os 6 dígitos do código.' })
+
+export const esqueciSenhaSchema = z.object({ email: emailSchema }).strict()
+
+export const verificarCodigoSchema = z.object({ email: emailSchema, codigo: codigoSchema }).strict()
+
+export const redefinirSenhaSchema = verificarCodigoSchema
+  .extend({ novaSenha: senhaSchema })
+  .strict()
+
+/** Formulário do app: `email` e `codigo` vêm do fluxo, `confirmarSenha` não é enviado. */
+export const novaSenhaFormSchema = z
+  .object({ novaSenha: senhaSchema, confirmarSenha: z.string() })
+  .refine(({ novaSenha, confirmarSenha }) => novaSenha === confirmarSenha, {
+    path: ['confirmarSenha'],
+    error: 'As senhas não conferem.',
+  })
+
 export type LoginEntrada = z.infer<typeof loginSchema>
 export type CadastroEntrada = z.infer<typeof cadastroSchema>
 export type CadastroForm = z.infer<typeof cadastroFormSchema>
 export type RefreshTokenEntrada = z.infer<typeof refreshTokenSchema>
+export type EsqueciSenhaEntrada = z.infer<typeof esqueciSenhaSchema>
+export type VerificarCodigoEntrada = z.infer<typeof verificarCodigoSchema>
+export type RedefinirSenhaEntrada = z.infer<typeof redefinirSenhaSchema>
+export type NovaSenhaForm = z.infer<typeof novaSenhaFormSchema>

@@ -10,6 +10,9 @@ export default function Login() {
   return (
     <TelaProvisoria titulo="Entrar">
       <Text className="text-lg font-semibold text-primaria">{nome}</Text>
+      <Link href="/recuperar-senha" className="min-h-11 py-3 text-secundaria">
+        Esqueci minha senha
+      </Link>
       <Link href="/cadastro" className="min-h-11 py-3 text-secundaria">
         Criar conta
       </Link>
