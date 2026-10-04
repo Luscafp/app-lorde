@@ -16,6 +16,17 @@ export const envSchema = z
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
+    // E-mail transacional (#61): resend em homologação/produção, fake nos testes, log em desenvolvimento.
+    EMAIL_PROVIDER: z.enum(['resend', 'fake', 'log'], {
+      error: 'obrigatória (resend | fake | log)',
+    }),
+    RESEND_API_KEY: z.string().trim().min(1).optional(),
+    EMAIL_REMETENTE: z
+      .string()
+      .trim()
+      .min(3, { error: 'obrigatória (ex.: "Nome <email@dominio>")' }),
+    // Segredo do HMAC dos códigos de verificação (#61, usado pela #62 e #31).
+    CODIGO_PEPPER: z.string().min(32, { error: 'obrigatória, com ao menos 32 caracteres' }),
   })
   // Com NODE_ENV=production, APP_ENV é obrigatória: um deploy sem ela não pode subir como `local`.
   .refine(
@@ -23,6 +34,15 @@ export const envSchema = z
       env.NODE_ENV !== 'production' || env.APP_ENV === 'homologacao' || env.APP_ENV === 'producao',
     { path: ['APP_ENV'], error: 'obrigatória com NODE_ENV=production (homologacao | producao)' },
   )
+  .refine((env) => env.EMAIL_PROVIDER !== 'resend' || env.RESEND_API_KEY !== undefined, {
+    path: ['RESEND_API_KEY'],
+    error: 'obrigatória com EMAIL_PROVIDER=resend',
+  })
+  // Em homologação/produção o e-mail precisa sair de verdade: fake/log descartariam os códigos.
+  .refine((env) => env.NODE_ENV !== 'production' || env.EMAIL_PROVIDER === 'resend', {
+    path: ['EMAIL_PROVIDER'],
+    error: 'deve ser resend com NODE_ENV=production',
+  })
   .transform((env) => ({ ...env, APP_ENV: env.APP_ENV ?? 'local' }))
 
 export type Env = z.infer<typeof envSchema>
