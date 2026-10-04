@@ -2,8 +2,8 @@ import { MutationCache, QueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/ui/toast'
 import {
   ApiErro,
-  CodigoLocal,
   ehErroTransitorio,
+  ehSessaoEncerrada,
   MENSAGEM_ERRO_GENERICO,
 } from '@/infra/api/api-erro'
 import { aoEncerrarSessao } from '@/infra/sessao/store'
@@ -17,7 +17,7 @@ export function deveRepetir(falhas: number, erro: unknown): boolean {
 
 /** Sucesso é toast da própria tela; o encerramento de sessão já mostrou o seu toast. */
 export function mostrarErroDaMutacao(erro: unknown): void {
-  if (erro instanceof ApiErro && erro.code === CodigoLocal.SESSAO_ENCERRADA) return
+  if (ehSessaoEncerrada(erro)) return
   toast.erro(erro instanceof ApiErro ? erro.message : MENSAGEM_ERRO_GENERICO)
 }
 

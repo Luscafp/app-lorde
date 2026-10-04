@@ -319,15 +319,18 @@ describe('renovação da sessão', () => {
     expect(useSessao.getState().status).toBe('autenticado')
   })
 
-  it('401 de /auth/login vai direto para a tela, sem refresh', async () => {
-    fetchMock.mockResolvedValue(erro(401, 'CREDENCIAIS_INVALIDAS'))
+  it.each(['/auth/login', `${API}/auth/login`])(
+    '401 de %s vai direto para a tela, sem refresh',
+    async (caminho) => {
+      fetchMock.mockResolvedValue(erro(401, 'CREDENCIAIS_INVALIDAS'))
 
-    const e = await capturar(api.post('/auth/login', { email: 'a', senha: 'b' }))
+      const e = await capturar(api.post(caminho, { email: 'a', senha: 'b' }))
 
-    expect(e.code).toBe('CREDENCIAIS_INVALIDAS')
-    expect(chamadas()).toHaveLength(1)
-    expect(useSessao.getState().status).toBe('autenticado')
-  })
+      expect(e.code).toBe('CREDENCIAIS_INVALIDAS')
+      expect(chamadas()).toHaveLength(1)
+      expect(useSessao.getState().status).toBe('autenticado')
+    },
+  )
 
   it('sem sessão, 401 não dispara refresh', async () => {
     await useSessao.getState().encerrarSessao({ motivo: 'LOGOUT' })

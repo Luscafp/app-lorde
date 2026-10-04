@@ -18,10 +18,13 @@ export type AcaoOnline<TData, TError, TVariables, TContext> = UseMutationResult<
   TContext
 > & { online: boolean }
 
-/**
- * Toda mutação passa por aqui (convenções §10.5). Offline, a `mutationFn` não é chamada e o
- * usuário vê o toast de sem conexão. Botões: `disabled={!online || isPending}`.
- */
+function bloqueadaOffline(): boolean {
+  if (onlineManager.isOnline()) return false
+  toast.erro(MENSAGEM_ACAO_OFFLINE)
+  return true
+}
+
+/** Convenções §10.5: botões com `disabled={!online || isPending}`. */
 export function useAcaoOnline<
   TData = unknown,
   TError = ApiErro,
@@ -37,10 +40,7 @@ export function useAcaoOnline<
 
   const mutate = useCallback(
     (...argumentos: Parameters<typeof mutateOriginal>) => {
-      if (!onlineManager.isOnline()) {
-        toast.erro(MENSAGEM_ACAO_OFFLINE)
-        return
-      }
+      if (bloqueadaOffline()) return
       mutateOriginal(...argumentos)
     },
     [mutateOriginal],
@@ -48,8 +48,7 @@ export function useAcaoOnline<
 
   const mutateAsync = useCallback(
     (...argumentos: Parameters<typeof mutateAsyncOriginal>) => {
-      if (!onlineManager.isOnline()) {
-        toast.erro(MENSAGEM_ACAO_OFFLINE)
+      if (bloqueadaOffline()) {
         return Promise.reject(
           new ApiErro({ status: 0, code: CodigoLocal.SEM_CONEXAO, message: MENSAGEM_ACAO_OFFLINE }),
         )

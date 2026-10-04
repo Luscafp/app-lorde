@@ -1,10 +1,7 @@
 import type { FieldValues, Path, UseFormSetError } from 'react-hook-form'
 import { ApiErro } from './api-erro'
 
-/**
- * Leva `details[].field` (notação de ponto, ex.: `tags.0`) para os campos do formulário.
- * Devolve `true` se algum erro foi aplicado.
- */
+/** Leva `details[].field` (notação de ponto) ao formulário; `true` se aplicou algum. */
 export function aplicarErrosDaApi<T extends FieldValues>(
   form: { setError: UseFormSetError<T> },
   erro: unknown,

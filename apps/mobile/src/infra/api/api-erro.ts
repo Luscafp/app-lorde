@@ -5,6 +5,12 @@ export const CodigoLocal = {
   SEM_CONEXAO: 'SEM_CONEXAO',
   TEMPO_ESGOTADO: 'TEMPO_ESGOTADO',
   SESSAO_ENCERRADA: 'SESSAO_ENCERRADA',
+  ERRO_HTTP: 'ERRO_HTTP',
+} as const
+
+export const CodigoApi = {
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+  CONTA_DESATIVADA: 'CONTA_DESATIVADA',
 } as const
 
 export const MENSAGEM_ERRO_GENERICO = 'Ocorreu um erro inesperado. Tente novamente.'
@@ -41,4 +47,12 @@ export function ehErroTransitorio(erro: unknown): boolean {
       erro.code === CodigoLocal.TEMPO_ESGOTADO ||
       erro.status >= 500)
   )
+}
+
+export function ehNaoAutenticado(erro: unknown): erro is ApiErro {
+  return erro instanceof ApiErro && erro.status === 401
+}
+
+export function ehSessaoEncerrada(erro: unknown): erro is ApiErro {
+  return erro instanceof ApiErro && erro.code === CodigoLocal.SESSAO_ENCERRADA
 }

@@ -1,7 +1,13 @@
 import Constants from 'expo-constants'
 import { randomUUID } from 'expo-crypto'
 import { ambiente } from '@/config/ambiente'
-import { ApiErro, CodigoLocal, MENSAGEM_ERRO_GENERICO, type DetalheErro } from './api-erro'
+import {
+  ApiErro,
+  CodigoApi,
+  CodigoLocal,
+  MENSAGEM_ERRO_GENERICO,
+  type DetalheErro,
+} from './api-erro'
 
 export const TEMPO_LIMITE_MS = 15_000
 
@@ -40,6 +46,14 @@ export function ehDaApi(url: string): boolean {
   return origem(url) === origem(ambiente.apiUrl)
 }
 
+/** Caminho relativo à base da API (`/auth/login`), ou `null` para outro domínio. */
+export function caminhoNaApi(url: string): string | null {
+  if (!ehDaApi(url)) return null
+  const caminho = url.slice(origem(url).length)
+  const prefixo = ambiente.apiUrl.slice(origem(ambiente.apiUrl).length).replace(/\/+$/, '')
+  return caminho.startsWith(prefixo) ? caminho.slice(prefixo.length) : caminho
+}
+
 function lerDetalhes(valor: unknown): DetalheErro[] {
   if (!Array.isArray(valor)) return []
   return valor.filter(
@@ -55,7 +69,11 @@ function erroDaResposta(status: number, corpo: CorpoErro | null, requestId: stri
   return new ApiErro({
     status,
     code:
-      typeof corpo?.code === 'string' ? corpo.code : status >= 500 ? 'INTERNAL_ERROR' : 'ERRO_HTTP',
+      typeof corpo?.code === 'string'
+        ? corpo.code
+        : status >= 500
+          ? CodigoApi.INTERNAL_ERROR
+          : CodigoLocal.ERRO_HTTP,
     message: typeof corpo?.message === 'string' ? corpo.message : MENSAGEM_ERRO_GENERICO,
     details: lerDetalhes(corpo?.details),
     requestId,

@@ -6,7 +6,7 @@ import { buscarAtletica, gravarAtleticaNoCache, lerAtleticaDoCache } from './api
 
 export const ESPERA_MAXIMA_ATLETICA_MS = 3000
 
-let atleticaDoCacheLocal: AtleticaPublica | undefined
+let atleticaLidaNaSplash: AtleticaPublica | undefined
 
 export const consultaAtletica = queryOptions({
   queryKey: chaves.atletica(),
@@ -17,15 +17,14 @@ export const consultaAtletica = queryOptions({
   },
 })
 
-/** Valor de `atletica.v1` lido na abertura; é o dado inicial de `useAtletica`. */
-export function lerAtleticaInicial(): AtleticaPublica | undefined {
-  return atleticaDoCacheLocal
+export function atleticaLidaPorCarregarAtletica(): AtleticaPublica | undefined {
+  return atleticaLidaNaSplash
 }
 
 /** Com cache, libera a splash na hora; sem cache, espera a rede por até 3 s, sem repetir. */
 export async function carregarAtletica(): Promise<void> {
-  atleticaDoCacheLocal = (await lerAtleticaDoCache()) ?? undefined
-  if (atleticaDoCacheLocal) return
+  atleticaLidaNaSplash = (await lerAtleticaDoCache()) ?? undefined
+  if (atleticaLidaNaSplash) return
   let limite: ReturnType<typeof setTimeout> | undefined
   await Promise.race([
     queryClient.prefetchQuery({ ...consultaAtletica, retry: false }),

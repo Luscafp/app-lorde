@@ -1,7 +1,7 @@
 import type { AtleticaPublica } from '@atletica/shared'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
-import { consultaAtletica, lerAtleticaInicial } from './carregar-atletica'
+import { consultaAtletica, atleticaLidaPorCarregarAtletica } from './carregar-atletica'
 
 export const COR_NEUTRA = '#6B7280'
 export const NOME_GENERICO = 'Atlética'
@@ -27,14 +27,11 @@ function resolverAtletica(dados: AtleticaPublica | null): Atletica {
   }
 }
 
-/**
- * Marca da atlética, com fallback neutro enquanto não há cache nem resposta da API. O cache
- * local entra como dado vencido: a rede atualiza em segundo plano e de novo ao reconectar.
- */
+/** O cache local entra como dado vencido; sem cache nem resposta, fallback neutro. */
 export function useAtletica(): Atletica {
   const { data } = useQuery({
     ...consultaAtletica,
-    initialData: lerAtleticaInicial,
+    initialData: atleticaLidaPorCarregarAtletica,
     initialDataUpdatedAt: 0,
   })
   return useMemo(() => resolverAtletica(data ?? null), [data])

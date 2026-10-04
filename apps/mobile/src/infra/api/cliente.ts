@@ -1,7 +1,7 @@
-import { useSessao } from '@/infra/sessao/store'
-import { ApiErro, CodigoLocal } from './api-erro'
-import { ehDaApi, enviar, montarUrl, type OpcoesRequisicao } from './http'
-import { accessTokenVencendo, renovarSessao } from './renovar-sessao'
+import { accessTokenVencendo, useSessao } from '@/infra/sessao/store'
+import { ehNaoAutenticado, ehSessaoEncerrada } from './api-erro'
+import { caminhoNaApi, enviar, montarUrl, type OpcoesRequisicao } from './http'
+import { renovarSessao } from './renovar-sessao'
 
 export { ApiErro, CodigoLocal, type DetalheErro } from './api-erro'
 export type { OpcoesRequisicao } from './http'
@@ -15,8 +15,9 @@ export function definirRegistrador(registrador: Registrador): void {
   registrar = registrador
 }
 
-function ehRotaDeAuth(caminho: string): boolean {
-  return /^\/auth(\/|$)/.test(caminho)
+function podeRenovarSessao(url: string): boolean {
+  const caminho = caminhoNaApi(url)
+  return caminho !== null && !/^\/auth(?:[/?#]|$)/.test(caminho)
 }
 
 async function renovarAntesDeEnviar(): Promise<void> {
@@ -24,17 +25,14 @@ async function renovarAntesDeEnviar(): Promise<void> {
   try {
     await renovarSessao()
   } catch (erro) {
-    if (erro instanceof ApiErro && erro.code === CodigoLocal.SESSAO_ENCERRADA) throw erro
+    if (ehSessaoEncerrada(erro)) throw erro
   }
 }
 
-/**
- * `caminho` relativo à API (`/eventos`) ou URL absoluta. Fora de `/auth/*`, um `401` dispara
- * `renovarSessao()` e a requisição é refeita uma única vez.
- */
+/** `caminho` relativo à API (`/eventos`) ou URL absoluta. */
 export async function requisitar<T>(caminho: string, opcoes: OpcoesRequisicao = {}): Promise<T> {
   const url = montarUrl(caminho, opcoes.consulta)
-  const podeRenovar = ehDaApi(url) && !ehRotaDeAuth(caminho)
+  const podeRenovar = podeRenovarSessao(url)
 
   if (podeRenovar) await renovarAntesDeEnviar()
   const tokenUsado = useSessao.getState().accessToken
@@ -42,8 +40,7 @@ export async function requisitar<T>(caminho: string, opcoes: OpcoesRequisicao = 
   try {
     return await enviar<T>(url, opcoes, tokenUsado)
   } catch (erro) {
-    const ehNaoAutenticado = erro instanceof ApiErro && erro.status === 401
-    if (!ehNaoAutenticado || !podeRenovar || !useSessao.getState().refreshToken) throw erro
+    if (!ehNaoAutenticado(erro) || !podeRenovar || !useSessao.getState().refreshToken) throw erro
   }
 
   if (useSessao.getState().accessToken === tokenUsado) await renovarSessao()
@@ -51,7 +48,7 @@ export async function requisitar<T>(caminho: string, opcoes: OpcoesRequisicao = 
   try {
     return await enviar<T>(url, opcoes, useSessao.getState().accessToken)
   } catch (erro) {
-    if (erro instanceof ApiErro && erro.status === 401) {
+    if (ehNaoAutenticado(erro)) {
       registrar('401 depois da renovação da sessão', {
         caminho,
         code: erro.code,
