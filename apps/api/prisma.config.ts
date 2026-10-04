@@ -7,10 +7,10 @@ import { defineConfig } from 'prisma/config'
 // `SHADOW_DATABASE_URL` (opcional) é o banco sombra exigido pelo
 // `migrate diff --from-migrations` (job `prisma` da CI, #41); no Prisma 7 não há mais a flag
 // `--shadow-database-url`.
-// O comando de seed (`migrations.seed`) é acrescentado pela #45.
+// `migrations.seed` é o comando do `prisma db seed` (`pnpm --filter api prisma:seed`, #45).
 export default defineConfig({
   schema: 'prisma/schema.prisma',
-  migrations: { path: 'prisma/migrations' },
+  migrations: { path: 'prisma/migrations', seed: 'tsx prisma/seed.ts' },
   datasource: {
     url: process.env.DATABASE_URL,
     shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,

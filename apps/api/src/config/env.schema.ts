@@ -1,12 +1,11 @@
 import { z } from 'zod'
-
-/** Vazia conta como ausente: o `.env.example` traz variáveis opcionais vazias e o dotenv as lê como ''. */
-function vaziaComoAusente<T extends z.ZodType>(schema: T) {
-  return z.preprocess(
-    (valor) => (typeof valor === 'string' && valor.trim() === '' ? undefined : valor),
-    schema,
-  )
-}
+import {
+  appEnvExigidaEmProducao,
+  appEnvSchema,
+  databaseUrlSchema,
+  listarVariaveisInvalidas,
+  vazioComoAusente,
+} from './env-comum'
 
 /**
  * Schema único das variáveis de ambiente da API (convenções §4.3).
@@ -15,12 +14,9 @@ function vaziaComoAusente<T extends z.ZodType>(schema: T) {
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-    APP_ENV: z.enum(['local', 'development', 'homologacao', 'producao']).optional(),
+    APP_ENV: appEnvSchema.optional(),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
-    DATABASE_URL: z.url({
-      protocol: /^postgres(ql)?$/,
-      error: 'obrigatória, no formato postgresql://',
-    }),
+    DATABASE_URL: databaseUrlSchema,
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
@@ -28,7 +24,8 @@ export const envSchema = z
     EMAIL_PROVIDER: z.enum(['resend', 'fake', 'log'], {
       error: 'obrigatória (resend | fake | log)',
     }),
-    RESEND_API_KEY: vaziaComoAusente(z.string().trim().optional()),
+    // Vazia conta como ausente: o `.env.example` traz `RESEND_API_KEY=` e o dotenv a lê como ''.
+    RESEND_API_KEY: vazioComoAusente(z.string().trim().optional()),
     EMAIL_REMETENTE: z
       .string()
       .trim()
@@ -38,17 +35,12 @@ export const envSchema = z
     // Segredo HS256 do access token (#7 verifica, #10 assina); distinto por ambiente (#92).
     JWT_ACCESS_SECRET: z.string().min(32, { error: 'obrigatória, com ao menos 32 caracteres' }),
     // Sentry da API (#48): ausente = desligado (local e testes).
-    SENTRY_DSN: vaziaComoAusente(z.url({ error: 'deve ser uma URL' }).optional()),
-    SENTRY_TRACES_SAMPLE_RATE: vaziaComoAusente(
+    SENTRY_DSN: vazioComoAusente(z.url({ error: 'deve ser uma URL' }).optional()),
+    SENTRY_TRACES_SAMPLE_RATE: vazioComoAusente(
       z.coerce.number({ error: 'deve ser um número de 0 a 1' }).min(0).max(1).default(0.1),
     ),
   })
-  // Com NODE_ENV=production, APP_ENV é obrigatória: um deploy sem ela não pode subir como `local`.
-  .refine(
-    (env) =>
-      env.NODE_ENV !== 'production' || env.APP_ENV === 'homologacao' || env.APP_ENV === 'producao',
-    { path: ['APP_ENV'], error: 'obrigatória com NODE_ENV=production (homologacao | producao)' },
-  )
+  .refine(...appEnvExigidaEmProducao)
   .refine((env) => env.EMAIL_PROVIDER !== 'resend' || env.RESEND_API_KEY !== undefined, {
     path: ['RESEND_API_KEY'],
     error: 'obrigatória com EMAIL_PROVIDER=resend',
@@ -70,9 +62,7 @@ export class ErroConfiguracao extends Error {
 export function validarEnv(config: Record<string, unknown>): Env {
   const resultado = envSchema.safeParse(config)
   if (resultado.success) return resultado.data
-
-  const linhas = resultado.error.issues.map(
-    (issue) => `  - ${issue.path.join('.')}: ${issue.message}`,
+  throw new ErroConfiguracao(
+    `Variáveis de ambiente inválidas:\n${listarVariaveisInvalidas(resultado.error)}`,
   )
-  throw new ErroConfiguracao(`Variáveis de ambiente inválidas:\n${linhas.join('\n')}`)
 }
