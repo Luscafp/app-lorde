@@ -2,4 +2,5 @@
 export const ambiente = {
   apiUrl: process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1',
   nome: process.env.EXPO_PUBLIC_AMBIENTE ?? 'development',
+  sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN || undefined,
 } as const

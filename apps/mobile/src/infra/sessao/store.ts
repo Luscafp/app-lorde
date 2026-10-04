@@ -34,7 +34,7 @@ export type OuvinteEncerramento = (evento: { motivo: MotivoEncerramento }) => vo
 
 type DadosPersistidos = Pick<EstadoSessao, 'usuario' | 'accessTokenExpiraEm'>
 
-type EstadoSessao = {
+export type EstadoSessao = {
   status: StatusSessao
   usuario: UsuarioSessao | null
   accessToken: string | null

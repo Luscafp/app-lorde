@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react-native'
 import Constants from 'expo-constants'
 import { randomUUID } from 'expo-crypto'
 import { ambiente } from '@/config/ambiente'
@@ -65,7 +66,13 @@ function lerDetalhes(valor: unknown): DetalheErro[] {
   )
 }
 
-function erroDaResposta(status: number, corpo: CorpoErro | null, requestId: string): ApiErro {
+function lerSegundos(valor: string | null): number | null {
+  const segundos = Number(valor)
+  return valor && Number.isInteger(segundos) && segundos > 0 ? segundos : null
+}
+
+function erroDaResposta(resposta: Response, corpo: CorpoErro | null, requestId: string): ApiErro {
+  const { status } = resposta
   return new ApiErro({
     status,
     code:
@@ -76,7 +83,22 @@ function erroDaResposta(status: number, corpo: CorpoErro | null, requestId: stri
           : CodigoLocal.ERRO_HTTP,
     message: typeof corpo?.message === 'string' ? corpo.message : MENSAGEM_ERRO_GENERICO,
     details: lerDetalhes(corpo?.details),
-    requestId,
+    requestId: resposta.headers.get('x-request-id') ?? requestId,
+    segundosParaNovaTentativa: lerSegundos(resposta.headers.get('retry-after')),
+  })
+}
+
+/** Correlação app ↔ API: só `requestId`, método, rota (sem query) e status. */
+function registrarErroServidor(url: string, metodo: Metodo, status: number, requestId: string) {
+  const caminho = caminhoNaApi(url)
+  if (caminho === null) return
+  const rota = caminho.replace(/[?#].*$/, '')
+  Sentry.addBreadcrumb({
+    category: 'http',
+    type: 'http',
+    level: 'error',
+    message: `${metodo} ${rota} ${status}`,
+    data: { requestId, metodo, rota, status },
   })
 }
 
@@ -124,8 +146,11 @@ export async function enviar<T>(
     })
     const dados = await lerJson(resposta)
     if (!resposta.ok) {
-      const idResposta = resposta.headers.get('x-request-id') ?? requestId
-      throw erroDaResposta(resposta.status, dados as CorpoErro | null, idResposta)
+      const erro = erroDaResposta(resposta, dados as CorpoErro | null, requestId)
+      if (erro.status >= 500) {
+        registrarErroServidor(url, metodo, erro.status, erro.requestId ?? requestId)
+      }
+      throw erro
     }
     return dados as T
   } catch (erro) {

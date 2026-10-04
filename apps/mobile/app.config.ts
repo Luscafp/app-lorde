@@ -43,6 +43,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'expo-splash-screen',
       { image: './assets/splash-icon.png', imageWidth: 200, backgroundColor: '#07090D' },
     ],
+    // Upload de source maps no EAS; o SENTRY_AUTH_TOKEN fica só no EAS (#93).
+    [
+      '@sentry/react-native/expo',
+      { url: 'https://sentry.io/', organization: 'atletica-lorde', project: 'atletica-app' },
+    ],
   ],
   extra: {
     apiUrl: process.env.EXPO_PUBLIC_API_URL,
