@@ -13,3 +13,7 @@ export async function entrar(dados: LoginEntrada): Promise<RespostaSessao> {
 export async function cadastrar(dados: CadastroEntrada): Promise<RespostaSessao> {
   return respostaSessaoSchema.parse(await api.post('/auth/cadastro', dados))
 }
+
+export async function revogarSessao(refreshToken: string, sinal?: AbortSignal): Promise<void> {
+  await api.post('/auth/logout', { refreshToken }, { sinal })
+}
