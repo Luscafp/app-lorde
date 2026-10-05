@@ -1,11 +1,6 @@
 import { getInfoAsync } from 'expo-file-system/legacy'
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator'
-import {
-  comprimir,
-  ErroImagem,
-  MENSAGEM_FORMATO_INVALIDO,
-  MENSAGEM_IMAGEM_GRANDE,
-} from '@/features/uploads/comprimir'
+import { comprimir, ErroImagem, MENSAGEM_IMAGEM_INVALIDA } from '@/features/uploads/comprimir'
 
 jest.mock('expo-image-manipulator', () => ({
   ImageManipulator: { manipulate: jest.fn() },
@@ -98,7 +93,7 @@ describe('comprimir', () => {
     const erro = await comprimir('file:///enorme.jpg').catch((e: unknown) => e)
 
     expect(erro).toBeInstanceOf(ErroImagem)
-    expect(erro).toHaveProperty('message', MENSAGEM_IMAGEM_GRANDE)
+    expect(erro).toHaveProperty('message', MENSAGEM_IMAGEM_INVALIDA)
     expect(salvas).toHaveLength(3)
   })
 
@@ -111,7 +106,7 @@ describe('comprimir', () => {
     )
 
     await expect(comprimir('file:///arquivo.pdf')).rejects.toThrow(
-      new ErroImagem(MENSAGEM_FORMATO_INVALIDO),
+      new ErroImagem(MENSAGEM_IMAGEM_INVALIDA),
     )
   })
 })

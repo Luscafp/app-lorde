@@ -3,11 +3,11 @@ import {
   type AlterarSenha,
   type AtualizarPerfil,
   type FotoAtualizada,
-  type Papel,
   type Perfil,
 } from '@atletica/shared'
 import { Injectable } from '@nestjs/common'
 import { MINUTO_MS } from '../../common/tempo'
+import type { Prisma } from '../../generated/prisma/client'
 import { aposCommit, TransacaoService } from '../../infra/eventos/apos-commit'
 import { EventosDominioService } from '../../infra/eventos/eventos-dominio.service'
 import { PrismaService } from '../../infra/prisma/prisma.service'
@@ -22,27 +22,7 @@ import { erroSenhaIgualAtual, erroSenhaIncorreta } from './erros'
 /** Mesmo contador da exclusão de conta (#12): chave = `usuarioId`. */
 export const LIMITE_SENHA_ATUAL: LimiteTentativas = { maximo: 5, janelaMs: 15 * MINUTO_MS }
 
-type Solicitante = Pick<UsuarioAutenticado, 'id' | 'atleticaId'>
-
-export interface DadosPerfil {
-  id: string
-  nome: string
-  email: string
-  fotoKey: string | null
-  emailVerificado: boolean
-  criadoEm: Date
-  vinculos: { papel: Papel; atletica: { id: string; nome: string; sigla: string | null } }[]
-  membrosTime: {
-    entradaEm: Date
-    time: {
-      id: string
-      nome: string
-      capitaoId: string | null
-      modalidade: { id: string; nome: string; icone: string }
-    }
-  }[]
-  aceitesTermos: { versao: string; aceitoEm: Date }[]
-}
+type Solicitante = Pick<UsuarioAutenticado, 'id' | 'atleticaId' | 'sessaoId'>
 
 /** Vínculos encerrados e times inativos já vêm filtrados da consulta. */
 function camposPerfil(atleticaId: string) {
@@ -79,6 +59,8 @@ function camposPerfil(atleticaId: string) {
     },
   } as const
 }
+
+export type DadosPerfil = Prisma.UsuarioGetPayload<{ select: ReturnType<typeof camposPerfil> }>
 
 export function montarPerfil(dados: DadosPerfil, fotoUrl: string | null): Perfil {
   const [vinculo] = dados.vinculos
@@ -119,11 +101,7 @@ export class PerfilService {
 
   /** Uma consulta só (RNF03); o papel é o do vínculo atual, não o do login. */
   async obter({ id, atleticaId }: Solicitante): Promise<Perfil> {
-    const dados = await this.prisma.db.usuario.findUnique({
-      where: { id },
-      select: camposPerfil(atleticaId),
-    })
-    if (!dados) throw erroNaoAutenticado()
+    const dados = await this.buscarUsuario(id, camposPerfil(atleticaId))
     return montarPerfil(dados, this.uploads.urlPublica(dados.fotoKey))
   }
 
@@ -155,16 +133,12 @@ export class PerfilService {
 
   /** Revoga as outras sessões; o aparelho atual continua logado. */
   async alterarSenha(
-    { id, sessaoId }: Pick<UsuarioAutenticado, 'id' | 'sessaoId'>,
+    { id, sessaoId }: Solicitante,
     { senhaAtual, novaSenha }: AlterarSenha,
   ): Promise<void> {
     await this.limites.verificar(TipoTentativa.SENHA_CONFIRMACAO_FALHA, id, LIMITE_SENHA_ATUAL)
-    const usuario = await this.prisma.db.usuario.findUnique({
-      where: { id },
-      select: { senhaHash: true },
-    })
-    if (!usuario) throw erroNaoAutenticado()
-    if (!(await this.senhas.verificar(usuario.senhaHash, senhaAtual))) {
+    const { senhaHash: hashAtual } = await this.buscarUsuario(id, { senhaHash: true })
+    if (!(await this.senhas.verificar(hashAtual, senhaAtual))) {
       await this.limites.registrar(TipoTentativa.SENHA_CONFIRMACAO_FALHA, id)
       throw erroSenhaIncorreta()
     }
@@ -187,12 +161,17 @@ export class PerfilService {
   }
 
   private async fotoKeyAtual(id: string): Promise<string | null> {
-    const usuario = await this.prisma.db.usuario.findUnique({
-      where: { id },
-      select: { fotoKey: true },
-    })
+    const { fotoKey } = await this.buscarUsuario(id, { fotoKey: true })
+    return fotoKey
+  }
+
+  private async buscarUsuario<S extends Prisma.UsuarioSelect>(
+    id: string,
+    select: S,
+  ): Promise<Prisma.UsuarioGetPayload<{ select: S }>> {
+    const usuario = await this.prisma.db.usuario.findUnique({ where: { id }, select })
     if (!usuario) throw erroNaoAutenticado()
-    return usuario.fotoKey
+    return usuario
   }
 
   private async trocarFoto(id: string, anterior: string | null, fotoKey: string | null) {

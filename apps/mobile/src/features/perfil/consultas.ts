@@ -1,18 +1,11 @@
 import type { AlterarSenha, AtualizarPerfil, FotoAtualizada, Perfil } from '@atletica/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import type { ApiErro } from '@/infra/api/api-erro'
+import { CodigoApi, type ApiErro } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import { useSessao } from '@/infra/sessao/store'
 import { alterarSenha, atualizarPerfil, buscarPerfil, definirFoto, removerFoto } from './api'
-
-const MINUTO = 60_000
-
-export const CodigoPerfil = {
-  SENHA_INCORRETA: 'SENHA_INCORRETA',
-  SENHA_IGUAL_ATUAL: 'SENHA_IGUAL_ATUAL',
-} as const
 
 /** `['me']` é a fonte do papel (convenções §10.1): a sessão segue o perfil, sem novo login. */
 async function sincronizarSessao({ nome, email, fotoUrl, papel }: Perfil): Promise<void> {
@@ -30,8 +23,6 @@ export function useMe() {
   const consulta = useQuery({
     queryKey: chaves.me(),
     queryFn: ({ signal }) => buscarPerfil(signal),
-    staleTime: MINUTO,
-    refetchOnWindowFocus: true,
   })
   const { data } = consulta
   useEffect(() => {
@@ -70,6 +61,6 @@ export function useRemoverFoto() {
 export function useAlterarSenha() {
   return useAcaoOnline<void, ApiErro, AlterarSenha>({
     mutationFn: (dados) => alterarSenha(dados),
-    meta: { errosNaTela: [CodigoPerfil.SENHA_INCORRETA, CodigoPerfil.SENHA_IGUAL_ATUAL] },
+    meta: { errosNaTela: [CodigoApi.SENHA_INCORRETA, CodigoApi.SENHA_IGUAL_ATUAL] },
   })
 }

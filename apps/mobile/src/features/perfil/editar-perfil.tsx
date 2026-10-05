@@ -8,7 +8,6 @@ import { SeletorImagem } from '@/components/imagem'
 import { TelaRolavel } from '@/components/tela-rolavel'
 import { AvisoOffline, Botao, Campo, toast } from '@/components/ui'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
-import { useOnline } from '@/infra/rede/online'
 import { useAtualizarFoto, useAtualizarPerfil, useMe, useRemoverFoto } from './consultas'
 
 export const MENSAGEM_PERFIL_ATUALIZADO = 'Perfil atualizado'
@@ -17,14 +16,15 @@ export const MENSAGEM_PERFIL_ATUALIZADO = 'Perfil atualizado'
 type FotoEditada = string | null | undefined
 
 function Formulario({ perfil, aoSalvar }: { perfil: Perfil; aoSalvar: () => void }) {
-  const online = useOnline()
   const atualizarNome = useAtualizarPerfil()
   const atualizarFoto = useAtualizarFoto()
   const removerFoto = useRemoverFoto()
+  const { online } = atualizarNome
   const [foto, setFoto] = useState<FotoEditada>(undefined)
   const [enviandoFoto, setEnviandoFoto] = useState(false)
   const form = useForm({
     resolver: zodResolver(atualizarPerfilSchema),
+    mode: 'onBlur',
     defaultValues: { nome: perfil.nome },
   })
 

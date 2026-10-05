@@ -49,18 +49,18 @@ export function erroUltimoAdministrador(): ErroNegocio {
   )
 }
 
-const SENHA_INCORRETA = 'Senha atual incorreta.'
-const SENHA_IGUAL_ATUAL = 'A nova senha deve ser diferente da atual.'
+export const MENSAGEM_SENHA_INCORRETA = 'Senha atual incorreta.'
+export const MENSAGEM_SENHA_IGUAL_ATUAL = 'A nova senha deve ser diferente da atual.'
 
 /** 400, e não 401: um 401 dispararia o refresh e o logout do app (issue #13 §7.5). */
 export function erroSenhaIncorreta(): ErroNegocio {
-  return new ErroNegocio(HttpStatus.BAD_REQUEST, 'SENHA_INCORRETA', SENHA_INCORRETA, [
-    { field: 'senhaAtual', message: SENHA_INCORRETA },
+  return new ErroNegocio(HttpStatus.BAD_REQUEST, 'SENHA_INCORRETA', MENSAGEM_SENHA_INCORRETA, [
+    { field: 'senhaAtual', message: MENSAGEM_SENHA_INCORRETA },
   ])
 }
 
 export function erroSenhaIgualAtual(): ErroNegocio {
-  return new ErroNegocio(HttpStatus.BAD_REQUEST, 'SENHA_IGUAL_ATUAL', SENHA_IGUAL_ATUAL, [
-    { field: 'novaSenha', message: SENHA_IGUAL_ATUAL },
+  return new ErroNegocio(HttpStatus.BAD_REQUEST, 'SENHA_IGUAL_ATUAL', MENSAGEM_SENHA_IGUAL_ATUAL, [
+    { field: 'novaSenha', message: MENSAGEM_SENHA_IGUAL_ATUAL },
   ])
 }

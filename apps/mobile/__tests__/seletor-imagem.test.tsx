@@ -2,12 +2,20 @@ import NetInfo from '@react-native-community/netinfo'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native'
 import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
-import { Linking, View } from 'react-native'
-import { MENSAGEM_APENAS_ONLINE, MENSAGEM_PREPARANDO, SeletorImagem } from '@/components/imagem'
+import { Alert, Linking, View, type AlertButton } from 'react-native'
+import {
+  MENSAGEM_APENAS_ONLINE,
+  MENSAGEM_PREPARANDO,
+  OPCAO_CAMERA,
+  OPCAO_GALERIA,
+  OPCAO_REMOVER,
+  ROTULO_ALTERAR_IMAGEM,
+  SeletorImagem,
+} from '@/components/imagem'
 import { Botao, Texto } from '@/components/ui'
 import { toast } from '@/components/ui/toast'
 import { api } from '@/infra/api/cliente'
-import { MENSAGEM_IMAGEM_GRANDE, ErroImagem } from '@/features/uploads/comprimir'
+import { MENSAGEM_IMAGEM_INVALIDA, ErroImagem } from '@/features/uploads/comprimir'
 import {
   ACAO_ABRIR_CONFIGURACOES,
   MENSAGEM_FALHA_ENVIO,
@@ -66,8 +74,23 @@ beforeEach(async () => {
   await emitirRede(true)
 })
 
+const avatar = () => screen.getByRole('button', { name: ROTULO_ALTERAR_IMAGEM })
+
+async function escolherNoMenu(opcao: string) {
+  await fireEvent.press(avatar())
+  await fireEvent.press(screen.getByRole('button', { name: opcao }))
+}
+
 async function escolherDaGaleria() {
-  await fireEvent.press(screen.getByRole('button', { name: 'Galeria' }))
+  await escolherNoMenu(OPCAO_GALERIA)
+}
+
+function responderConfirmacao(estilo: AlertButton['style']) {
+  jest
+    .spyOn(Alert, 'alert')
+    .mockImplementation((_titulo, _mensagem, botoes) =>
+      botoes?.find((botao) => botao.style === estilo)?.onPress?.(),
+    )
 }
 
 describe('SeletorImagem', () => {
@@ -98,7 +121,7 @@ describe('SeletorImagem', () => {
 
     expect(await screen.findByText(MENSAGEM_PREPARANDO)).toBeOnTheScreen()
     expect(imagemExibida().source.uri).toBe(URI_ESCOLHIDA)
-    expect(screen.getByRole('button', { name: 'Galeria' })).toBeDisabled()
+    expect(avatar()).toBeDisabled()
   })
 
   it('enviando → barra de progresso; concluído → sem sobreposição e onChange(key)', async () => {
@@ -139,17 +162,56 @@ describe('SeletorImagem', () => {
   })
 
   it('imagem grande demais mostra o erro sem "Tentar novamente"', async () => {
-    comprimirFalso.mockRejectedValue(new ErroImagem(MENSAGEM_IMAGEM_GRANDE))
+    comprimirFalso.mockRejectedValue(new ErroImagem(MENSAGEM_IMAGEM_INVALIDA))
     await renderizar(<SeletorImagem finalidade="PERFIL" formato="circulo" onChange={jest.fn()} />)
 
     await escolherDaGaleria()
 
-    expect(await screen.findByText(MENSAGEM_IMAGEM_GRANDE)).toBeOnTheScreen()
+    expect(await screen.findByText(MENSAGEM_IMAGEM_INVALIDA)).toBeOnTheScreen()
     expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull()
     expect(api.post).not.toHaveBeenCalled()
   })
 
-  it('"Remover" limpa a imagem e chama onChange(null)', async () => {
+  it('tocar no avatar abre o menu com galeria, câmera, remover e cancelar', async () => {
+    await renderizar(
+      <SeletorImagem
+        finalidade="PERFIL"
+        formato="circulo"
+        valorAtualUrl={URL_ATUAL}
+        onChange={jest.fn()}
+      />,
+    )
+
+    await fireEvent.press(avatar())
+
+    for (const nome of [OPCAO_GALERIA, OPCAO_CAMERA, OPCAO_REMOVER, 'Cancelar']) {
+      expect(screen.getByRole('button', { name: nome })).toBeOnTheScreen()
+    }
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('button', { name: OPCAO_GALERIA })).toBeNull()
+  })
+
+  it('"Remover foto" pede confirmação; cancelar mantém a imagem', async () => {
+    responderConfirmacao('cancel')
+    const onChange = jest.fn()
+    await renderizar(
+      <SeletorImagem
+        finalidade="PERFIL"
+        formato="circulo"
+        valorAtualUrl={URL_ATUAL}
+        onChange={onChange}
+      />,
+    )
+
+    await escolherNoMenu(OPCAO_REMOVER)
+
+    expect(Alert.alert).toHaveBeenCalled()
+    expect(onChange).not.toHaveBeenCalled()
+    expect(imagemExibida().source.uri).toBe(URL_ATUAL)
+  })
+
+  it('"Remover foto" confirmado limpa a imagem e chama onChange(null)', async () => {
+    responderConfirmacao('destructive')
     const onChange = jest.fn()
     await renderizar(
       <SeletorImagem
@@ -161,19 +223,21 @@ describe('SeletorImagem', () => {
       />,
     )
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Remover' }))
+    await escolherNoMenu(OPCAO_REMOVER)
 
     expect(onChange).toHaveBeenCalledWith(null)
     expect(screen.queryByTestId('imagem')).toBeNull()
     expect(screen.getByText('AS')).toBeOnTheScreen()
-    expect(screen.queryByRole('button', { name: 'Remover' })).toBeNull()
+    await fireEvent.press(avatar())
+    expect(screen.queryByRole('button', { name: OPCAO_REMOVER })).toBeNull()
   })
 
-  it('sem imagem ou com podeRemover=false não mostra "Remover"', async () => {
+  it('sem imagem ou com podeRemover=false não mostra "Remover foto"', async () => {
     const { rerender } = await renderizar(
       <SeletorImagem finalidade="NOTICIA" formato="retangulo" onChange={jest.fn()} />,
     )
-    expect(screen.queryByRole('button', { name: 'Remover' })).toBeNull()
+    await fireEvent.press(avatar())
+    expect(screen.queryByRole('button', { name: OPCAO_REMOVER })).toBeNull()
 
     await rerender(
       <SeletorImagem
@@ -184,7 +248,7 @@ describe('SeletorImagem', () => {
         onChange={jest.fn()}
       />,
     )
-    expect(screen.queryByRole('button', { name: 'Remover' })).toBeNull()
+    expect(screen.queryByRole('button', { name: OPCAO_REMOVER })).toBeNull()
   })
 
   it('offline → desabilitado com "Disponível apenas online"', async () => {
@@ -200,22 +264,20 @@ describe('SeletorImagem', () => {
     await emitirRede(false)
 
     expect(screen.getByText(MENSAGEM_APENAS_ONLINE)).toBeOnTheScreen()
-    for (const nome of ['Galeria', 'Câmera', 'Remover']) {
-      expect(screen.getByRole('button', { name: nome })).toBeDisabled()
-    }
-    await escolherDaGaleria()
-    expect(pickerFalso.requestMediaLibraryPermissionsAsync).not.toHaveBeenCalled()
+    expect(avatar()).toBeDisabled()
+    await fireEvent.press(avatar())
+    expect(screen.queryByRole('button', { name: OPCAO_GALERIA })).toBeNull()
 
     await emitirRede(true)
     expect(screen.queryByText(MENSAGEM_APENAS_ONLINE)).toBeNull()
-    expect(screen.getByRole('button', { name: 'Galeria' })).toBeEnabled()
+    expect(avatar()).toBeEnabled()
   })
 
   it('desabilitado não abre a seleção', async () => {
     await renderizar(
       <SeletorImagem finalidade="PERFIL" formato="circulo" desabilitado onChange={jest.fn()} />,
     )
-    expect(screen.getByRole('button', { name: 'Câmera' })).toBeDisabled()
+    expect(avatar()).toBeDisabled()
   })
 
   it('permissão negada mostra a orientação com atalho para as configurações', async () => {
@@ -233,7 +295,7 @@ describe('SeletorImagem', () => {
     )
     jest.mocked(toast.erro).mock.calls[0]?.[1]?.aoTocar()
     expect(abrirConfiguracoes).toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Galeria' })).toBeEnabled()
+    expect(avatar()).toBeEnabled()
   })
 })
 

@@ -1,6 +1,8 @@
 import type { Perfil } from '@atletica/shared'
 import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { Alert } from 'react-native'
+import { OPCAO_REMOVER, ROTULO_ALTERAR_IMAGEM } from '@/components/imagem'
 import { toast } from '@/components/ui/toast'
 import {
   AlterarSenha,
@@ -12,6 +14,7 @@ import {
 } from '@/features/perfil'
 import * as apiPerfil from '@/features/perfil/api'
 import { useUploadImagem } from '@/features/uploads'
+import { MENSAGEM_IMAGEM_INVALIDA } from '@/features/uploads/comprimir'
 import { ApiErro } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
 import { criarQueryClient } from '@/infra/query/query-client'
@@ -90,7 +93,7 @@ const navegacao = () => ({
 
 beforeEach(() => {
   cliente = criarQueryClient()
-  cliente.setDefaultOptions({ queries: { retry: false } })
+  cliente.setDefaultOptions({ queries: { ...cliente.getDefaultOptions().queries, retry: false } })
   onlineManager.setOnline(true)
   jest.clearAllMocks()
   jest.mocked(useUploadImagem).mockReturnValue(upload())
@@ -178,7 +181,7 @@ describe('Tela Perfil', () => {
     expect(useSessao.getState().usuario?.nome).toBe('Ana Souza')
   })
 
-  it('403 FORBIDDEN em qualquer rota invalida o ["me"]', async () => {
+  it('403 em qualquer rota invalida o ["me"]', async () => {
     cliente.setQueryData(chaves.me(), perfil())
     await act(() =>
       cliente
@@ -186,7 +189,7 @@ describe('Tela Perfil', () => {
           queryKey: ['outra'],
           queryFn: () =>
             Promise.reject(
-              new ApiErro({ status: 403, code: 'FORBIDDEN', message: 'Sem permissão' }),
+              new ApiErro({ status: 403, code: 'NIVEL_INSUFICIENTE', message: 'Sem permissão' }),
             ),
         })
         .catch(() => undefined),
@@ -259,19 +262,27 @@ describe('Editar perfil', () => {
   })
 
   it('formato não suportado: mostra o erro e não chama a API (critério 8)', async () => {
-    const mensagem = 'Formato de imagem não suportado.'
-    jest.mocked(useUploadImagem).mockReturnValue(upload({ estado: 'erro', erro: mensagem }))
+    jest
+      .mocked(useUploadImagem)
+      .mockReturnValue(upload({ estado: 'erro', erro: MENSAGEM_IMAGEM_INVALIDA }))
     await abrir()
-    expect(screen.getByText(mensagem)).toBeOnTheScreen()
+    expect(screen.getByText(MENSAGEM_IMAGEM_INVALIDA)).toBeOnTheScreen()
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
     expect(api.definirFoto).not.toHaveBeenCalled()
   })
 
-  it('remover foto: DELETE /me/foto ao salvar (critério 11)', async () => {
+  it('remover foto: confirma e envia DELETE /me/foto ao salvar (critério 11)', async () => {
+    const confirmar = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation((_titulo, _mensagem, botoes) =>
+        botoes?.find((botao) => botao.style === 'destructive')?.onPress?.(),
+      )
     const aoSalvar = await abrir(perfil({ fotoUrl: 'https://img/atual.jpg' }))
     api.removerFoto.mockResolvedValue()
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Remover' }))
+    await fireEvent.press(screen.getByRole('button', { name: ROTULO_ALTERAR_IMAGEM }))
+    await fireEvent.press(screen.getByRole('button', { name: OPCAO_REMOVER }))
+    expect(confirmar).toHaveBeenCalled()
     await fireEvent.press(screen.getByRole('button', { name: 'Salvar' }))
 
     await waitFor(() => expect(aoSalvar).toHaveBeenCalled())

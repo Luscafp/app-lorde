@@ -61,7 +61,7 @@ export function AlterarSenha({ aoConcluir }: { aoConcluir: () => void }) {
       <Botao
         titulo="Salvar"
         carregando={alterar.isPending}
-        disabled={!alterar.online}
+        disabled={!alterar.online || alterar.isPending}
         onPress={() => void salvar()}
       />
     </TelaRolavel>

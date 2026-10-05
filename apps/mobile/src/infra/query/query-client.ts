@@ -2,7 +2,6 @@ import { MutationCache, QueryCache, QueryClient, type Mutation } from '@tanstack
 import { toast } from '@/components/ui/toast'
 import {
   ApiErro,
-  CodigoApi,
   ehErroTransitorio,
   ehSessaoEncerrada,
   MENSAGEM_ERRO_GENERICO,
@@ -36,7 +35,7 @@ export function mostrarErroDaMutacao(
 
 /** O cargo pode ter mudado (#28): reler o `['me']` atualiza o papel da sessão. */
 function recarregarPapelSeNegado(cliente: QueryClient, erro: unknown): void {
-  if (erro instanceof ApiErro && erro.code === CodigoApi.FORBIDDEN) {
+  if (erro instanceof ApiErro && erro.status === 403) {
     void cliente.invalidateQueries({ queryKey: chaves.me(), exact: true })
   }
 }

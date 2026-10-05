@@ -5,7 +5,7 @@ import { toast } from '@/components/ui/toast'
 import { ApiErro, api } from '@/infra/api/cliente'
 import { MENSAGEM_ACAO_OFFLINE } from '@/infra/query/use-acao-online'
 import { pedirPresign } from '@/features/uploads/api'
-import { ErroImagem, MENSAGEM_IMAGEM_GRANDE } from '@/features/uploads/comprimir'
+import { ErroImagem, MENSAGEM_IMAGEM_INVALIDA } from '@/features/uploads/comprimir'
 import {
   ACAO_ABRIR_CONFIGURACOES,
   MENSAGEM_FALHA_ENVIO,
@@ -224,13 +224,13 @@ describe('useUploadImagem', () => {
   })
 
   it('imagem grande demais → erro sem chamar a API e sem "Tentar novamente"', async () => {
-    comprimirFalso.mockRejectedValue(new ErroImagem(MENSAGEM_IMAGEM_GRANDE))
+    comprimirFalso.mockRejectedValue(new ErroImagem(MENSAGEM_IMAGEM_INVALIDA))
     const { result } = await renderHook(() => useUploadImagem('PERFIL'), { wrapper: comQuery() })
     await act(() => result.current.selecionar('galeria'))
 
     expect(result.current).toMatchObject({
       estado: 'erro',
-      erro: MENSAGEM_IMAGEM_GRANDE,
+      erro: MENSAGEM_IMAGEM_INVALIDA,
       podeTentarNovamente: false,
     })
     expect(presign).not.toHaveBeenCalled()

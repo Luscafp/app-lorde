@@ -29,7 +29,7 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger'
 import { createZodDto } from 'nestjs-zod'
-import { RESPOSTA_LIMITE_EXCEDIDO } from '../../common/swagger/respostas'
+import { RESPOSTA_LIMITE_EXCEDIDO, tabelaErros } from '../../common/swagger/respostas'
 import { emMinutos } from '../../common/tempo'
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator'
 import type { UsuarioAutenticado } from '../auth/tipos'
@@ -66,12 +66,23 @@ const EXEMPLO_PERFIL: Perfil = {
   criadoEm: '2026-10-02T12:00:00.000Z',
 }
 
-const DESCRICAO_FOTO =
-  '| HTTP | code | Quando |\n|---|---|---|\n' +
-  '| 400 | `VALIDATION_ERROR` | corpo diferente de `{ fotoKey }` |\n' +
-  '| 422 | `UPLOAD_INVALIDO` | chave fora de `usuarios/{usuarioId}/perfil/{uuid}.{ext}` do próprio ' +
-  'usuário, tipo não suportado ou objeto > 5 MB |\n' +
-  '| 422 | `UPLOAD_NAO_ENCONTRADO` | objeto inexistente no R2 |'
+const DESCRICAO_FOTO = tabelaErros([
+  [400, 'VALIDATION_ERROR', 'corpo diferente de `{ fotoKey }`'],
+  [
+    422,
+    'UPLOAD_INVALIDO',
+    'chave fora de `usuarios/{usuarioId}/perfil/{uuid}.{ext}` do próprio usuário, tipo não ' +
+      'suportado ou objeto > 5 MB',
+  ],
+  [422, 'UPLOAD_NAO_ENCONTRADO', 'objeto inexistente no R2'],
+])
+
+const DESCRICAO_SENHA = tabelaErros([
+  [400, 'VALIDATION_ERROR', 'nova senha fora da política (8–128, letra e número)'],
+  [400, 'SENHA_INCORRETA', 'senha atual errada (conta para o limite)'],
+  [400, 'SENHA_IGUAL_ATUAL', 'nova senha igual à atual'],
+  [429, 'RATE_LIMITED', 'limite de senhas atuais erradas'],
+])
 
 /** Só `@UsuarioAtual()`: não há `:id`, então não existe 403/404 (convenções §9). */
 @ApiTags('Perfil')
@@ -137,13 +148,7 @@ export class MeController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Troca a senha informando a atual (UC11)',
-    description:
-      'Revoga as outras sessões (`TROCA_SENHA`); a sessão atual continua.\n\n' +
-      '| HTTP | code | Quando |\n|---|---|---|\n' +
-      '| 400 | `VALIDATION_ERROR` | nova senha fora da política (8–128, letra e número) |\n' +
-      '| 400 | `SENHA_INCORRETA` | senha atual errada (conta para o limite) |\n' +
-      '| 400 | `SENHA_IGUAL_ATUAL` | nova senha igual à atual |\n' +
-      '| 429 | `RATE_LIMITED` | limite de senhas atuais erradas |',
+    description: `Revoga as outras sessões (\`TROCA_SENHA\`); a sessão atual continua.\n\n${DESCRICAO_SENHA}`,
   })
   @ApiBody({
     type: AlterarSenhaDto,
