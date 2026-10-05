@@ -1,9 +1,9 @@
 import { formatarData, ROTULO_PAPEL, SituacaoUsuario, type UsuarioDetalhe } from '@atletica/shared'
-import type { ReactNode } from 'react'
 import { Alert, ScrollView, View } from 'react-native'
 import { TelaDados } from '@/components/estado'
 import { Botao, Cartao, Selo, Texto } from '@/components/ui'
 import { paleta } from '@/features/atletica'
+import { AlterarCargo } from './alterar-cargo'
 import { Avatar } from './componentes'
 import { useAlterarSituacao, useUsuario } from './consultas'
 
@@ -25,16 +25,7 @@ function confirmar(usuario: UsuarioDetalhe, aoConfirmar: () => void) {
   )
 }
 
-/** Ponto de entrada da #28: renderiza o "Alterar cargo" do detalhe. */
-type AlterarCargo = (usuario: UsuarioDetalhe) => ReactNode
-
-function Acoes({
-  usuario,
-  alterarCargo,
-}: {
-  usuario: UsuarioDetalhe
-  alterarCargo?: AlterarCargo
-}) {
+function Acoes({ usuario }: { usuario: UsuarioDetalhe }) {
   const acao = useAlterarSituacao(usuario.id)
   const { podeAlterarSituacao, motivoBloqueio, podeAlterarPapel } = usuario.permissoes
 
@@ -53,18 +44,12 @@ function Acoes({
         onPress={() => confirmar(usuario, () => acao.mutate(!ativo))}
       />
       {motivoBloqueio && <Texto variante="legenda">{motivoBloqueio}</Texto>}
-      {podeAlterarPapel && alterarCargo?.(usuario)}
+      {podeAlterarPapel && <AlterarCargo usuario={usuario} />}
     </View>
   )
 }
 
-function Conteudo({
-  usuario,
-  alterarCargo,
-}: {
-  usuario: UsuarioDetalhe
-  alterarCargo?: AlterarCargo
-}) {
+function Conteudo({ usuario }: { usuario: UsuarioDetalhe }) {
   return (
     <ScrollView contentContainerClassName="gap-6 p-4">
       <View className="items-center gap-2">
@@ -101,17 +86,17 @@ function Conteudo({
         </View>
       )}
 
-      <Acoes usuario={usuario} alterarCargo={alterarCargo} />
+      <Acoes usuario={usuario} />
     </ScrollView>
   )
 }
 
-export function DetalheUsuario({ id, alterarCargo }: { id: string; alterarCargo?: AlterarCargo }) {
+export function DetalheUsuario({ id }: { id: string }) {
   const consulta = useUsuario(id)
   return (
     <View className="flex-1 bg-fundo">
       <TelaDados consulta={consulta} esqueleto="detalhe">
-        {(usuario) => <Conteudo usuario={usuario} alterarCargo={alterarCargo} />}
+        {(usuario) => <Conteudo usuario={usuario} />}
       </TelaDados>
     </View>
   )

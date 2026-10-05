@@ -1,4 +1,9 @@
-import { alterarSituacaoSchema, listarUsuariosQuerySchema, usuarioIdParamSchema } from './schemas'
+import {
+  alterarPapelSchema,
+  alterarSituacaoSchema,
+  listarUsuariosQuerySchema,
+  usuarioIdParamSchema,
+} from './schemas'
 
 function campos(resultado: { error?: { issues: { path: PropertyKey[] }[] } }): string[] {
   return (resultado.error?.issues ?? []).map(({ path }) => path.join('.'))
@@ -42,6 +47,25 @@ describe('alterarSituacaoSchema', () => {
 
   it.each([{}, { ativo: 'false' }, { ativo: false, papel: 'ATLETA' }])('rejeita %o', (corpo) => {
     expect(alterarSituacaoSchema.safeParse(corpo).success).toBe(false)
+  })
+})
+
+describe('alterarPapelSchema', () => {
+  it.each([
+    { papel: 'DIRETOR' },
+    { papel: 'PRESIDENTE', confirmarSubstituicao: true },
+    { papel: 'ATLETA', confirmarSubstituicao: false },
+  ])('aceita %o', (corpo) => {
+    expect(alterarPapelSchema.parse(corpo)).toEqual(corpo)
+  })
+
+  it.each([
+    [{ papel: 'SUPERADMIN' }, 'papel'],
+    [{}, 'papel'],
+    [{ papel: 'DIRETOR', confirmarSubstituicao: 'sim' }, 'confirmarSubstituicao'],
+    [{ papel: 'DIRETOR', ativo: true }, ''],
+  ])('rejeita %o', (corpo, campo) => {
+    expect(campos(alterarPapelSchema.safeParse(corpo))).toEqual([campo])
   })
 })
 

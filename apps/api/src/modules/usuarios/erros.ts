@@ -1,3 +1,4 @@
+import { ROTULO_PAPEL, type Papel } from '@atletica/shared'
 import { HttpStatus } from '@nestjs/common'
 import { ErroNegocio } from '../../common/erros/erro-negocio'
 
@@ -46,5 +47,30 @@ export function erroUltimoAdministrador(): ErroNegocio {
     HttpStatus.CONFLICT,
     'ULTIMO_ADMINISTRADOR',
     'A atlética precisa de ao menos um Administrador ativo.',
+  )
+}
+
+export function erroSubstituicaoNecessaria(ocupante: string, cargo: Papel): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.CONFLICT,
+    'SUBSTITUICAO_NECESSARIA',
+    `${ocupante} é o(a) atual ${ROTULO_PAPEL[cargo]} e passará a ${ROTULO_PAPEL.DIRETOR}.`,
+    [{ field: 'confirmarSubstituicao', message: 'Confirme a substituição para continuar.' }],
+  )
+}
+
+export function erroUsuarioDesativado(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.CONFLICT,
+    'USUARIO_DESATIVADO',
+    'Reative a conta antes de promover este usuário.',
+  )
+}
+
+export function erroConflitoConcorrente(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.CONFLICT,
+    'CONFLITO_CONCORRENTE',
+    'Outro cargo foi alterado ao mesmo tempo. Tente novamente.',
   )
 }

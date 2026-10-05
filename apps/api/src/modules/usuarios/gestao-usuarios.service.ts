@@ -1,5 +1,4 @@
 import {
-  ehPresidencia,
   Papel,
   SituacaoUsuario,
   type ListarUsuariosQuery,
@@ -15,20 +14,18 @@ import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prism
 import { Prisma } from '../../generated/prisma/client'
 import { AuditoriaService } from '../auditoria/auditoria.service'
 import { diferenca } from '../auditoria/diferenca'
-import { erroSemPermissao } from '../auth/erros'
 import { SessaoService } from '../auth/sessao.service'
-import type { UsuarioAutenticado } from '../auth/tipos'
 import { UploadsService } from '../uploads/uploads.service'
 import { erroDeBloqueio, erroUsuarioNaoEncontrado } from './erros'
 import {
   bloqueioDaAcao,
   bloquearPapeis,
+  bloquearVinculo,
   calcularPermissoes,
   ehUltimoAdministrador,
-  type Solicitante,
+  papelDoSolicitante,
+  type SolicitanteNaAtletica,
 } from './regras-papel'
-
-type SolicitanteNaAtletica = Solicitante & Pick<UsuarioAutenticado, 'atleticaId'>
 
 interface LinhaUsuario {
   id: string
@@ -37,13 +34,6 @@ interface LinhaUsuario {
   fotoKey: string | null
   papel: Papel
   ativo: boolean
-}
-
-interface VinculoBloqueado {
-  id: string
-  papel: Papel
-  ativo: boolean
-  excluido: boolean
 }
 
 function situacaoDe(ativo: boolean): SituacaoFiltro {
@@ -184,9 +174,9 @@ export class GestaoUsuariosService {
     const { atleticaId } = solicitante
     return this.transacao.executar(async (tx) => {
       await bloquearPapeis(tx, atleticaId)
-      const alvo = await this.bloquearVinculo(tx, id, atleticaId)
+      const alvo = await bloquearVinculo(tx, id, atleticaId)
       if (!alvo) throw erroUsuarioNaoEncontrado()
-      const papel = await this.papelAtual(tx, solicitante.id)
+      const papel = await papelDoSolicitante(tx, solicitante.id, Papel.PRESIDENTE)
       const bloqueio = bloqueioDaAcao({ id: solicitante.id, papel }, { ...alvo, id })
       if (bloqueio) throw erroDeBloqueio(bloqueio)
 
@@ -204,29 +194,6 @@ export class GestaoUsuariosService {
       })
       return resposta
     })
-  }
-
-  private async bloquearVinculo(
-    tx: TransacaoComEscopo,
-    usuarioId: string,
-    atleticaId: string,
-  ): Promise<VinculoBloqueado | undefined> {
-    const [vinculo] = await tx.$queryRaw<VinculoBloqueado[]>`
-      SELECT v."id", v."papel", v."ativo", u."excluidoEm" IS NOT NULL AS "excluido"
-      FROM "VinculoAtletica" v JOIN "Usuario" u ON u."id" = v."usuarioId"
-      WHERE v."usuarioId" = ${usuarioId}::uuid AND v."atleticaId" = ${atleticaId}::uuid
-      FOR UPDATE OF v`
-    return vinculo
-  }
-
-  /** O papel do solicitante é relido sob o lock: pode ter mudado desde o guard. */
-  private async papelAtual(tx: TransacaoComEscopo, solicitanteId: string): Promise<Papel> {
-    const ator = await tx.vinculoAtletica.findFirst({
-      where: { usuarioId: solicitanteId, ativo: true },
-      select: { papel: true },
-    })
-    if (!ator || !ehPresidencia(ator.papel)) throw erroSemPermissao()
-    return ator.papel
   }
 
   private async revogarSessoes(
