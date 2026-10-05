@@ -526,6 +526,21 @@ Times da atlética ativa e de adversárias. A extensão multi-atlética lê `Tim
 
 As listas paginadas (`/times`, `/atleticas-adversarias`) ordenam e filtram por nome em SQL (`unaccent(lower(nome))`) e leem os dados pelo Prisma (`naOrdemDosIds`, `src/common/busca.ts`). Em time adversário, `capitao` é `null` e `totalMembros` é `0`. Auditoria (entidade `Time`): `TIME_CRIADO`, `TIME_ALTERADO` (nome/modalidade), `TIME_ATIVADO`/`TIME_DESATIVADO` e `TIME_EXCLUIDO`. Fábricas: `criarTime`, `criarAtleticaAdversaria` e `criarTimeAdversario` em `test/fabricas/times.ts`.
 
+## Eventos (`src/modules/eventos`)
+
+Jogos e treinos avulsos (épico #19; escrita da #70). Schemas (`criarEventoSchema`, união discriminada por `tipo`; `editarEventoSchema`) e `EventoDto` em `@atletica/shared` (`eventos/`): `inicio` ISO com fuso entre hoje − 365 e hoje + 730 dias, `local` 2–120, `observacoes` até 500 (vazio → `null`). A modalidade é a do time (RN10). Exclusão **lógica** (`excluidoEm`): toda leitura e escrita filtra `naoExcluido`.
+
+| Rota                         | Papel mínimo | Resposta                                                                                                                                      |
+| ---------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /eventos`              | DIRETOR      | `201 EventoDto` em `AGENDADO`; `422 TIME_INVALIDO`/`TIME_INATIVO`/`MODALIDADE_INATIVA`/`ADVERSARIO_INVALIDO`/`MODALIDADES_DIFERENTES`         |
+| `PATCH /eventos/:id`         | DIRETOR      | `200`; `CANCELADO` → `422 EVENTO_CANCELADO`; `FINALIZADO` só `observacoes`; trocar `timeId` com participação → `409 EVENTO_COM_PARTICIPACOES` |
+| `POST /eventos/:id/cancelar` | DIRETOR      | `200 { eventoIds, status: 'CANCELADO' }`; `422 EVENTO_FINALIZADO`/`EVENTO_JA_CANCELADO`                                                       |
+| `DELETE /eventos/:id`        | PRESIDENTE   | `204`; com participação ou resultado → `409 EVENTO_COM_DEPENDENCIAS` (`details` em `participacoes`/`resultado`)                               |
+
+As regras que dependem do banco ficam no `EventosValidator`, chamado dentro da transação. `EventosService.cancelar(tx, eventoIds, usuario)` cancela, na transação de quem chama, os eventos `AGENDADO`/`EM_ANDAMENTO`, audita um `EVENTO_CANCELADO` por evento e devolve os ids afetados; quem chama emite `evento.cancelado` uma vez (reutilizado pela #20 e pela #73). Auditoria: `EVENTO_CRIADO`, `EVENTO_ALTERADO` (só campos alterados), `EVENTO_CANCELADO`, `EVENTO_EXCLUIDO`. Eventos de domínio após o commit: `evento.criado`, `evento.alterado` (só se `inicio` ou `local` mudaram) e `evento.cancelado`; a exclusão não emite.
+
+Fábricas (`test/fabricas/eventos.ts`): `criarEvento({ atleticaId, ...campos, participantes? })` (TREINO por padrão, `AGENDADO` amanhã; cria time, adversário da mesma modalidade e autor quando faltam; valores informados, inclusive `null`, vão direto ao banco), `criarJogo`, `criarTreino`, `criarParticipacoes(evento, [{ usuarioId, confirmado?, presente? }])` e `criarSerie({ atleticaId, timeId })`.
+
 ## Senhas (`src/infra/senha`)
 
 Importe `SenhaModule` e injete `SenhaService`: `hash(senha)` (Argon2id, `@node-rs/argon2`, parâmetros em `senha.config.ts` — convenções §5) e `verificar(hash, senha)` (`false` também para hash malformado); `precisaRefazerHash(hash)` indica hash gerado com outros parâmetros (refeito no login). Valide a entrada com `senhaSchema` de `@atletica/shared` (política do UC06), sem redefini-la.
