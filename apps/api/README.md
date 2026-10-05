@@ -479,6 +479,32 @@ Catálogo **global** (sem `atleticaId`, convenções §6). Schemas, DTOs e o cat
 
 Toda escrita audita na mesma transação: `MODALIDADE_CRIADA`, `MODALIDADE_ALTERADA` (nome/ícone), `MODALIDADE_ATIVADA`/`MODALIDADE_DESATIVADA` (`ativa`) e `MODALIDADE_EXCLUIDA`. A contagem de times usa `prisma.db` (atlética ativa e adversárias); a FK `Restrict` (`P2003`) cobre os demais. Fábrica de teste: `criarModalidade()` em `test/fabricas/modalidades.ts`.
 
+## Atléticas adversárias (`src/modules/atleticas`)
+
+`Atletica` com `usaAplicativo = false` (RN21). Schemas e DTOs em `@atletica/shared` (`atletica/adversarias.ts`): nome 2–80, sigla até 10 (maiúsculas), curso até 80; opcionais vazios viram `null`; `usaAplicativo` não é aceito no corpo. O nome é único entre adversárias sem diferenciar maiúsculas: não há índice, então a checagem roda na transação sob `pg_advisory_xact_lock(hashtext('atleticas-adversarias'))`.
+
+| Rota                                         | Papel mínimo | Resposta                                                            |
+| -------------------------------------------- | ------------ | ------------------------------------------------------------------- |
+| `GET /atleticas-adversarias?q=&page=&limit=` | DIRETOR      | `200` paginado, por nome (sem acento nem caixa), com `totalTimes`   |
+| `POST /atleticas-adversarias`                | DIRETOR      | `201`; `409 ATLETICA_DUPLICADA`                                     |
+| `PATCH /atleticas-adversarias/:id`           | DIRETOR      | `200`; id de atlética que usa o app → `404`; sem mudança não audita |
+
+Auditoria (entidade `Atletica`): `ATLETICA_ADVERSARIA_CRIADA`, `ATLETICA_ADVERSARIA_ALTERADA`.
+
+## Times (`src/modules/times`)
+
+Times da atlética ativa e de adversárias. A extensão multi-atlética lê `Time` com `atleticaId = atual OR atletica.usaAplicativo = false`; na criação, o `atleticaId` vem do service (atlética ativa ou `atleticaAdversariaId`, que precisa ter `usaAplicativo = false`, senão `404`). A atlética do time é imutável. Schemas e `TimeDto` em `@atletica/shared` (`times/`).
+
+| Rota                | Papel mínimo         | Resposta                                                                                                                                                       |
+| ------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /times`        | qualquer autenticado | `200` paginado; filtros `modalidadeId`, `escopo=PROPRIOS\|ADVERSARIOS`, `atleticaId`, `q`; sem `incluirInativos` (só Diretoria), só ativos de modalidade ativa |
+| `GET /times/:id`    | qualquer autenticado | `200`; fora da Diretoria, inativo ou de modalidade inativa → `404`                                                                                             |
+| `POST /times`       | DIRETOR              | `201`; `422 MODALIDADE_INATIVA`, `409 TIME_DUPLICADO` (índice `time_nome_unico`)                                                                               |
+| `PATCH /times/:id`  | DIRETOR              | `200`; `nome`, `modalidadeId`, `ativo`; trocar a modalidade de time com eventos → `409 TIME_COM_EVENTOS`                                                       |
+| `DELETE /times/:id` | PRESIDENTE           | `204` (exclusão física); com evento, `MembroTime` (inclusive histórico) ou solicitação → `409 TIME_COM_DEPENDENCIAS`                                           |
+
+As listas paginadas (`/times`, `/atleticas-adversarias`) ordenam e filtram por nome em SQL (`unaccent(lower(nome))`) e leem os dados pelo Prisma (`naOrdemDosIds`, `src/common/busca.ts`). Em time adversário, `capitao` é `null` e `totalMembros` é `0`. Auditoria (entidade `Time`): `TIME_CRIADO`, `TIME_ALTERADO` (nome/modalidade), `TIME_ATIVADO`/`TIME_DESATIVADO` e `TIME_EXCLUIDO`. Fábricas: `criarTime`, `criarAtleticaAdversaria` e `criarTimeAdversario` em `test/fabricas/times.ts`.
+
 ## Senhas (`src/infra/senha`)
 
 Importe `SenhaModule` e injete `SenhaService`: `hash(senha)` (Argon2id, `@node-rs/argon2`, parâmetros em `senha.config.ts` — convenções §5) e `verificar(hash, senha)` (`false` também para hash malformado); `precisaRefazerHash(hash)` indica hash gerado com outros parâmetros (refeito no login). Valide a entrada com `senhaSchema` de `@atletica/shared` (política do UC06), sem redefini-la.
