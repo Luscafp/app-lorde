@@ -1,4 +1,11 @@
-import { alterarSituacaoSchema, listarUsuariosQuerySchema } from './schemas'
+import {
+  alterarSenhaFormSchema,
+  alterarSenhaSchema,
+  alterarSituacaoSchema,
+  atualizarFotoSchema,
+  atualizarPerfilSchema,
+  listarUsuariosQuerySchema,
+} from './schemas'
 
 function campos(resultado: { error?: { issues: { path: PropertyKey[] }[] } }): string[] {
   return (resultado.error?.issues ?? []).map(({ path }) => path.join('.'))
@@ -42,5 +49,51 @@ describe('alterarSituacaoSchema', () => {
 
   it.each([{}, { ativo: 'false' }, { ativo: false, papel: 'ATLETA' }])('rejeita %o', (corpo) => {
     expect(alterarSituacaoSchema.safeParse(corpo).success).toBe(false)
+  })
+})
+
+describe('atualizarPerfilSchema', () => {
+  it('aplica trim no nome', () => {
+    expect(atualizarPerfilSchema.parse({ nome: '  Ana Souza  ' })).toEqual({ nome: 'Ana Souza' })
+  })
+
+  it.each([
+    [{ nome: 'A' }, 'nome'],
+    [{ nome: 'x'.repeat(81) }, 'nome'],
+    [{ nome: 'Ana', papel: 'ADMINISTRADOR' }, ''],
+    [{ nome: 'Ana', email: 'outro@ex.com' }, ''],
+  ])('rejeita %o', (corpo, campo) => {
+    expect(campos(atualizarPerfilSchema.safeParse(corpo))).toEqual([campo])
+  })
+})
+
+describe('atualizarFotoSchema', () => {
+  it('limita a chave a 300 caracteres e rejeita campos extras', () => {
+    expect(atualizarFotoSchema.safeParse({ fotoKey: 'usuarios/a/perfil/b.jpg' }).success).toBe(true)
+    expect(atualizarFotoSchema.safeParse({ fotoKey: 'x'.repeat(301) }).success).toBe(false)
+    expect(atualizarFotoSchema.safeParse({ fotoKey: 'k', usuarioId: 'x' }).success).toBe(false)
+  })
+})
+
+describe('alterarSenhaSchema', () => {
+  it('nova senha segue a política do cadastro', () => {
+    expect(
+      campos(alterarSenhaSchema.safeParse({ senhaAtual: 'x', novaSenha: 'semnumero' })),
+    ).toEqual(['novaSenha'])
+  })
+
+  it('exige a senha atual', () => {
+    expect(
+      campos(alterarSenhaSchema.safeParse({ senhaAtual: '', novaSenha: 'novaSenha9' })),
+    ).toEqual(['senhaAtual'])
+  })
+
+  it('formulário: confirmação divergente no campo confirmarSenha', () => {
+    const resultado = alterarSenhaFormSchema.safeParse({
+      senhaAtual: 'lorde2026',
+      novaSenha: 'novaSenha9',
+      confirmarSenha: 'novaSenha8',
+    })
+    expect(campos(resultado)).toEqual(['confirmarSenha'])
   })
 })

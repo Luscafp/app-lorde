@@ -2,7 +2,8 @@ import { mapearExcecao } from '../../src/common/filtros/excecao-global.filter'
 import { Prisma } from '../../src/generated/prisma/client'
 import * as enumsPrisma from '../../src/generated/prisma/enums'
 import { criarAtletica } from '../fabricas/atletica'
-import { proximaSequencia } from '../fabricas/sequencia'
+import { criarModalidade } from '../fabricas/modalidades'
+import { criarAtleticaAdversaria, criarTime } from '../fabricas/times'
 import { criarUsuario } from '../fabricas/usuario'
 import { listarTabelas } from '../setup/limpar-banco'
 import { prismaTeste } from '../setup/prisma-teste'
@@ -60,28 +61,15 @@ async function esperarViolacao(operacao: Promise<unknown>, nome: string): Promis
   }
 }
 
-// --- Dados auxiliares (as fábricas de domínio são das issues de cada domínio) ---
-// TODO: trocar por `test/fabricas/<dominio>.ts` quando as issues de domínio as criarem
-// (modalidades/times, eventos → #70), para não manter cópias paralelas.
-
-function criarModalidade(nome = `Modalidade ${proximaSequencia()}`, ativa = true) {
-  return prismaTeste.modalidade.create({ data: { nome, icone: 'bola', ativa } })
-}
-
-async function criarTime(atleticaId: string, dados: { modalidadeId?: string; nome?: string } = {}) {
-  const modalidadeId = dados.modalidadeId ?? (await criarModalidade()).id
-  return prismaTeste.time.create({
-    data: { atleticaId, modalidadeId, nome: dados.nome ?? `Time ${proximaSequencia()}` },
-  })
-}
+// TODO: trocar `dadosEvento` pela fábrica de eventos (#70).
 
 /** Atlética com app, adversária, um time de cada (mesma modalidade) e um diretor. */
 async function montarCenario() {
   const atletica = await criarAtletica()
-  const adversaria = await criarAtletica({ usaAplicativo: false })
+  const adversaria = await criarAtleticaAdversaria()
   const modalidade = await criarModalidade()
-  const time = await criarTime(atletica.id, { modalidadeId: modalidade.id })
-  const timeAdversario = await criarTime(adversaria.id, { modalidadeId: modalidade.id })
+  const time = await criarTime({ atleticaId: atletica.id, modalidadeId: modalidade.id })
+  const timeAdversario = await criarTime({ atleticaId: adversaria.id, modalidadeId: modalidade.id })
   const diretor = await criarUsuario({ atleticaId: atletica.id, papel: 'DIRETOR' })
   return { atletica, adversaria, modalidade, time, timeAdversario, diretor }
 }
@@ -196,6 +184,18 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
       }
     })
 
+    it('Time: índice de listagem (atleticaId, modalidadeId, ativo) e sem `excluidoEm` (#43)', async () => {
+      const [indice] = await prismaTeste.$queryRaw<{ indexdef: string }[]>`
+        SELECT indexdef FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = 'Time_atleticaId_modalidadeId_ativo_idx'`
+      expect(indice?.indexdef).toMatch(/\("atleticaId", "modalidadeId", ativo\)/)
+
+      const colunas = await prismaTeste.$queryRaw<{ column_name: string }[]>`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'Time'`
+      expect(colunas.map(({ column_name }) => column_name)).not.toContain('excluidoEm')
+    })
+
     it('cria todos os CHECK', async () => {
       const linhas = await prismaTeste.$queryRaw<{ conname: string }[]>`
         SELECT conname FROM pg_constraint
@@ -305,23 +305,27 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
 
   describe('Modalidade e Time — nomes únicos não parciais (critério 16)', () => {
     it('modalidade: Futsal e futsal colidem, mesmo inativa (modalidade_nome_unico)', async () => {
-      await criarModalidade('Futsal', false)
-      await criarModalidade('Vôlei')
-      await esperarViolacao(criarModalidade('futsal'), 'modalidade_nome_unico')
+      await criarModalidade({ nome: 'Futsal', ativa: false })
+      await criarModalidade({ nome: 'Vôlei' })
+      await esperarViolacao(criarModalidade({ nome: 'futsal' }), 'modalidade_nome_unico')
     })
 
     it('time: nome único por atlética e modalidade, sem diferenciar maiúsculas (time_nome_unico)', async () => {
       const atletica = await criarAtletica()
       const outra = await criarAtletica()
-      const futsal = await criarModalidade('Futsal')
-      const volei = await criarModalidade('Vôlei')
-      const time = await criarTime(atletica.id, { modalidadeId: futsal.id, nome: 'Lorde A' })
+      const futsal = await criarModalidade({ nome: 'Futsal' })
+      const volei = await criarModalidade({ nome: 'Vôlei' })
+      const time = await criarTime({
+        atleticaId: atletica.id,
+        modalidadeId: futsal.id,
+        nome: 'Lorde A',
+      })
       await prismaTeste.time.update({ where: { id: time.id }, data: { ativo: false } })
 
-      await criarTime(atletica.id, { modalidadeId: volei.id, nome: 'Lorde A' })
-      await criarTime(outra.id, { modalidadeId: futsal.id, nome: 'Lorde A' })
+      await criarTime({ atleticaId: atletica.id, modalidadeId: volei.id, nome: 'Lorde A' })
+      await criarTime({ atleticaId: outra.id, modalidadeId: futsal.id, nome: 'Lorde A' })
       await esperarViolacao(
-        criarTime(atletica.id, { modalidadeId: futsal.id, nome: 'LORDE a' }),
+        criarTime({ atleticaId: atletica.id, modalidadeId: futsal.id, nome: 'LORDE a' }),
         'time_nome_unico',
       )
     })

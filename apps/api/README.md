@@ -302,6 +302,23 @@ Painel de Usuários da Presidência (UC23, #27). Todas as rotas exigem `@PapelMi
 - A desativação grava `VinculoAtletica.ativo` (não `Usuario.ativo`, reservado à exclusão da #12), revoga as sessões da atlética (`CONTA_DESATIVADA`), audita `USUARIO_DESATIVADO`/`USUARIO_REATIVADO` e emite `usuario.sessaoEncerrada` após o commit só quando houve sessão revogada. O guard responde `401 CONTA_DESATIVADA` na requisição seguinte, mesmo com a sessão já revogada.
 - Regra de nível: só sobre nível estritamente inferior (`podeAgirSobre`), com o papel do solicitante relido na transação → `403 NIVEL_INSUFICIENTE`; a própria conta → `403 ALVO_PROPRIO`; excluída → `409 USUARIO_EXCLUIDO`; repetir a situação atual → `200` sem efeito.
 
+### Perfil (`/me`, `PerfilService`)
+
+Perfil do usuário autenticado (UC10, UC11, #13). Só `@UsuarioAtual()`, sem `:id`: qualquer papel acessa e não há 403/404.
+
+| Rota                     | Resposta                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| `GET /api/v1/me`         | perfil, `papel` do vínculo atual, times atuais, último aceite de termos (`no-store`)  |
+| `PATCH /api/v1/me`       | `{ nome }` → perfil                                                                   |
+| `PUT /api/v1/me/foto`    | `{ fotoKey }` → `{ fotoUrl }`; `422 UPLOAD_INVALIDO`/`UPLOAD_NAO_ENCONTRADO`          |
+| `DELETE /api/v1/me/foto` | `204`, idempotente                                                                    |
+| `PUT /api/v1/me/senha`   | `{ senhaAtual, novaSenha }` → `204`; `400 SENHA_INCORRETA`/`SENHA_IGUAL_ATUAL`, `429` |
+
+- `GET /me` é uma consulta só: vínculos com `saidaEm` e times inativos ficam de fora, capitão por `Time.capitaoId`, times por nome.
+- Foto: `UploadsService.validarKey` só quando a chave muda; a anterior é removida do R2 em `aposCommit`.
+- Senha: 5 senhas atuais erradas em 15 min por usuário (`SENHA_CONFIRMACAO_FALHA`, chave `usuarioId`, o mesmo contador da #12). A troca revoga as outras sessões com `TROCA_SENHA` (`exceto` = sessão do token) e emite `usuario.sessaoEncerrada` só com as revogadas. `SENHA_INCORRETA` é 400 para o app não tentar o refresh.
+- Sem auditoria (convenções §7).
+
 ### `regras-papel.ts` (usado por #12 e #28)
 
 ```ts
@@ -478,6 +495,32 @@ Catálogo **global** (sem `atleticaId`, convenções §6). Schemas, DTOs e o cat
 | `DELETE /modalidades/:id`           | PRESIDENTE           | `204` (exclusão física); com times → `409 MODALIDADE_COM_DEPENDENCIAS`                    |
 
 Toda escrita audita na mesma transação: `MODALIDADE_CRIADA`, `MODALIDADE_ALTERADA` (nome/ícone), `MODALIDADE_ATIVADA`/`MODALIDADE_DESATIVADA` (`ativa`) e `MODALIDADE_EXCLUIDA`. A contagem de times usa `prisma.db` (atlética ativa e adversárias); a FK `Restrict` (`P2003`) cobre os demais. Fábrica de teste: `criarModalidade()` em `test/fabricas/modalidades.ts`.
+
+## Atléticas adversárias (`src/modules/atleticas`)
+
+`Atletica` com `usaAplicativo = false` (RN21). Schemas e DTOs em `@atletica/shared` (`atletica/adversarias.ts`): nome 2–80, sigla até 10 (maiúsculas), curso até 80; opcionais vazios viram `null`; `usaAplicativo` não é aceito no corpo. O nome é único entre adversárias sem diferenciar maiúsculas: não há índice, então a checagem roda na transação sob `pg_advisory_xact_lock(hashtext('atleticas-adversarias'))`.
+
+| Rota                                         | Papel mínimo | Resposta                                                            |
+| -------------------------------------------- | ------------ | ------------------------------------------------------------------- |
+| `GET /atleticas-adversarias?q=&page=&limit=` | DIRETOR      | `200` paginado, por nome (sem acento nem caixa), com `totalTimes`   |
+| `POST /atleticas-adversarias`                | DIRETOR      | `201`; `409 ATLETICA_DUPLICADA`                                     |
+| `PATCH /atleticas-adversarias/:id`           | DIRETOR      | `200`; id de atlética que usa o app → `404`; sem mudança não audita |
+
+Auditoria (entidade `Atletica`): `ATLETICA_ADVERSARIA_CRIADA`, `ATLETICA_ADVERSARIA_ALTERADA`.
+
+## Times (`src/modules/times`)
+
+Times da atlética ativa e de adversárias. A extensão multi-atlética lê `Time` com `atleticaId = atual OR atletica.usaAplicativo = false`; na criação, o `atleticaId` vem do service (atlética ativa ou `atleticaAdversariaId`, que precisa ter `usaAplicativo = false`, senão `404`). A atlética do time é imutável. Schemas e `TimeDto` em `@atletica/shared` (`times/`).
+
+| Rota                | Papel mínimo         | Resposta                                                                                                                                                       |
+| ------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /times`        | qualquer autenticado | `200` paginado; filtros `modalidadeId`, `escopo=PROPRIOS\|ADVERSARIOS`, `atleticaId`, `q`; sem `incluirInativos` (só Diretoria), só ativos de modalidade ativa |
+| `GET /times/:id`    | qualquer autenticado | `200`; fora da Diretoria, inativo ou de modalidade inativa → `404`                                                                                             |
+| `POST /times`       | DIRETOR              | `201`; `422 MODALIDADE_INATIVA`, `409 TIME_DUPLICADO` (índice `time_nome_unico`)                                                                               |
+| `PATCH /times/:id`  | DIRETOR              | `200`; `nome`, `modalidadeId`, `ativo`; trocar a modalidade de time com eventos → `409 TIME_COM_EVENTOS`                                                       |
+| `DELETE /times/:id` | PRESIDENTE           | `204` (exclusão física); com evento, `MembroTime` (inclusive histórico) ou solicitação → `409 TIME_COM_DEPENDENCIAS`                                           |
+
+As listas paginadas (`/times`, `/atleticas-adversarias`) ordenam e filtram por nome em SQL (`unaccent(lower(nome))`) e leem os dados pelo Prisma (`naOrdemDosIds`, `src/common/busca.ts`). Em time adversário, `capitao` é `null` e `totalMembros` é `0`. Auditoria (entidade `Time`): `TIME_CRIADO`, `TIME_ALTERADO` (nome/modalidade), `TIME_ATIVADO`/`TIME_DESATIVADO` e `TIME_EXCLUIDO`. Fábricas: `criarTime`, `criarAtleticaAdversaria` e `criarTimeAdversario` em `test/fabricas/times.ts`.
 
 ## Senhas (`src/infra/senha`)
 

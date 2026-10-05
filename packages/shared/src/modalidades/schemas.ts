@@ -1,17 +1,14 @@
 import { z } from 'zod'
+import { booleanoQuerySchema } from '../utils/query'
+import { normalizarEspacos } from '../utils/texto'
 import { ICONES_MODALIDADE } from './icones'
 
 export const NOME_MODALIDADE_MIN = 2
 export const NOME_MODALIDADE_MAX = 40
 
-/** `trim` + espaços internos colapsados; a unicidade é sem diferenciar maiúsculas (API). */
-export function normalizarNomeModalidade(nome: string): string {
-  return nome.trim().replace(/\s+/g, ' ')
-}
-
 export const nomeModalidadeSchema = z
   .string({ error: 'Informe o nome da modalidade.' })
-  .transform(normalizarNomeModalidade)
+  .transform(normalizarEspacos)
   .pipe(
     z
       .string()
@@ -42,10 +39,7 @@ export const modalidadeUpdateSchema = z
 /** `incluirInativas` só vale para a Diretoria; para os demais é ignorado (issue #15 §7). */
 export const modalidadesQuerySchema = z
   .object({
-    incluirInativas: z
-      .enum(['true', 'false'], { error: 'Use true ou false.' })
-      .default('false')
-      .transform((valor) => valor === 'true'),
+    incluirInativas: booleanoQuerySchema,
   })
   .strict()
 

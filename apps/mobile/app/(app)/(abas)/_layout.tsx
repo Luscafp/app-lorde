@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons'
 import { Tabs } from 'expo-router'
 import type { ComponentProps } from 'react'
 import { paleta, useAtletica } from '@/features/atletica'
+import { useMe } from '@/features/perfil'
 import { useVePainel } from '@/infra/sessao/use-ve-painel'
 
 type Aba = { nome: string; titulo: string; icone: ComponentProps<typeof Ionicons>['name'] }
@@ -16,6 +17,8 @@ const ABAS: readonly Aba[] = [
 
 export default function LayoutAbas() {
   const { corPrimaria } = useAtletica()
+  // Mantém o papel da sessão igual ao do `GET /me` (cargo alterado sem novo login).
+  useMe()
   const vePainel = useVePainel()
 
   return (
