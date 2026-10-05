@@ -25,6 +25,14 @@ updates:
         update-types: ['version-update:semver-major', 'version-update:semver-minor']
       - dependency-name: 'react-native-*'
         update-types: ['version-update:semver-major']
+      # Módulos nativos com versão exata fixada pelo Expo SDK: só mudam junto com o SDK.
+      - dependency-name: 'react-native-reanimated'
+      - dependency-name: 'react-native-worklets'
+      - dependency-name: '@react-native-async-storage/async-storage'
+      - dependency-name: '@react-native-community/netinfo'
+      # NativeWind 4 depende do Tailwind 3; o Tailwind 4 só entra com o NativeWind 5.
+      - dependency-name: 'tailwindcss'
+        update-types: ['version-update:semver-major']
       # NestJS 12 é ESM-only (a API compila em CommonJS) e o nestjs-zod 5.x ainda não
       # aceita @nestjs/common e @nestjs/swagger 12. A major vem num PR próprio de migração.
       - dependency-name: '@nestjs/*'
