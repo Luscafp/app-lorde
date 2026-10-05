@@ -8,18 +8,6 @@ export function erroTimeNaoEncontrado(): ErroNegocio {
   return new ErroNegocio(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Time não encontrado.')
 }
 
-export function erroModalidadeNaoEncontrada(): ErroNegocio {
-  return new ErroNegocio(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Modalidade não encontrada.', [
-    { field: 'modalidadeId', message: 'Modalidade não encontrada.' },
-  ])
-}
-
-export function erroAdversariaNaoEncontrada(): ErroNegocio {
-  return new ErroNegocio(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Atlética adversária não encontrada.', [
-    { field: 'atleticaAdversariaId', message: 'Atlética adversária não encontrada.' },
-  ])
-}
-
 export function erroModalidadeInativa(): ErroNegocio {
   const mensagem = 'Esta modalidade está inativa.'
   return new ErroNegocio(HttpStatus.UNPROCESSABLE_ENTITY, 'MODALIDADE_INATIVA', mensagem, [

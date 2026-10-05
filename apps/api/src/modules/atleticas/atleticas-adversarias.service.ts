@@ -6,7 +6,7 @@ import type {
   ListaAtleticasAdversarias,
 } from '@atletica/shared'
 import { Injectable } from '@nestjs/common'
-import { naOrdemDosIds, padraoLike } from '../../common/busca'
+import { padraoLike, paginarPorSql } from '../../common/busca'
 import { Prisma } from '../../generated/prisma/client'
 import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import { AuditoriaService } from '../auditoria/auditoria.service'
@@ -25,6 +25,8 @@ type LinhaAdversaria = Prisma.AtleticaGetPayload<{ select: typeof CAMPOS }>
 
 const ADVERSARIA = { usaAplicativo: false } as const
 
+const CAMPOS_AUDITADOS = ['nome', 'sigla', 'curso'] as const
+
 function paraDto({ _count, ...atletica }: LinhaAdversaria): AtleticaAdversaria {
   return { ...atletica, totalTimes: _count.times }
 }
@@ -33,10 +35,7 @@ function auditaveis({ nome, sigla, curso }: LinhaAdversaria) {
   return { nome, sigla, curso }
 }
 
-/**
- * Atléticas adversárias: `Atletica` com `usaAplicativo = false` (RN21). A atlética que usa o
- * aplicativo nunca é lida nem alterada aqui (404).
- */
+/** `Atletica` com `usaAplicativo = false` (RN21); a que usa o aplicativo responde 404. */
 @Injectable()
 export class AtleticasAdversariasService {
   constructor(
@@ -44,33 +43,19 @@ export class AtleticasAdversariasService {
     private readonly auditoria: AuditoriaService,
   ) {}
 
-  /** Página ordenada em SQL (sem acento nem caixa); os dados vêm do Prisma. */
-  async listar({ q, page, limit }: AtleticasAdversariasQuery): Promise<ListaAtleticasAdversarias> {
-    const filtros = q
-      ? Prisma.sql`"usaAplicativo" = false
-          AND unaccent(lower("nome")) LIKE unaccent(lower(${padraoLike(q)})) ESCAPE '\\'`
-      : Prisma.sql`"usaAplicativo" = false`
+  async listar({ q, ...paginacao }: AtleticasAdversariasQuery): Promise<ListaAtleticasAdversarias> {
+    const busca = q
+      ? Prisma.sql`AND unaccent(lower("nome")) LIKE unaccent(lower(${padraoLike(q)})) ESCAPE '\\'`
+      : Prisma.empty
+    const origem = Prisma.sql`FROM "Atletica" WHERE "usaAplicativo" = false ${busca}`
 
-    const [pagina, [contagem]] = await Promise.all([
-      this.prisma.db.$queryRaw<{ id: string }[]>`
-        SELECT "id" FROM "Atletica" WHERE ${filtros}
-        ORDER BY unaccent(lower("nome")), "id"
-        LIMIT ${limit} OFFSET ${(page - 1) * limit}`,
-      this.prisma.db.$queryRaw<[{ total: bigint }]>`
-        SELECT count(*) AS "total" FROM "Atletica" WHERE ${filtros}`,
-    ])
-    const ids = pagina.map(({ id }) => id)
-    const atleticas = await this.prisma.db.atletica.findMany({
-      where: { id: { in: ids } },
-      select: CAMPOS,
+    const pagina = await paginarPorSql(this.prisma.db, paginacao, {
+      ids: Prisma.sql`SELECT "id" ${origem} ORDER BY unaccent(lower("nome")), "id"`,
+      total: Prisma.sql`SELECT count(*) AS "total" ${origem}`,
+      buscar: (ids) =>
+        this.prisma.db.atletica.findMany({ where: { id: { in: ids } }, select: CAMPOS }),
     })
-
-    return {
-      items: naOrdemDosIds(ids, atleticas).map(paraDto),
-      page,
-      limit,
-      total: Number(contagem?.total ?? 0),
-    }
+    return { ...pagina, items: pagina.items.map(paraDto) }
   }
 
   criar(entrada: AtleticaAdversariaCriacao): Promise<AtleticaAdversaria> {
@@ -94,7 +79,7 @@ export class AtleticasAdversariasService {
   atualizar(id: string, entrada: AtleticaAdversariaAtualizacao): Promise<AtleticaAdversaria> {
     return this.gravar(async (tx) => {
       const antes = await this.buscar(tx, id)
-      const diff = diferenca(antes, { ...antes, ...entrada }, ['nome', 'sigla', 'curso'])
+      const diff = diferenca(antes, { ...antes, ...entrada }, CAMPOS_AUDITADOS)
       if (!diff) return paraDto(antes)
 
       if (entrada.nome !== undefined && 'nome' in diff.depois) {
@@ -111,10 +96,7 @@ export class AtleticasAdversariasService {
     })
   }
 
-  /**
-   * Sem índice único para o nome de adversária (épico #16 §8): o lock serializa as escritas para
-   * que a checagem dentro da transação valha também na corrida.
-   */
+  /** Sem índice único de nome (épico #16 §8): o lock serializa as escritas contra a corrida. */
   private gravar<T>(fn: (tx: TransacaoComEscopo) => Promise<T>): Promise<T> {
     return this.prisma.db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('atleticas-adversarias'))`

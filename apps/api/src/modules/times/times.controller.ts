@@ -46,7 +46,7 @@ class TimeCriacaoDto extends createZodDto(timeCreateSchema) {}
 class TimeAtualizacaoDto extends createZodDto(timeUpdateSchema) {}
 class TimesQueryDto extends createZodDto(timesQuerySchema) {}
 class TimeIdDto extends createZodDto(timeIdSchema) {}
-class TimeDtoSwagger extends createZodDto(timeDtoSchema) {}
+class TimeRespostaDto extends createZodDto(timeDtoSchema) {}
 class ListaTimesDto extends createZodDto(listaTimesSchema) {}
 
 const EXEMPLO: TimeDto = {
@@ -101,7 +101,7 @@ export class TimesController {
     summary: 'Detalhe do time',
     description: 'Fora da Diretoria, time inativo ou de modalidade inativa responde 404.',
   })
-  @ApiOkResponse({ type: TimeDtoSwagger, example: EXEMPLO })
+  @ApiOkResponse({ type: TimeRespostaDto, example: EXEMPLO })
   @ApiBadRequestResponse({ description: INVALIDO })
   @ApiNotFoundResponse({ description: NAO_ENCONTRADO })
   detalhar(
@@ -124,7 +124,7 @@ export class TimesController {
       proprio: { value: { nome: 'Futsal Masculino', modalidadeId: EXEMPLO.modalidade.id } },
     },
   })
-  @ApiCreatedResponse({ type: TimeDtoSwagger, example: EXEMPLO })
+  @ApiCreatedResponse({ type: TimeRespostaDto, example: EXEMPLO })
   @ApiBadRequestResponse({ description: INVALIDO })
   @ApiNotFoundResponse({
     description: '`NOT_FOUND`: modalidade ou atlética adversária inexistente.',
@@ -145,7 +145,7 @@ export class TimesController {
     summary: 'Altera nome, modalidade e/ou ativo (ao menos um campo)',
     description: 'A atlética do time é imutável.',
   })
-  @ApiOkResponse({ type: TimeDtoSwagger, example: EXEMPLO })
+  @ApiOkResponse({ type: TimeRespostaDto, example: EXEMPLO })
   @ApiBadRequestResponse({ description: INVALIDO })
   @ApiNotFoundResponse({ description: NAO_ENCONTRADO })
   @ApiConflictResponse({

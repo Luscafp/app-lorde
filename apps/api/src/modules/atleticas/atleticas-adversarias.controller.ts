@@ -29,7 +29,7 @@ class AdversariaCriacaoDto extends createZodDto(atleticaAdversariaSchema) {}
 class AdversariaAtualizacaoDto extends createZodDto(atleticaAdversariaUpdateSchema) {}
 class AdversariasQueryDto extends createZodDto(atleticasAdversariasQuerySchema) {}
 class AdversariaIdDto extends createZodDto(atleticaAdversariaIdSchema) {}
-class AdversariaDto extends createZodDto(atleticaAdversariaDtoSchema) {}
+class AdversariaRespostaDto extends createZodDto(atleticaAdversariaDtoSchema) {}
 class ListaAdversariasDto extends createZodDto(listaAtleticasAdversariasSchema) {}
 
 const EXEMPLO: AtleticaAdversaria = {
@@ -70,7 +70,7 @@ export class AtleticasAdversariasController {
     type: AdversariaCriacaoDto,
     examples: { fenix: { value: { nome: 'Atlética Fênix', sigla: 'FNX', curso: 'Engenharia' } } },
   })
-  @ApiCreatedResponse({ type: AdversariaDto, example: EXEMPLO })
+  @ApiCreatedResponse({ type: AdversariaRespostaDto, example: EXEMPLO })
   @ApiBadRequestResponse({ description: INVALIDO })
   @ApiConflictResponse({ description: DUPLICADA })
   criar(@Body() dados: AdversariaCriacaoDto): Promise<AtleticaAdversaria> {
@@ -80,7 +80,7 @@ export class AtleticasAdversariasController {
   @Patch(':id')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Altera nome, sigla e/ou curso (ao menos um campo)' })
-  @ApiOkResponse({ type: AdversariaDto, example: EXEMPLO })
+  @ApiOkResponse({ type: AdversariaRespostaDto, example: EXEMPLO })
   @ApiBadRequestResponse({ description: INVALIDO })
   @ApiNotFoundResponse({
     description: '`NOT_FOUND`: inexistente ou atlética que usa o aplicativo.',

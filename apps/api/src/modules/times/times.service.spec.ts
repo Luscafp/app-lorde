@@ -295,10 +295,13 @@ describe('TimesService', () => {
       ])
     })
 
-    it.each(['como timeId', 'como timeAdversarioId'])(
-      'troca de modalidade com evento (%s) → TIME_COM_EVENTOS',
-      async () => {
-        const { servico, tx } = criarServico({ eventos: 1 })
+    it.each(['timeId', 'timeAdversarioId'] as const)(
+      'troca de modalidade com evento como %s → TIME_COM_EVENTOS',
+      async (campo) => {
+        const { servico, tx } = criarServico()
+        tx.evento.count.mockImplementation(({ where }: { where: Prisma.EventoWhereInput }) =>
+          Promise.resolve(where.OR?.some((condicao) => condicao[campo] === ID) ? 1 : 0),
+        )
         const troca = servico.atualizar(ID, ATUAL, { modalidadeId: VOLEI })
         await expect(codigoDe(troca)).resolves.toBe('TIME_COM_EVENTOS')
         expect(tx.time.update).not.toHaveBeenCalled()

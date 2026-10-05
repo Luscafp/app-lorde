@@ -9,7 +9,8 @@ import { PrismaModule } from '../../src/infra/prisma/prisma.module'
 import { PrismaService } from '../../src/infra/prisma/prisma.service'
 import type { Prisma } from '../../src/generated/prisma/client'
 import { criarAtletica } from '../fabricas/atletica'
-import { proximaSequencia } from '../fabricas/sequencia'
+import { criarModalidade } from '../fabricas/modalidades'
+import { criarTime } from '../fabricas/times'
 import { criarUsuario } from '../fabricas/usuario'
 import { criarApp } from '../setup/criar-app'
 import { prismaTeste } from '../setup/prisma-teste'
@@ -17,23 +18,12 @@ import { EscopoController } from '../suporte/escopo.controller'
 
 /** Critérios 3 a 8 do épico #3, com dados preparados pelo `prismaTeste` (sem filtro). */
 
-// TODO: trocar pelas fábricas de domínio quando existirem (times → #63, eventos → #70).
-function criarModalidade() {
-  return prismaTeste.modalidade.create({
-    data: { nome: `Modalidade ${proximaSequencia()}`, icone: 'bola' },
-  })
-}
-
-function criarTime(atleticaId: string, modalidadeId: string) {
-  return prismaTeste.time.create({
-    data: { atleticaId, modalidadeId, nome: `Time ${proximaSequencia()}` },
-  })
-}
+// TODO: trocar `dadosTreino` pela fábrica de eventos (#70).
 
 /** Atlética com um time, um diretor e um treino. */
 async function montarAtletica(modalidadeId: string) {
   const atletica = await criarAtletica()
-  const time = await criarTime(atletica.id, modalidadeId)
+  const time = await criarTime({ atleticaId: atletica.id, modalidadeId })
   const diretor = await criarUsuario({ atleticaId: atletica.id, papel: 'DIRETOR' })
   const evento = await prismaTeste.evento.create({
     data: { ...dadosTreino(time.id, diretor.id), atleticaId: atletica.id },
@@ -61,7 +51,7 @@ async function montarCenario() {
   const a = await montarAtletica(modalidade.id)
   const b = await montarAtletica(modalidade.id)
   const adversaria = await criarAtletica({ usaAplicativo: false })
-  const timeAdversario = await criarTime(adversaria.id, modalidade.id)
+  const timeAdversario = await criarTime({ atleticaId: adversaria.id, modalidadeId: modalidade.id })
   return { modalidade, a, b, adversaria, timeAdversario }
 }
 type Cenario = Awaited<ReturnType<typeof montarCenario>>

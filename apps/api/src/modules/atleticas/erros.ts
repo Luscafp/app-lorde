@@ -24,6 +24,10 @@ export function erroAdversariaDuplicada(): ErroNegocio {
   ])
 }
 
-export function erroAdversariaNaoEncontrada(): ErroNegocio {
-  return new ErroNegocio(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Atlética adversária não encontrada.')
+const ADVERSARIA_NAO_ENCONTRADA = 'Atlética adversária não encontrada.'
+
+/** `campo`: a adversária veio no corpo de outro recurso (ex.: `atleticaAdversariaId` do time). */
+export function erroAdversariaNaoEncontrada(campo?: string): ErroNegocio {
+  const details = campo ? [{ field: campo, message: ADVERSARIA_NAO_ENCONTRADA }] : undefined
+  return new ErroNegocio(HttpStatus.NOT_FOUND, 'NOT_FOUND', ADVERSARIA_NAO_ENCONTRADA, details)
 }

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { paginacaoQuerySchema } from '../utils/paginacao'
+import { booleanoQuerySchema } from '../utils/query'
 import { normalizarEspacos } from '../utils/texto'
 
 export const NOME_TIME_MIN = 2
@@ -42,11 +43,6 @@ export const EscopoTimes = { PROPRIOS: 'PROPRIOS', ADVERSARIOS: 'ADVERSARIOS' } 
 
 export type EscopoTimes = (typeof EscopoTimes)[keyof typeof EscopoTimes]
 
-const booleanoQuery = z
-  .enum(['true', 'false'], { error: 'Use true ou false.' })
-  .default('false')
-  .transform((valor) => valor === 'true')
-
 /** `incluirInativos` só vale para a Diretoria; para os demais é ignorado (épico #16 §7). */
 export const timesQuerySchema = paginacaoQuerySchema
   .extend({
@@ -59,7 +55,7 @@ export const timesQuerySchema = paginacaoQuerySchema
       .max(BUSCA_TIMES_MAX, { error: `A busca deve ter no máximo ${BUSCA_TIMES_MAX} caracteres.` })
       .transform((valor) => valor || undefined)
       .optional(),
-    incluirInativos: booleanoQuery,
+    incluirInativos: booleanoQuerySchema,
   })
   .strict()
 

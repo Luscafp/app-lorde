@@ -8,15 +8,16 @@ import {
 } from '@atletica/shared'
 import { Injectable } from '@nestjs/common'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client'
-import { naOrdemDosIds, padraoLike } from '../../common/busca'
+import { padraoLike, paginarPorSql } from '../../common/busca'
 import { Prisma } from '../../generated/prisma/client'
 import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prisma.service'
-import { AuditoriaService, type EntradaAuditoria } from '../auditoria/auditoria.service'
-import { diferenca, type DiferencaAuditoria } from '../auditoria/diferenca'
+import { erroAdversariaNaoEncontrada } from '../atleticas/erros'
+import { AuditoriaService } from '../auditoria/auditoria.service'
+import { diferenca } from '../auditoria/diferenca'
+import { entradasDaAlteracao } from '../auditoria/entradas-da-alteracao'
+import { erroModalidadeNaoEncontrada } from '../modalidades/erros'
 import {
-  erroAdversariaNaoEncontrada,
   erroModalidadeInativa,
-  erroModalidadeNaoEncontrada,
   erroTimeComDependencias,
   erroTimeComEventos,
   erroTimeDuplicado,
@@ -37,12 +38,20 @@ const CAMPOS = {
 
 type LinhaTime = Prisma.TimeGetPayload<{ select: typeof CAMPOS }>
 
-type EntradaTime = Extract<EntradaAuditoria, { entidade: 'Time' }>
-
-/** Visível para quem não é da Diretoria: time e modalidade ativos (épico #16 §7). */
+/** Visível para quem não é da Diretoria (épico #16 §7). */
 const VISIVEL_PARA_TODOS = { ativo: true, modalidade: { ativa: true } } as const
 
 const CAMPOS_AUDITADOS = ['nome', 'modalidadeId', 'ativo'] as const
+
+const ACOES_DA_ALTERACAO = {
+  alteracao: 'TIME_ALTERADO',
+  ativacao: 'TIME_ATIVADO',
+  desativacao: 'TIME_DESATIVADO',
+} as const
+
+function eventosDoTime(id: string): Prisma.EventoWhereInput {
+  return { OR: [{ timeId: id }, { timeAdversarioId: id }] }
+}
 
 function auditaveis({ nome, modalidadeId, atleticaId, ativo }: LinhaTime) {
   return { nome, modalidadeId, atleticaId, ativo }
@@ -61,30 +70,7 @@ function paraDto(time: LinhaTime, atleticaAtual: string): TimeDto {
   }
 }
 
-/** Separa a troca de `ativo` (ATIVADO/DESATIVADO) da troca de nome/modalidade (ALTERADO). */
-function entradasDaAlteracao(id: string, diff: DiferencaAuditoria): EntradaTime[] {
-  const { ativo: ativoAntes, ...antes } = diff.antes
-  const { ativo: ativoDepois, ...depois } = diff.depois
-  const entradas: EntradaTime[] = []
-  const base = { entidade: 'Time', entidadeId: id } as const
-
-  if (Object.keys(depois).length > 0) {
-    entradas.push({ ...base, acao: 'TIME_ALTERADO', dados: { antes, depois } })
-  }
-  if (ativoDepois !== undefined) {
-    entradas.push({
-      ...base,
-      acao: ativoDepois ? 'TIME_ATIVADO' : 'TIME_DESATIVADO',
-      dados: { antes: { ativo: ativoAntes }, depois: { ativo: ativoDepois } },
-    })
-  }
-  return entradas
-}
-
-/**
- * `$queryRaw` não passa pela extensão multi-atlética: o escopo vai no SQL. `PROPRIOS` e
- * `ADVERSARIOS` já são subconjuntos do escopo de `Time` (atlética atual ou sem aplicativo).
- */
+/** `$queryRaw` não passa pela extensão multi-atlética: `escopo` aplica o filtro de `Time` no SQL. */
 function filtrosDaLista(atleticaId: string, query: TimesQuery): Prisma.Sql {
   const condicoes = [
     query.escopo === EscopoTimes.PROPRIOS
@@ -104,14 +90,7 @@ function filtrosDaLista(atleticaId: string, query: TimesQuery): Prisma.Sql {
   return Prisma.join(condicoes, ' AND ')
 }
 
-function ehErroPrisma(erro: unknown, code: string): boolean {
-  return erro instanceof PrismaClientKnownRequestError && erro.code === code
-}
-
-/**
- * Times da atlética ativa e de adversárias (épico #16). A extensão multi-atlética já limita a
- * leitura a `atleticaId = atual OR atletica.usaAplicativo = false` (convenções §6).
- */
+/** Times da atlética ativa e de adversárias (épico #16; escopo de `Time`, convenções §6). */
 @Injectable()
 export class TimesService {
   constructor(
@@ -119,37 +98,20 @@ export class TimesService {
     private readonly auditoria: AuditoriaService,
   ) {}
 
-  /**
-   * A página é ordenada em SQL (sem acento nem caixa) e os dados vêm do Prisma. `incluirInativos`
-   * já vem resolvido pelo papel (só a Diretoria).
-   */
+  /** `incluirInativos` já vem resolvido pelo papel (só a Diretoria). */
   async listar(atleticaId: string, query: TimesQuery): Promise<ListaTimes> {
-    const { page, limit } = query
-    const filtros = filtrosDaLista(atleticaId, query)
     const origem = Prisma.sql`FROM "Time" t
       JOIN "Atletica" a ON a."id" = t."atleticaId"
-      JOIN "Modalidade" m ON m."id" = t."modalidadeId"`
+      JOIN "Modalidade" m ON m."id" = t."modalidadeId"
+      WHERE ${filtrosDaLista(atleticaId, query)}`
 
-    const [pagina, [contagem]] = await Promise.all([
-      this.prisma.db.$queryRaw<{ id: string }[]>`
-        SELECT t."id" ${origem} WHERE ${filtros}
-        ORDER BY unaccent(lower(m."nome")), unaccent(lower(t."nome")), t."id"
-        LIMIT ${limit} OFFSET ${(page - 1) * limit}`,
-      this.prisma.db.$queryRaw<[{ total: bigint }]>`
-        SELECT count(*) AS "total" ${origem} WHERE ${filtros}`,
-    ])
-    const ids = pagina.map(({ id }) => id)
-    const times = await this.prisma.db.time.findMany({
-      where: { id: { in: ids } },
-      select: CAMPOS,
+    const pagina = await paginarPorSql(this.prisma.db, query, {
+      ids: Prisma.sql`SELECT t."id" ${origem}
+        ORDER BY unaccent(lower(m."nome")), unaccent(lower(t."nome")), t."id"`,
+      total: Prisma.sql`SELECT count(*) AS "total" ${origem}`,
+      buscar: (ids) => this.prisma.db.time.findMany({ where: { id: { in: ids } }, select: CAMPOS }),
     })
-
-    return {
-      items: naOrdemDosIds(ids, times).map((time) => paraDto(time, atleticaId)),
-      page,
-      limit,
-      total: Number(contagem?.total ?? 0),
-    }
+    return { ...pagina, items: pagina.items.map((time) => paraDto(time, atleticaId)) }
   }
 
   async detalhar(id: string, atleticaId: string, incluirInativos: boolean): Promise<TimeDto> {
@@ -161,7 +123,7 @@ export class TimesService {
     return paraDto(time, atleticaId)
   }
 
-  /** O `atleticaId` de `Time` não é preenchido pela extensão: vem da atlética ativa ou da adversária. */
+  /** O `atleticaId` de `Time` não vem da extensão: é a atlética ativa ou a adversária. */
   criar(atleticaId: string, entrada: TimeCriacao): Promise<TimeDto> {
     return this.gravar(async (tx) => {
       const dona = entrada.atleticaAdversariaId
@@ -195,41 +157,39 @@ export class TimesService {
         await this.garantirSemEventos(tx, id)
       }
       const depois = await tx.time.update({ where: { id }, data: entrada, select: CAMPOS })
-      await this.auditoria.registrarVarios(tx, entradasDaAlteracao(id, diff))
+      await this.auditoria.registrarVarios(
+        tx,
+        entradasDaAlteracao('Time', id, diff, 'ativo', ACOES_DA_ALTERACAO),
+      )
       return paraDto(depois, atleticaId)
     })
   }
 
-  /**
-   * Exclusão física só sem eventos, membros (inclusive históricos) e solicitações (RN26). As FKs
-   * `Restrict` cobrem dependências fora do escopo (ex.: eventos de outra atlética).
-   */
+  /** Exclusão física só sem dependências (RN26); a FK `Restrict` cobre as fora do escopo. */
   async excluir(id: string): Promise<void> {
-    try {
-      await this.gravar(async (tx) => {
-        const antes = await this.buscar(tx, id)
-        if (await this.temDependencias(tx, id)) throw erroTimeComDependencias()
+    await this.gravar(async (tx) => {
+      const antes = await this.buscar(tx, id)
+      if (await this.temDependencias(tx, id)) throw erroTimeComDependencias()
 
-        await tx.time.delete({ where: { id } })
-        await this.auditoria.registrar(tx, {
-          entidade: 'Time',
-          acao: 'TIME_EXCLUIDO',
-          entidadeId: id,
-          dados: { antes: auditaveis(antes), depois: null },
-        })
+      await tx.time.delete({ where: { id } })
+      await this.auditoria.registrar(tx, {
+        entidade: 'Time',
+        acao: 'TIME_EXCLUIDO',
+        entidadeId: id,
+        dados: { antes: auditaveis(antes), depois: null },
       })
-    } catch (erro) {
-      if (ehErroPrisma(erro, 'P2003')) throw erroTimeComDependencias()
-      throw erro
-    }
+    })
   }
 
-  /** O índice `time_nome_unico` (atlética, modalidade, `lower(nome)`) decide, inclusive na corrida. */
+  /** O índice `time_nome_unico` decide a unicidade, inclusive na corrida. */
   private async gravar<T>(fn: (tx: TransacaoComEscopo) => Promise<T>): Promise<T> {
     try {
       return await this.prisma.db.$transaction(fn)
     } catch (erro) {
-      if (ehErroPrisma(erro, 'P2002')) throw erroTimeDuplicado()
+      if (erro instanceof PrismaClientKnownRequestError) {
+        if (erro.code === 'P2002') throw erroTimeDuplicado()
+        if (erro.code === 'P2003') throw erroTimeComDependencias()
+      }
       throw erro
     }
   }
@@ -245,27 +205,25 @@ export class TimesService {
       where: { id, usaAplicativo: false },
       select: { id: true },
     })
-    if (!adversaria) throw erroAdversariaNaoEncontrada()
+    if (!adversaria) throw erroAdversariaNaoEncontrada('atleticaAdversariaId')
     return adversaria.id
   }
 
   private async validarModalidade(tx: TransacaoComEscopo, id: string): Promise<void> {
     const modalidade = await tx.modalidade.findUnique({ where: { id }, select: { ativa: true } })
-    if (!modalidade) throw erroModalidadeNaoEncontrada()
+    if (!modalidade) throw erroModalidadeNaoEncontrada('modalidadeId')
     if (!modalidade.ativa) throw erroModalidadeInativa()
   }
 
   /** Eventos em qualquer status, como time ou adversário (RN11). */
   private async garantirSemEventos(tx: TransacaoComEscopo, id: string): Promise<void> {
-    const eventos = await tx.evento.count({
-      where: { OR: [{ timeId: id }, { timeAdversarioId: id }] },
-    })
+    const eventos = await tx.evento.count({ where: eventosDoTime(id) })
     if (eventos > 0) throw erroTimeComEventos()
   }
 
   private async temDependencias(tx: TransacaoComEscopo, id: string): Promise<boolean> {
     const contagens = [
-      await tx.evento.count({ where: { OR: [{ timeId: id }, { timeAdversarioId: id }] } }),
+      await tx.evento.count({ where: eventosDoTime(id) }),
       await tx.membroTime.count({ where: { timeId: id } }),
       await tx.solicitacaoEntrada.count({ where: { timeId: id } }),
     ]
