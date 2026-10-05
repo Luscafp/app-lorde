@@ -2,7 +2,7 @@ import {
   listaNoticiasSchema,
   listarNoticiasQuerySchema,
   noticiaDetalheSchema,
-  noticiaIdParamSchema,
+  idParamSchema,
   type ListaNoticias,
   type NoticiaDetalheDto,
 } from '@atletica/shared'
@@ -19,7 +19,7 @@ import { createZodDto } from 'nestjs-zod'
 import { NoticiasPublicasService } from './noticias-publicas.service'
 
 class ListarNoticiasQueryDto extends createZodDto(listarNoticiasQuerySchema) {}
-class NoticiaIdParamDto extends createZodDto(noticiaIdParamSchema) {}
+class NoticiaIdParamDto extends createZodDto(idParamSchema) {}
 class ListaNoticiasDto extends createZodDto(listaNoticiasSchema) {}
 class NoticiaDetalheRespostaDto extends createZodDto(noticiaDetalheSchema) {}
 

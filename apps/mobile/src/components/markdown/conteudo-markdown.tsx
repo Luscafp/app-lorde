@@ -6,8 +6,10 @@ import { paleta } from '@/features/atletica'
 /** Subconjunto do Markdown restrito (convenções §10.8): sem HTML, títulos, imagens ou código. */
 const parser = MarkdownIt('zero').enable(['emphasis', 'list', 'link', 'newline', 'escape'])
 
-export function ehLinkSeguro(url: string): boolean {
-  return /^https:\/\/[^\s]+$/i.test(url.trim())
+const LINK_HTTPS = /^https:\/\/[^\s/?#@]+\.[^\s/?#@]+(?:[/?#]\S*)?$/i
+
+function ehLinkSeguro(url: string): boolean {
+  return LINK_HTTPS.test(url.trim())
 }
 
 function abrir(url: string) {

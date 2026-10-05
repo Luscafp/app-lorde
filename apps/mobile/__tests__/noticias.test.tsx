@@ -13,9 +13,10 @@ import { ConteudoMarkdown } from '@/components/markdown'
 import { COR_NEUTRA } from '@/features/atletica/use-atletica'
 import { ListaNoticias as TelaLista, NoticiaCard, TelaNoticia } from '@/features/noticias'
 import { buscarNoticia, listarNoticias } from '@/features/noticias/api'
-import { juntarPaginas, useNoticias } from '@/features/noticias/consultas'
+import { useNoticias } from '@/features/noticias/consultas'
 import { ApiErro } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
+import { juntarPaginas } from '@/infra/query/juntar-paginas'
 import { criarQueryClient } from '@/infra/query/query-client'
 
 jest.mock('expo-web-browser', () => ({ openBrowserAsync: jest.fn() }))
@@ -107,6 +108,7 @@ describe('ConteudoMarkdown', () => {
     ['javascript:', '[clique](javascript:alert(1))', /clique/],
     ['http:', '[site](http://exemplo.com)', 'site'],
     ['esquema do app', '[app](atletica://perfil)', 'app'],
+    ['https:// sem host', '[curto](https://x)', 'curto'],
   ])('link %s não vira link', async (_, conteudo, texto) => {
     await renderizar(<ConteudoMarkdown conteudo={conteudo} />)
     expect(screen.getByText(texto)).toBeOnTheScreen()
@@ -165,7 +167,7 @@ describe('useNoticias', () => {
     const todas = Array.from({ length: 45 }, (_, i) => resumo(`n${i}`))
     jest
       .mocked(listarNoticias)
-      .mockImplementation((page, limit) =>
+      .mockImplementation(({ page, limit }) =>
         Promise.resolve(pagina(todas.slice((page - 1) * limit, page * limit), page, 45)),
       )
     const { result } = await renderHook(() => useNoticias(), { wrapper: Provedor })
@@ -177,10 +179,10 @@ describe('useNoticias', () => {
     await waitFor(() => expect(result.current.data).toHaveLength(45))
 
     expect(result.current.hasNextPage).toBe(false)
-    expect(jest.mocked(listarNoticias).mock.calls.map(([page, limit]) => [page, limit])).toEqual([
-      [1, 20],
-      [2, 20],
-      [3, 20],
+    expect(jest.mocked(listarNoticias).mock.calls.map(([consulta]) => consulta)).toEqual([
+      { page: 1, limit: 20 },
+      { page: 2, limit: 20 },
+      { page: 3, limit: 20 },
     ])
   })
 
@@ -215,7 +217,9 @@ describe('Lista de notícias', () => {
 
     await fireEvent(screen.getByTestId('lista-noticias'), 'endReached')
 
-    await waitFor(() => expect(listarNoticias).toHaveBeenLastCalledWith(2, 20, expect.anything()))
+    await waitFor(() =>
+      expect(listarNoticias).toHaveBeenLastCalledWith({ page: 2, limit: 20 }, expect.anything()),
+    )
     await waitFor(() =>
       expect(
         cliente.getQueryData<InfiniteData<ListaNoticias>>(chaves.noticias.lista({ limit: 20 }))
@@ -300,11 +304,12 @@ describe('Detalhe da notícia', () => {
     const completa = cliente.getQueryData<InfiniteData<ListaNoticias>>(
       chaves.noticias.lista({ limit: 20 }),
     )
-    expect(completa?.pages[0]).toMatchObject({ items: [outra], total: 1 })
+    expect(completa?.pages[0]).toMatchObject({ items: [outra], total: 2 })
     expect(cliente.getQueryData(chaves.noticias.lista({ limit: 3 }))).toMatchObject({
       items: [outra],
-      total: 1,
+      total: 2,
     })
+    expect(cliente.getQueryData(chaves.noticias.detalhe(ID))).toBeUndefined()
   })
 
   it('erro que não é 404 mantém o estado de erro com "Tentar novamente"', async () => {

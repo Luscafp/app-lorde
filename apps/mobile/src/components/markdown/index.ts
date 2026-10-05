@@ -1,1 +1,1 @@
-export { ConteudoMarkdown, ehLinkSeguro } from './conteudo-markdown'
+export { ConteudoMarkdown } from './conteudo-markdown'

@@ -15,7 +15,7 @@ const VISIVEL = { status: StatusNoticia.PUBLICADA, excluidoEm: null } as const
 
 const ORDEM = [{ publicadaEm: 'desc' }, { id: 'desc' }] as const
 
-const CAMPOS = {
+const CAMPOS_NOTICIA = {
   id: true,
   titulo: true,
   conteudo: true,
@@ -24,7 +24,7 @@ const CAMPOS = {
 } as const
 
 /** O CHECK `noticia_publicada_com_data` garante `publicadaEm` em toda publicada. */
-function instante(publicadaEm: Date | null): string {
+function publicadaEmIso(publicadaEm: Date | null): string {
   if (!publicadaEm) throw new Error('Notícia publicada sem publicadaEm')
   return publicadaEm.toISOString()
 }
@@ -44,7 +44,7 @@ export class NoticiasPublicasService {
         orderBy: [...ORDEM],
         skip: (page - 1) * limit,
         take: limit,
-        select: CAMPOS,
+        select: CAMPOS_NOTICIA,
       }),
       this.prisma.db.noticia.count({ where: VISIVEL }),
     ])
@@ -54,7 +54,7 @@ export class NoticiasPublicasService {
         id,
         titulo,
         imagemCapaUrl: this.uploads.urlPublica(imagemCapaKey),
-        publicadaEm: instante(publicadaEm),
+        publicadaEm: publicadaEmIso(publicadaEm),
         resumo: gerarResumo(conteudo),
       })),
       page,
@@ -66,7 +66,7 @@ export class NoticiasPublicasService {
   async detalhar(id: string): Promise<NoticiaDetalheDto> {
     const noticia = await this.prisma.db.noticia.findFirst({
       where: { id, ...VISIVEL },
-      select: CAMPOS,
+      select: CAMPOS_NOTICIA,
     })
     if (!noticia) throw erroNoticiaNaoEncontrada()
 
@@ -76,7 +76,7 @@ export class NoticiasPublicasService {
       titulo,
       conteudo,
       imagemCapaUrl: this.uploads.urlPublica(imagemCapaKey),
-      publicadaEm: instante(publicadaEm),
+      publicadaEm: publicadaEmIso(publicadaEm),
     }
   }
 }

@@ -34,8 +34,6 @@ export const listarUsuariosQuerySchema = paginacaoQuerySchema
 
 export const alterarSituacaoSchema = z.object({ ativo: z.boolean() }).strict()
 
-export const usuarioIdParamSchema = z.object({ id: z.uuid({ error: 'Id inválido.' }) }).strict()
-
 export type ListarUsuariosQuery = z.infer<typeof listarUsuariosQuerySchema>
 export type FiltrosUsuarios = Omit<z.input<typeof listarUsuariosQuerySchema>, 'page' | 'limit'>
 export type AlterarSituacao = z.infer<typeof alterarSituacaoSchema>
