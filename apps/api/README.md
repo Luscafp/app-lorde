@@ -526,6 +526,26 @@ Times da atlética ativa e de adversárias. A extensão multi-atlética lê `Tim
 
 As listas paginadas (`/times`, `/atleticas-adversarias`) ordenam e filtram por nome em SQL (`unaccent(lower(nome))`) e leem os dados pelo Prisma (`naOrdemDosIds`, `src/common/busca.ts`). Em time adversário, `capitao` é `null` e `totalMembros` é `0`. Auditoria (entidade `Time`): `TIME_CRIADO`, `TIME_ALTERADO` (nome/modalidade), `TIME_ATIVADO`/`TIME_DESATIVADO` e `TIME_EXCLUIDO`. Fábricas: `criarTime`, `criarAtleticaAdversaria` e `criarTimeAdversario` em `test/fabricas/times.ts`.
 
+## Notícias (`src/modules/noticias`)
+
+`NoticiasModule` reúne a leitura pública (`/noticias`, #78: só publicadas e não excluídas) e a gestão pelo Painel (`/painel/noticias`, #80). Schemas e DTOs em `@atletica/shared` (`noticias/`): título `trim` 3–120; conteúdo em Markdown restrito até 10 000 (vazio no rascunho); `noticiaPublicacaoSchema` exige conteúdo após `trim` e capa. Exclusão lógica (`excluidoEm`): toda leitura filtra `excluidoEm IS NULL`.
+
+| Rota                                    | Papel mínimo | Resposta                                                                                                 |
+| --------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------- |
+| `GET /painel/noticias?status=&q=`       | DIRETOR      | `200` paginado, rascunhos e publicadas por `atualizadoEm` desc; `q` busca no título sem acento nem caixa |
+| `GET /painel/noticias/:id`              | DIRETOR      | `200` com `conteudo` e `autor`                                                                           |
+| `POST /painel/noticias`                 | DIRETOR      | `201`; `publicar: true` cria já publicada                                                                |
+| `PATCH /painel/noticias/:id`            | DIRETOR      | `200`; `titulo`, `conteudo`, `imagemCapaKey` (`null` remove); publicada mantém status e `publicadaEm`    |
+| `POST /painel/noticias/:id/publicar`    | DIRETOR      | `200`, idempotente; `422 CAPA_OBRIGATORIA` / `CONTEUDO_OBRIGATORIO` (também ao editar publicada)         |
+| `POST /painel/noticias/:id/despublicar` | DIRETOR      | `200`, idempotente; `publicadaEm` é mantida                                                              |
+| `DELETE /painel/noticias/:id`           | PRESIDENTE   | `204` (exclusão lógica, em qualquer status)                                                              |
+
+- **Concorrência:** toda escrita bloqueia a linha (`SELECT ... FOR UPDATE`, com atlética e `excluidoEm IS NULL` no SQL); publicar e despublicar usam `updateMany` condicionado ao status. Dois cliques ou dois diretores geram uma publicação só.
+- **Capa:** `UploadsService.validarKey` (finalidade `NOTICIA`) só quando a chave muda; a anterior sai do R2 via `aposCommit` ao trocar ou remover. A exclusão lógica mantém a imagem.
+- **`noticia.publicada { atleticaId, noticiaId, autorId }`** só na primeira publicação (`autorId` = quem publicou); republicar mantém `publicadaEm` e não emite.
+- **Auditoria** (entidade `Noticia`): `NOTICIA_CRIADA` (`{ titulo, status }`), `NOTICIA_ALTERADA` (título e os indicadores `conteudoAlterado`/`capaAlterada`, nunca o texto nem a chave), `NOTICIA_PUBLICADA` (`contexto.primeiraPublicacao`), `NOTICIA_DESPUBLICADA` e `NOTICIA_EXCLUIDA`.
+- Fábricas: `criarNoticia` e `chaveDeCapa` em `test/fabricas/noticias.ts`.
+
 ## Senhas (`src/infra/senha`)
 
 Importe `SenhaModule` e injete `SenhaService`: `hash(senha)` (Argon2id, `@node-rs/argon2`, parâmetros em `senha.config.ts` — convenções §5) e `verificar(hash, senha)` (`false` também para hash malformado); `precisaRefazerHash(hash)` indica hash gerado com outros parâmetros (refeito no login). Valide a entrada com `senhaSchema` de `@atletica/shared` (política do UC06), sem redefini-la.
