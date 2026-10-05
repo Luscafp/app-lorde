@@ -27,12 +27,17 @@ function resolverAtletica(dados: AtleticaPublica | null): Atletica {
   }
 }
 
-/** O cache local entra como dado vencido; sem cache nem resposta, fallback neutro. */
-export function useAtletica(): Atletica {
-  const { data } = useQuery({
+/** O cache local entra como dado vencido. */
+export function useConsultaAtletica() {
+  return useQuery({
     ...consultaAtletica,
     initialData: atleticaLidaPorCarregarAtletica,
     initialDataUpdatedAt: 0,
   })
+}
+
+/** Sem cache nem resposta, fallback neutro. */
+export function useAtletica(): Atletica {
+  const { data } = useConsultaAtletica()
   return useMemo(() => resolverAtletica(data ?? null), [data])
 }

@@ -5,9 +5,12 @@ import { Pressable, View } from 'react-native'
 import { TelaRolavel } from '@/components/tela-rolavel'
 import { Alerta, Texto } from '@/components/ui'
 import { paleta } from '@/features/atletica'
+import { useSessao } from '@/infra/sessao/store'
+import { BlocoVersaoAceita } from './bloco-versao-aceita'
 
 export function TelaDocumentoLegal({ documento }: { documento: DocumentoLegal }) {
   const router = useRouter()
+  const autenticado = useSessao((estado) => estado.status === 'autenticado')
 
   return (
     <TelaRolavel>
@@ -22,6 +25,7 @@ export function TelaDocumentoLegal({ documento }: { documento: DocumentoLegal })
         </Pressable>
       )}
       <Texto variante="titulo">{documento.titulo}</Texto>
+      {autenticado && <BlocoVersaoAceita />}
       {documento.provisorio && (
         <Alerta variante="alerta" titulo="Texto provisório">
           Este texto ainda não é a versão definitiva e pode mudar antes do lançamento.
