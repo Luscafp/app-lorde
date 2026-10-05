@@ -18,24 +18,28 @@ Novas variáveis entram em `env.d.ts` (tipagem) e em `src/config/ambiente.ts`.
 
 Grupos oficiais `(publico)` e `(app)/(abas)` (convenções §3 e §11.1).
 
-| Rota           | Arquivo                       | Acesso          |
-| -------------- | ----------------------------- | --------------- |
-| `/login`       | `app/(publico)/login.tsx`     | só sem sessão   |
-| `/cadastro`    | `app/(publico)/cadastro.tsx`  | só sem sessão   |
-| `/`            | `app/(app)/(abas)/index.tsx`  | com sessão      |
-| `/agenda`      | `app/(app)/(abas)/agenda.tsx` | com sessão      |
-| `/times`       | `app/(app)/(abas)/times.tsx`  | com sessão      |
-| `/perfil`      | `app/(app)/(abas)/perfil.tsx` | com sessão      |
-| `/painel`      | `app/(app)/(abas)/painel.tsx` | nível ≥ DIRETOR |
-| `/termos`      | `app/termos.tsx`              | todos           |
-| `/privacidade` | `app/privacidade.tsx`         | todos           |
-| inexistente    | `app/+not-found.tsx`          | todos           |
+| Rota                          | Arquivo                                        | Acesso          |
+| ----------------------------- | ---------------------------------------------- | --------------- |
+| `/login`                      | `app/(publico)/login.tsx`                      | só sem sessão   |
+| `/cadastro`                   | `app/(publico)/cadastro.tsx`                   | só sem sessão   |
+| `/recuperar-senha`            | `app/(publico)/recuperar-senha/index.tsx`      | só sem sessão   |
+| `/recuperar-senha/codigo`     | `app/(publico)/recuperar-senha/codigo.tsx`     | só sem sessão   |
+| `/recuperar-senha/nova-senha` | `app/(publico)/recuperar-senha/nova-senha.tsx` | só sem sessão   |
+| `/`                           | `app/(app)/(abas)/index.tsx`                   | com sessão      |
+| `/agenda`                     | `app/(app)/(abas)/agenda.tsx`                  | com sessão      |
+| `/times`                      | `app/(app)/(abas)/times.tsx`                   | com sessão      |
+| `/perfil`                     | `app/(app)/(abas)/perfil.tsx`                  | com sessão      |
+| `/painel`                     | `app/(app)/(abas)/painel.tsx`                  | nível ≥ DIRETOR |
+| `/termos`                     | `app/termos.tsx`                               | todos           |
+| `/privacidade`                | `app/privacidade.tsx`                          | todos           |
+| inexistente                   | `app/+not-found.tsx`                           | todos           |
 
 - **Proteção**: `Stack.Protected` no `app/_layout.tsx` (`(app)` com sessão, `(publico)` sem). Sem sessão, qualquer rota protegida cai em `/login`; ao encerrar a sessão, o app volta a `/login`.
 - **Deep link protegido sem sessão**: `app/+native-intent.tsx` guarda o caminho e, depois do login, o layout raiz navega até ele (`src/infra/sessao/destino.ts`).
 - **Aba Painel**: aparece só para `temNivelMinimo(papel, Papel.DIRETOR)` (`useVePainel()`); para os demais fica com `href: null` e `/painel` redireciona ao Início. A ocultação é só visual; quem autoriza é a API.
 - **Telas de detalhe** (eventos, notícias...) ficam em `app/(app)/...`, acima das abas. Uma aba pode virar pasta com `_layout.tsx` (Stack) + `index.tsx`; tocar de novo na aba ativa volta à raiz dessa pilha.
 - **Splash**: fica visível até a sessão (SecureStore) e a atlética (cache ou rede, até 3 s) carregarem.
+- **Recuperação de senha** (#62): e-mail → código → nova senha. E-mail e código passam pelo `useRecuperacaoStore` (`src/features/recuperacao-senha`, só em memória), nunca pela URL. Login e cadastro abrem o fluxo com `/recuperar-senha?email=<e-mail>` para a tela vir preenchida. Ao concluir, o app volta a `/login?email=<e-mail>` para o login vir preenchido.
 
 ## Sessão — `src/infra/sessao/store.ts`
 
@@ -172,6 +176,7 @@ A conexão vem do `onlineManager` do TanStack Query (alimentado pelo NetInfo na 
 - `Cartao`: contêiner com borda e fundo `cartao`.
 - `Botao({ titulo, variante?, carregando?, disabled? })`: `primaria` (cor da atlética, texto com `corTextoSobre`), `secundaria`, `perigo`. `carregando` mostra o spinner e desabilita. Muda de aparência no `onPressIn`; alvo ≥ 44 px.
 - `Campo({ controle, nome, rotulo, ...TextInputProps })`: React Hook Form via `Controller`; o erro aparece abaixo do campo e os valores ficam no formulário após erro da API.
+- `CampoCodigo({ valor, aoMudar, erro?, autoFocus? })`: código numérico em 6 caixas (`number-pad`, `oneTimeCode`/`sms-otp`); o foco avança ao digitar e volta no backspace; colar ou o preenchimento automático distribuem os 6 dígitos. Para limpar, o pai passa `valor=''`. Usado na recuperação de senha (#62) e na verificação de e-mail (#31).
 - `CampoSenha`: `Campo` com botão de mostrar/ocultar senha.
 - `CaixaSelecao({ marcada, aoAlternar, rotulo, children? })`: checkbox acessível; `children` substitui o texto visível (ex.: rótulo com links).
 - `Alerta({ variante?, titulo?, children })`: caixa com ícone + título; `erro` (padrão) ou `alerta`.
