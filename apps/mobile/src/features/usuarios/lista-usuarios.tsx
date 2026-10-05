@@ -12,7 +12,8 @@ import { Pilulas, type Opcao } from '@/components/ui'
 import { paleta } from '@/features/atletica'
 import { useValorAtrasado } from '@/infra/use-valor-atrasado'
 import { ItemUsuario } from './componentes'
-import { juntarPaginas, useListaUsuarios } from './consultas'
+import { juntarPaginas } from '@/infra/query/juntar-paginas'
+import { useListaUsuarios } from './consultas'
 
 const ATRASO_BUSCA_MS = 300
 

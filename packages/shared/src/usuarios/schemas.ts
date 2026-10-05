@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { nomeSchema, SENHA_MAX, senhaSchema } from '../auth/schemas'
 import { Papel } from '../enums/papel'
 import { paginacaoQuerySchema } from '../utils/paginacao'
 
@@ -42,9 +43,35 @@ export const alterarPapelSchema = z
   })
   .strict()
 
-export const usuarioIdParamSchema = z.object({ id: z.uuid({ error: 'Id inválido.' }) }).strict()
+/** `.strict()`: `email`, `papel` e `ativo` no corpo → `400` (issue #13 §10). */
+export const atualizarPerfilSchema = z.object({ nome: nomeSchema }).strict()
+
+/** O formato `usuarios/{usuarioId}/perfil/{uuid}.{ext}` é conferido na API (`validarKey`). */
+export const atualizarFotoSchema = z.object({ fotoKey: z.string().max(300) }).strict()
+
+export const alterarSenhaSchema = z
+  .object({
+    senhaAtual: z
+      .string()
+      .min(1, { error: 'Informe a senha atual.' })
+      .max(SENHA_MAX, { error: `A senha deve ter no máximo ${SENHA_MAX} caracteres.` }),
+    novaSenha: senhaSchema,
+  })
+  .strict()
+
+/** Formulário do app: `confirmarSenha` não é enviado. */
+export const alterarSenhaFormSchema = alterarSenhaSchema
+  .extend({ confirmarSenha: z.string() })
+  .refine(({ novaSenha, confirmarSenha }) => novaSenha === confirmarSenha, {
+    path: ['confirmarSenha'],
+    error: 'As senhas não conferem.',
+  })
 
 export type ListarUsuariosQuery = z.infer<typeof listarUsuariosQuerySchema>
 export type FiltrosUsuarios = Omit<z.input<typeof listarUsuariosQuerySchema>, 'page' | 'limit'>
 export type AlterarSituacao = z.infer<typeof alterarSituacaoSchema>
 export type AlterarPapel = z.infer<typeof alterarPapelSchema>
+export type AtualizarPerfil = z.infer<typeof atualizarPerfilSchema>
+export type AtualizarFoto = z.infer<typeof atualizarFotoSchema>
+export type AlterarSenha = z.infer<typeof alterarSenhaSchema>
+export type AlterarSenhaForm = z.infer<typeof alterarSenhaFormSchema>

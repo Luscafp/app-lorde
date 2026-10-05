@@ -4,7 +4,6 @@ import {
   type FiltrosUsuarios,
   type PapelAlterado,
   type SituacaoAlterada,
-  type UsuarioResumo,
 } from '@atletica/shared'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/ui/toast'
@@ -20,18 +19,6 @@ export function useListaUsuarios(filtros: FiltrosUsuarios) {
     initialPageParam: 1,
     getNextPageParam: ({ page, total }) => (page * LIMITE_PAGINA < total ? page + 1 : undefined),
   })
-}
-
-/** Páginas por offset podem repetir itens quando a lista muda entre elas (convenções §4.4). */
-export function juntarPaginas(paginas: { items: UsuarioResumo[] }[]): UsuarioResumo[] {
-  const vistos = new Set<string>()
-  return paginas
-    .flatMap(({ items }) => items)
-    .filter(({ id }) => {
-      if (vistos.has(id)) return false
-      vistos.add(id)
-      return true
-    })
 }
 
 export function useUsuario(id: string) {

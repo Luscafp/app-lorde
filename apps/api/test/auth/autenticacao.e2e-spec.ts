@@ -30,6 +30,24 @@ const ROTAS_POR_NIVEL = [
   ['administracao', Papel.ADMINISTRADOR],
 ] as const
 
+/** Só o `Date` fica parado: a tolerância de 10 s não pode virar o segundo entre as requisições. */
+function congelarRelogio() {
+  jest.useFakeTimers({
+    doNotFake: [
+      'hrtime',
+      'nextTick',
+      'performance',
+      'queueMicrotask',
+      'setImmediate',
+      'clearImmediate',
+      'setInterval',
+      'clearInterval',
+      'setTimeout',
+      'clearTimeout',
+    ],
+  })
+}
+
 // TODO: trocar pelas fábricas de domínio quando existirem (times → #63, eventos → #70).
 async function criarTime(atleticaId: string) {
   const modalidade = await prismaTeste.modalidade.create({
@@ -110,6 +128,10 @@ describe('Autenticação e autorização (#7)', () => {
       sid = (await criarSessao({ usuarioId: usuario.id, atleticaId: usuario.atleticaId })).id
     })
 
+    afterEach(() => {
+      jest.useRealTimers()
+    })
+
     const payload = () => ({ sub: usuario.id, atl: usuario.atleticaId, sid })
 
     it('token válido → 200', async () => {
@@ -146,6 +168,7 @@ describe('Autenticação e autorização (#7)', () => {
     })
 
     it('vencido há 1 min → 401 TOKEN_EXPIRED; há 5 s ou 10 s → aceito (critério 4)', async () => {
+      congelarRelogio()
       const agora = Math.floor(Date.now() / 1000)
       const vencidoHa = (segundos: number) =>
         assinarToken(

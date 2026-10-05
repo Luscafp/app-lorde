@@ -11,12 +11,15 @@ import { ContextoModule } from './infra/contexto/contexto.module'
 import { EventosModule } from './infra/eventos/eventos.module'
 import { criarConfigLogger } from './infra/logs/logger.config'
 import { PrismaModule } from './infra/prisma/prisma.module'
+import { AtleticasAdversariasModule } from './modules/atleticas/atleticas-adversarias.module'
 import { AtleticasModule } from './modules/atleticas/atleticas.module'
 import { AuditoriaModule } from './modules/auditoria/auditoria.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.module'
 import { HealthModule } from './modules/health/health.module'
 import { ModalidadesModule } from './modules/modalidades/modalidades.module'
+import { NoticiasModule } from './modules/noticias/noticias.module'
+import { TimesModule } from './modules/times/times.module'
 import { UploadsModule } from './modules/uploads/uploads.module'
 import { UsuariosModule } from './modules/usuarios/usuarios.module'
 
@@ -41,8 +44,11 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module'
     AuditoriaModule,
     AuthModule,
     AtleticasModule,
+    AtleticasAdversariasModule,
     HealthModule,
     ModalidadesModule,
+    NoticiasModule,
+    TimesModule,
     UploadsModule,
     UsuariosModule,
     DiagnosticoForaDeProducao,

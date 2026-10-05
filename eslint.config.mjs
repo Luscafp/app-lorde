@@ -95,6 +95,7 @@ export default tseslint.config(
   {
     // Toda mutação de tela usa useAcaoOnline (convenções §10.5); o logout da #60 é a exceção.
     files: ['apps/mobile/src/features/**/*.{ts,tsx}'],
+    ignores: ['apps/mobile/src/features/auth/use-logout.ts'],
     rules: {
       'no-restricted-imports': [
         'error',

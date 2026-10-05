@@ -9,7 +9,8 @@ import Agenda from '../app/(app)/(abas)/agenda'
 import Inicio from '../app/(app)/(abas)/index'
 import LayoutPainel from '../app/(app)/(abas)/painel/_layout'
 import Painel from '../app/(app)/(abas)/painel/index'
-import Perfil from '../app/(app)/(abas)/perfil'
+import LayoutPerfil from '../app/(app)/(abas)/perfil/_layout'
+import Perfil from '../app/(app)/(abas)/perfil/index'
 import Times from '../app/(app)/(abas)/times'
 import * as rotaPublica from '../app/(publico)/_layout'
 import Cadastro from '../app/(publico)/cadastro'
@@ -36,7 +37,8 @@ const rotas = {
   '(app)/(abas)/index': Inicio,
   '(app)/(abas)/agenda': Agenda,
   '(app)/(abas)/times': Times,
-  '(app)/(abas)/perfil': Perfil,
+  '(app)/(abas)/perfil/_layout': LayoutPerfil,
+  '(app)/(abas)/perfil/index': Perfil,
   '(app)/(abas)/painel/_layout': LayoutPainel,
   '(app)/(abas)/painel/index': Painel,
 }

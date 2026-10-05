@@ -6,7 +6,7 @@ import { toast } from '@/components/ui/toast'
 import { ApiErro } from '@/infra/api/api-erro'
 import { criarQueryClient } from '@/infra/query/query-client'
 import { alterarSituacao, buscarUsuario, listarUsuarios } from '@/features/usuarios/api'
-import { juntarPaginas } from '@/features/usuarios/consultas'
+import { juntarPaginas } from '@/infra/query/juntar-paginas'
 import { DetalheUsuario, ListaUsuarios as TelaLista } from '@/features/usuarios'
 
 jest.mock('@/components/ui/toast', () => ({
