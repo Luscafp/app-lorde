@@ -10,4 +10,7 @@ module.exports = {
     '\\.css$': '<rootDir>/__mocks__/estilo.js',
   },
   setupFiles: ['<rootDir>/jest.setup.ts'],
+  // O primeiro render de cada arquivo carrega e transforma os componentes do RN sob demanda;
+  // no CI sem cache isso passava dos 5 s padrão (ex.: usuarios.test.tsx).
+  testTimeout: 15_000,
 }
