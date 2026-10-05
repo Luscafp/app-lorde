@@ -1,11 +1,13 @@
-import { MutationCache, QueryClient, type Mutation } from '@tanstack/react-query'
+import { MutationCache, QueryCache, QueryClient, type Mutation } from '@tanstack/react-query'
 import { toast } from '@/components/ui/toast'
 import {
   ApiErro,
+  CodigoApi,
   ehErroTransitorio,
   ehSessaoEncerrada,
   MENSAGEM_ERRO_GENERICO,
 } from '@/infra/api/api-erro'
+import { chaves } from '@/infra/query/chaves'
 import { aoEncerrarSessao } from '@/infra/sessao/store'
 
 declare module '@tanstack/react-query' {
@@ -32,10 +34,21 @@ export function mostrarErroDaMutacao(
   toast.erro(erro instanceof ApiErro ? erro.message : MENSAGEM_ERRO_GENERICO)
 }
 
+/** O cargo pode ter mudado (#28): reler o `['me']` atualiza o papel da sessão. */
+function recarregarPapelSeNegado(cliente: QueryClient, erro: unknown): void {
+  if (erro instanceof ApiErro && erro.code === CodigoApi.FORBIDDEN) {
+    void cliente.invalidateQueries({ queryKey: chaves.me(), exact: true })
+  }
+}
+
 export function criarQueryClient(): QueryClient {
-  return new QueryClient({
+  const cliente: QueryClient = new QueryClient({
+    queryCache: new QueryCache({ onError: (erro) => recarregarPapelSeNegado(cliente, erro) }),
     mutationCache: new MutationCache({
-      onError: (erro, _variaveis, _resultado, mutacao) => mostrarErroDaMutacao(erro, mutacao),
+      onError: (erro, _variaveis, _resultado, mutacao) => {
+        recarregarPapelSeNegado(cliente, erro)
+        mostrarErroDaMutacao(erro, mutacao)
+      },
     }),
     defaultOptions: {
       queries: {
@@ -46,6 +59,7 @@ export function criarQueryClient(): QueryClient {
       },
     },
   })
+  return cliente
 }
 
 export const queryClient = criarQueryClient()

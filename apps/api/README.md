@@ -302,6 +302,23 @@ Painel de Usuários da Presidência (UC23, #27). Todas as rotas exigem `@PapelMi
 - A desativação grava `VinculoAtletica.ativo` (não `Usuario.ativo`, reservado à exclusão da #12), revoga as sessões da atlética (`CONTA_DESATIVADA`), audita `USUARIO_DESATIVADO`/`USUARIO_REATIVADO` e emite `usuario.sessaoEncerrada` após o commit só quando houve sessão revogada. O guard responde `401 CONTA_DESATIVADA` na requisição seguinte, mesmo com a sessão já revogada.
 - Regra de nível: só sobre nível estritamente inferior (`podeAgirSobre`), com o papel do solicitante relido na transação → `403 NIVEL_INSUFICIENTE`; a própria conta → `403 ALVO_PROPRIO`; excluída → `409 USUARIO_EXCLUIDO`; repetir a situação atual → `200` sem efeito.
 
+### Perfil (`/me`, `PerfilService`)
+
+Perfil do usuário autenticado (UC10, UC11, #13). Só `@UsuarioAtual()`, sem `:id`: qualquer papel acessa e não há 403/404.
+
+| Rota                     | Resposta                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| `GET /api/v1/me`         | perfil, `papel` do vínculo atual, times atuais, último aceite de termos (`no-store`)  |
+| `PATCH /api/v1/me`       | `{ nome }` → perfil                                                                   |
+| `PUT /api/v1/me/foto`    | `{ fotoKey }` → `{ fotoUrl }`; `422 UPLOAD_INVALIDO`/`UPLOAD_NAO_ENCONTRADO`          |
+| `DELETE /api/v1/me/foto` | `204`, idempotente                                                                    |
+| `PUT /api/v1/me/senha`   | `{ senhaAtual, novaSenha }` → `204`; `400 SENHA_INCORRETA`/`SENHA_IGUAL_ATUAL`, `429` |
+
+- `GET /me` é uma consulta só: vínculos com `saidaEm` e times inativos ficam de fora, capitão por `Time.capitaoId`, times por nome.
+- Foto: `UploadsService.validarKey` só quando a chave muda; a anterior é removida do R2 em `aposCommit`.
+- Senha: 5 senhas atuais erradas em 15 min por usuário (`SENHA_CONFIRMACAO_FALHA`, chave `usuarioId`, o mesmo contador da #12). A troca revoga as outras sessões com `TROCA_SENHA` (`exceto` = sessão do token) e emite `usuario.sessaoEncerrada` só com as revogadas. `SENHA_INCORRETA` é 400 para o app não tentar o refresh.
+- Sem auditoria (convenções §7).
+
 ### `regras-papel.ts` (usado por #12 e #28)
 
 ```ts
