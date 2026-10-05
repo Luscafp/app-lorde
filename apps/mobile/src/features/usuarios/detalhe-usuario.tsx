@@ -1,28 +1,24 @@
 import { formatarData, ROTULO_PAPEL, SituacaoUsuario, type UsuarioDetalhe } from '@atletica/shared'
-import { Alert, ScrollView, View } from 'react-native'
+import { ScrollView, View } from 'react-native'
 import { TelaDados } from '@/components/estado'
 import { Botao, Cartao, Selo, Texto } from '@/components/ui'
 import { paleta } from '@/features/atletica'
 import { AlterarCargo } from './alterar-cargo'
 import { Avatar } from './componentes'
+import { confirmar } from './confirmar'
 import { useAlterarSituacao, useUsuario } from './consultas'
 
-function confirmar(usuario: UsuarioDetalhe, aoConfirmar: () => void) {
+function confirmarSituacao(usuario: UsuarioDetalhe, aoConfirmar: () => void) {
   const desativar = usuario.situacao === SituacaoUsuario.ATIVO
-  Alert.alert(
-    desativar ? 'Desativar conta' : 'Reativar conta',
-    desativar
+  confirmar({
+    titulo: desativar ? 'Desativar conta' : 'Reativar conta',
+    mensagem: desativar
       ? `${usuario.nome} não poderá mais fazer login até ser reativado.`
       : `${usuario.nome} poderá voltar a fazer login.`,
-    [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: desativar ? 'Desativar' : 'Reativar',
-        style: desativar ? 'destructive' : 'default',
-        onPress: aoConfirmar,
-      },
-    ],
-  )
+    acao: desativar ? 'Desativar' : 'Reativar',
+    destrutiva: desativar,
+    aoConfirmar,
+  })
 }
 
 function Acoes({ usuario }: { usuario: UsuarioDetalhe }) {
@@ -41,7 +37,7 @@ function Acoes({ usuario }: { usuario: UsuarioDetalhe }) {
         variante={ativo ? 'perigo' : 'sucesso'}
         disabled={!podeAlterarSituacao || !acao.online || acao.isPending}
         carregando={acao.isPending}
-        onPress={() => confirmar(usuario, () => acao.mutate(!ativo))}
+        onPress={() => confirmarSituacao(usuario, () => acao.mutate(!ativo))}
       />
       {motivoBloqueio && <Texto variante="legenda">{motivoBloqueio}</Texto>}
       {podeAlterarPapel && <AlterarCargo usuario={usuario} />}

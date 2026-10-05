@@ -1,5 +1,4 @@
 import {
-  ehDiretoria,
   SituacaoUsuario,
   type AlterarPapel,
   type FiltrosUsuarios,
@@ -8,12 +7,10 @@ import {
   type UsuarioResumo,
 } from '@atletica/shared'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { router } from 'expo-router'
 import { toast } from '@/components/ui/toast'
-import type { ApiErro } from '@/infra/api/api-erro'
+import { CodigoApi, type ApiErro } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
-import { useSessao } from '@/infra/sessao/store'
 import { alterarPapel, alterarSituacao, buscarUsuario, LIMITE_PAGINA, listarUsuarios } from './api'
 
 export function useListaUsuarios(filtros: FiltrosUsuarios) {
@@ -55,28 +52,22 @@ export function useAlterarSituacao(id: string) {
   })
 }
 
-export const ERROS_DO_CARGO = [
-  'SUBSTITUICAO_NECESSARIA',
-  'ULTIMO_ADMINISTRADOR',
-  'USUARIO_DESATIVADO',
-  'USUARIO_EXCLUIDO',
-  'CONFLITO_CONCORRENTE',
+export const ERROS_DO_CARGO: readonly string[] = [
+  CodigoApi.SUBSTITUICAO_NECESSARIA,
+  CodigoApi.ULTIMO_ADMINISTRADOR,
+  CodigoApi.USUARIO_DESATIVADO,
+  CodigoApi.USUARIO_EXCLUIDO,
+  CodigoApi.CONFLITO_CONCORRENTE,
 ]
 
-/** Os erros de regra ficam com o sheet; o novo papel do próprio usuário vale já na sessão. */
+/** Os erros de regra ficam com o sheet. */
 export function useAlterarPapel(id: string) {
   const cliente = useQueryClient()
   return useAcaoOnline<PapelAlterado, ApiErro, AlterarPapel>({
     mutationFn: (corpo) => alterarPapel(id, corpo),
     meta: { errosNaTela: ERROS_DO_CARGO },
-    onSuccess: async ({ alterado, usuario }) => {
-      if (!alterado) return
-      toast.sucesso('Cargo alterado')
-      const sessao = useSessao.getState()
-      if (usuario.id !== sessao.usuario?.id) return
-      await sessao.atualizarUsuario({ papel: usuario.papel })
-      void cliente.invalidateQueries({ queryKey: chaves.me() })
-      if (!ehDiretoria(usuario.papel)) router.replace('/(app)/(abas)/perfil')
+    onSuccess: ({ alterado }) => {
+      if (alterado) toast.sucesso('Cargo alterado')
     },
     onSettled: () => cliente.invalidateQueries({ queryKey: chaves.usuarios.todos() }),
   })

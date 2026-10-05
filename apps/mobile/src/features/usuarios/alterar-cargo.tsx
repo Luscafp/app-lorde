@@ -1,11 +1,21 @@
 import Ionicons from '@expo/vector-icons/Ionicons'
-import { nivelDoPapel, Papel, ROTULO_PAPEL, type UsuarioDetalhe } from '@atletica/shared'
+import {
+  ehDiretoria,
+  nivelDoPapel,
+  Papel,
+  ROTULO_PAPEL,
+  type UsuarioDetalhe,
+} from '@atletica/shared'
+import { useQueryClient } from '@tanstack/react-query'
+import { router } from 'expo-router'
 import { useState } from 'react'
-import { Alert, Modal, Pressable, View } from 'react-native'
+import { Modal, Pressable, View } from 'react-native'
 import { Alerta, Botao, Texto } from '@/components/ui'
 import { paleta, useAtletica } from '@/features/atletica'
 import type { ApiErro } from '@/infra/api/api-erro'
+import { chaves } from '@/infra/query/chaves'
 import { useSessao } from '@/infra/sessao/store'
+import { confirmar } from './confirmar'
 import { ERROS_DO_CARGO, useAlterarPapel } from './consultas'
 
 /** Crescente de nível, como no protótipo. */
@@ -17,30 +27,29 @@ const ORDEM: readonly Papel[] = [
   Papel.ADMINISTRADOR,
 ]
 
-function useCorDoPapel(): (papel: Papel) => string {
-  const { corPrimaria } = useAtletica()
-  return (papel) =>
-    ({
-      ATLETA: paleta['texto-suave'],
-      DIRETOR: corPrimaria,
-      VICE_PRESIDENTE: paleta.alerta,
-      PRESIDENTE: paleta.alerta,
-      ADMINISTRADOR: paleta.erro,
-    })[papel]
+function corDoPapel(papel: Papel, corPrimaria: string): string {
+  return {
+    ATLETA: paleta['texto-suave'],
+    DIRETOR: corPrimaria,
+    VICE_PRESIDENTE: paleta.alerta,
+    PRESIDENTE: paleta.alerta,
+    ADMINISTRADOR: paleta.erro,
+  }[papel]
 }
 
 function OpcaoPapel({
   papel,
+  cor,
   marcada,
   desabilitada,
   aoEscolher,
 }: {
   papel: Papel
+  cor: string
   marcada: boolean
   desabilitada: boolean
   aoEscolher: (papel: Papel) => void
 }) {
-  const cor = useCorDoPapel()(papel)
   return (
     <Pressable
       accessibilityRole="radio"
@@ -60,13 +69,6 @@ function OpcaoPapel({
   )
 }
 
-function confirmar(titulo: string, mensagem: string, aoConfirmar: () => void) {
-  Alert.alert(titulo, mensagem, [
-    { text: 'Cancelar', style: 'cancel' },
-    { text: 'Confirmar', style: 'destructive', onPress: aoConfirmar },
-  ])
-}
-
 export function AlterarCargoSheet({
   usuario,
   aoFechar,
@@ -78,18 +80,32 @@ export function AlterarCargoSheet({
   const [erro, setErro] = useState<string | null>(null)
   const ehProprio = useSessao((estado) => estado.usuario?.id === usuario.id)
   const acao = useAlterarPapel(usuario.id)
-  const cor = useCorDoPapel()
+  const cliente = useQueryClient()
+  const { corPrimaria } = useAtletica()
   const { ehUltimoAdministrador } = usuario.permissoes
+
+  async function aplicarNaPropriaSessao(papel: Papel) {
+    await useSessao.getState().atualizarUsuario({ papel })
+    void cliente.invalidateQueries({ queryKey: chaves.me() })
+    if (!ehDiretoria(papel)) router.replace('/(app)/(abas)/perfil')
+  }
 
   function enviar(confirmarSubstituicao?: true) {
     setErro(null)
     acao.mutate(
       { papel: selecionado, confirmarSubstituicao },
       {
-        onSuccess: aoFechar,
+        onSuccess: ({ alterado, usuario: { papel } }) => {
+          aoFechar()
+          if (alterado && ehProprio) void aplicarNaPropriaSessao(papel)
+        },
         onError: (falha: ApiErro) => {
           if (falha.code === 'SUBSTITUICAO_NECESSARIA') {
-            confirmar(`Substituir ${ROTULO_PAPEL[selecionado]}`, falha.message, () => enviar(true))
+            confirmar({
+              titulo: `Substituir ${ROTULO_PAPEL[selecionado]}`,
+              mensagem: falha.message,
+              aoConfirmar: () => enviar(true),
+            })
           } else if (ERROS_DO_CARGO.includes(falha.code)) {
             setErro(falha.message)
           }
@@ -100,9 +116,11 @@ export function AlterarCargoSheet({
 
   function salvar() {
     if (ehProprio && nivelDoPapel(selecionado) < nivelDoPapel(usuario.papel)) {
-      confirmar('Alterar o próprio cargo', 'Você perderá o acesso de Administrador.', () =>
-        enviar(),
-      )
+      confirmar({
+        titulo: 'Alterar o próprio cargo',
+        mensagem: 'Você perderá o acesso de Administrador.',
+        aoConfirmar: () => enviar(),
+      })
       return
     }
     enviar()
@@ -115,7 +133,7 @@ export function AlterarCargoSheet({
           <Texto variante="subtitulo">Alterar cargo</Texto>
           <Texto variante="legenda">
             Cargo atual de {usuario.nome}:{' '}
-            <Texto variante="legenda" style={{ color: cor(usuario.papel) }}>
+            <Texto variante="legenda" style={{ color: corDoPapel(usuario.papel, corPrimaria) }}>
               {ROTULO_PAPEL[usuario.papel]}
             </Texto>
           </Texto>
@@ -130,6 +148,7 @@ export function AlterarCargoSheet({
               <OpcaoPapel
                 key={papel}
                 papel={papel}
+                cor={corDoPapel(papel, corPrimaria)}
                 marcada={papel === selecionado}
                 desabilitada={ehUltimoAdministrador && papel !== Papel.ADMINISTRADOR}
                 aoEscolher={setSelecionado}

@@ -320,7 +320,7 @@ describe('Gestão de usuários (#27)', () => {
       expect(proprio.permissoes).toEqual({
         podeAlterarSituacao: false,
         motivoBloqueio: 'Você não pode desativar a própria conta.',
-        podeAlterarPapel: false,
+        podeAlterarPapel: true,
         ehUltimoAdministrador: true,
       })
 

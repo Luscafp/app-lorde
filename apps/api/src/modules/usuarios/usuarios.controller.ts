@@ -29,6 +29,7 @@ import { AtleticaAtual } from '../auth/decorators/atletica-atual.decorator'
 import { PapelMinimo } from '../auth/decorators/papel-minimo.decorator'
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator'
 import type { UsuarioAutenticado } from '../auth/tipos'
+import type { ErroNegocio } from '../../common/erros/erro-negocio'
 import { CargosService } from './cargos.service'
 import {
   erroConflitoConcorrente,
@@ -102,14 +103,16 @@ const EXEMPLO_PAPEL_ALTERADO: PapelAlterado = {
   },
 }
 
+const CONFLITOS_PAPEL: readonly (readonly [ErroNegocio, string])[] = [
+  [erroSubstituicaoNecessaria('Ana Souza', Papel.PRESIDENTE), 'cargo ocupado, sem confirmação'],
+  [erroUltimoAdministrador(), 'único Administrador ativo perderia o cargo (RN08)'],
+  [erroUsuarioExcluido(), 'conta excluída'],
+  [erroUsuarioDesativado(), 'promoção de conta desativada'],
+  [erroConflitoConcorrente(), 'outro cargo alterado ao mesmo tempo'],
+]
+
 const EXEMPLOS_CONFLITO_PAPEL = Object.fromEntries(
-  [
-    erroSubstituicaoNecessaria('Ana Souza', Papel.PRESIDENTE),
-    erroUltimoAdministrador(),
-    erroUsuarioExcluido(),
-    erroUsuarioDesativado(),
-    erroConflitoConcorrente(),
-  ].map(({ statusCode, code, message, details }) => [
+  CONFLITOS_PAPEL.map(([{ statusCode, code, message, details }]) => [
     code,
     { value: { statusCode, code, message, details } },
   ]),
@@ -205,20 +208,14 @@ export class UsuariosController {
       '| 400 | `VALIDATION_ERROR` | papel inválido ou campo extra |\n' +
       '| 403 | `FORBIDDEN` | solicitante não é Administrador |\n' +
       '| 404 | `NOT_FOUND` | inexistente ou de outra atlética |\n' +
-      '| 409 | `SUBSTITUICAO_NECESSARIA` | cargo ocupado, sem confirmação |\n' +
-      '| 409 | `ULTIMO_ADMINISTRADOR` | único Administrador ativo perderia o cargo (RN08) |\n' +
-      '| 409 | `USUARIO_EXCLUIDO` | conta excluída |\n' +
-      '| 409 | `USUARIO_DESATIVADO` | promoção de conta desativada |\n' +
-      '| 409 | `CONFLITO_CONCORRENTE` | outro cargo alterado ao mesmo tempo |',
+      CONFLITOS_PAPEL.map(([{ code }, quando]) => `| 409 | \`${code}\` | ${quando} |`).join('\n'),
   })
   @ApiOkResponse({ type: PapelAlteradoDto, example: EXEMPLO_PAPEL_ALTERADO })
   @ApiBadRequestResponse({ description: '`VALIDATION_ERROR`.' })
   @ApiForbiddenResponse({ description: '`FORBIDDEN`: exige Administrador.' })
   @ApiNotFoundResponse({ description: NAO_ENCONTRADO })
   @ApiConflictResponse({
-    description:
-      '`SUBSTITUICAO_NECESSARIA`, `ULTIMO_ADMINISTRADOR`, `USUARIO_EXCLUIDO`, ' +
-      '`USUARIO_DESATIVADO` ou `CONFLITO_CONCORRENTE`.',
+    description: `${CONFLITOS_PAPEL.map(([{ code }]) => `\`${code}\``).join(', ')}.`,
     content: { 'application/json': { examples: EXEMPLOS_CONFLITO_PAPEL } },
   })
   alterarPapel(

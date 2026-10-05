@@ -142,7 +142,7 @@ describe('CargosService.alterarPapel', () => {
         const erro = (await alterar(papel).catch((e: unknown) => e)) as ErroNegocio
 
         expect(erro.code).toBe('SUBSTITUICAO_NECESSARIA')
-        expect(erro.message).toMatch(/^Ana Souza é o\(a\) atual .+ e passará a Diretor\(a\)\.$/)
+        expect(erro.message).toMatch(/^Ana Souza é o atual .+ e passará a Diretor\.$/)
         expect(tx.vinculoAtletica.findFirst).toHaveBeenCalledWith(
           expect.objectContaining({ where: { papel, usuarioId: { not: ALVO } } }),
         )
@@ -210,6 +210,13 @@ describe('CargosService.alterarPapel', () => {
       jest.mocked(garantirNaoUltimoAdministrador).mockRejectedValue(erroUltimoAdministrador())
       expect(await codigo(alterar(Papel.PRESIDENTE))).toBe('ULTIMO_ADMINISTRADOR')
       expect(tx.vinculoAtletica.update).not.toHaveBeenCalled()
+    })
+
+    it('RN08 vem antes da releitura do solicitante (critério 12: 409, não 403)', async () => {
+      const { alterar } = criarServico({ alvo: vinculo({ papel: Papel.ADMINISTRADOR }) })
+      jest.mocked(garantirNaoUltimoAdministrador).mockRejectedValue(erroUltimoAdministrador())
+      await alterar(Papel.DIRETOR).catch(() => undefined)
+      expect(papelDoSolicitante).not.toHaveBeenCalled()
     })
 
     it('alvo que não é Administrador não consulta o helper', async () => {

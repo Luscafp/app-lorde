@@ -46,7 +46,7 @@ export function erroUltimoAdministrador(): ErroNegocio {
   return new ErroNegocio(
     HttpStatus.CONFLICT,
     'ULTIMO_ADMINISTRADOR',
-    'A atlética precisa de ao menos um Administrador ativo.',
+    'É preciso haver ao menos um Administrador ativo.',
   )
 }
 
@@ -54,7 +54,7 @@ export function erroSubstituicaoNecessaria(ocupante: string, cargo: Papel): Erro
   return new ErroNegocio(
     HttpStatus.CONFLICT,
     'SUBSTITUICAO_NECESSARIA',
-    `${ocupante} é o(a) atual ${ROTULO_PAPEL[cargo]} e passará a ${ROTULO_PAPEL.DIRETOR}.`,
+    `${ocupante} é o atual ${ROTULO_PAPEL[cargo]} e passará a Diretor.`,
     [{ field: 'confirmarSubstituicao', message: 'Confirme a substituição para continuar.' }],
   )
 }

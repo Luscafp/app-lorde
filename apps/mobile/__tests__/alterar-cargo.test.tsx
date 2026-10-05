@@ -145,7 +145,7 @@ describe('AlterarCargoSheet (#28)', () => {
   })
 
   it('409 SUBSTITUICAO_NECESSARIA → diálogo e reenvio com confirmarSubstituicao', async () => {
-    const mensagem = 'Ana Souza é o(a) atual Presidente e passará a Diretor(a).'
+    const mensagem = 'Ana Souza é o atual Presidente e passará a Diretor.'
     jest
       .mocked(alterarPapel)
       .mockRejectedValueOnce(

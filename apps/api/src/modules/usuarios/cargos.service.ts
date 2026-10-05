@@ -5,6 +5,7 @@ import { TransacaoService } from '../../infra/eventos/apos-commit'
 import { EventosDominioService } from '../../infra/eventos/eventos-dominio.service'
 import type { TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import { AuditoriaService, type EntradaAuditoria } from '../auditoria/auditoria.service'
+import { diferenca } from '../auditoria/diferenca'
 import {
   erroConflitoConcorrente,
   erroSubstituicaoNecessaria,
@@ -28,6 +29,12 @@ interface Ocupante {
   nome: string
 }
 
+interface MudancaPapel {
+  usuarioId: string
+  papelAnterior: Papel
+  papelNovo: Papel
+}
+
 /** Concessão e revogação de cargos pelo Administrador (UC24, issue #28). */
 @Injectable()
 export class CargosService {
@@ -40,13 +47,11 @@ export class CargosService {
   /** O índice único parcial de Presidente/Vice é a defesa final contra a corrida (P2002). */
   async alterarPapel(
     id: string,
-    { papel, confirmarSubstituicao = false }: AlterarPapel,
+    corpo: AlterarPapel,
     solicitante: SolicitanteNaAtletica,
   ): Promise<PapelAlterado> {
     try {
-      return await this.transacao.executar((tx) =>
-        this.aplicar(tx, id, papel, confirmarSubstituicao, solicitante),
-      )
+      return await this.transacao.executar((tx) => this.aplicar(tx, id, corpo, solicitante))
     } catch (erro) {
       if (erro instanceof PrismaClientKnownRequestError && erro.code === 'P2002') {
         throw erroConflitoConcorrente()
@@ -58,15 +63,13 @@ export class CargosService {
   private async aplicar(
     tx: TransacaoComEscopo,
     id: string,
-    papel: Papel,
-    confirmarSubstituicao: boolean,
+    { papel, confirmarSubstituicao = false }: AlterarPapel,
     solicitante: SolicitanteNaAtletica,
   ): Promise<PapelAlterado> {
     const { atleticaId } = solicitante
     await bloquearPapeis(tx, atleticaId)
     const alvo = await bloquearVinculo(tx, id, atleticaId)
     if (!alvo) throw erroUsuarioNaoEncontrado()
-    await papelDoSolicitante(tx, solicitante.id, Papel.ADMINISTRADOR)
     if (alvo.excluido) throw erroUsuarioExcluido()
 
     const usuario = { id, papelAnterior: alvo.papel, papel }
@@ -78,24 +81,33 @@ export class CargosService {
     if (alvo.papel === Papel.ADMINISTRADOR) {
       await garantirNaoUltimoAdministrador(tx, atleticaId, id)
     }
+    // Depois do RN08: no rebaixamento cruzado entre dois admins, o perdedor recebe 409, não 403.
+    await papelDoSolicitante(tx, solicitante.id, Papel.ADMINISTRADOR)
 
     const ocupante = CARGOS_UNICOS.has(papel) ? await this.ocupante(tx, papel, id) : null
     if (ocupante && !confirmarSubstituicao) throw erroSubstituicaoNecessaria(ocupante.nome, papel)
 
-    const entradas: EntradaAuditoria[] = []
+    const promocao: MudancaPapel = { usuarioId: id, papelAnterior: alvo.papel, papelNovo: papel }
+    const rebaixamento: MudancaPapel | null = ocupante && {
+      usuarioId: ocupante.usuarioId,
+      papelAnterior: papel,
+      papelNovo: Papel.DIRETOR,
+    }
+
     if (ocupante) {
       await tx.vinculoAtletica.update({
         where: { id: ocupante.vinculoId },
         data: { papel: Papel.DIRETOR },
       })
-      entradas.push(entradaCargo(ocupante.usuarioId, papel, Papel.DIRETOR, { substituidoPor: id }))
     }
     await tx.vinculoAtletica.update({ where: { id: alvo.id }, data: { papel } })
-    entradas.push(entradaCargo(id, alvo.papel, papel))
-    await this.auditoria.registrarVarios(tx, entradas)
+    await this.auditoria.registrarVarios(tx, [
+      ...(rebaixamento ? [entradaCargo(rebaixamento, { substituidoPor: id })] : []),
+      entradaCargo(promocao),
+    ])
 
-    if (ocupante) this.emitir(solicitante, ocupante.usuarioId, papel, Papel.DIRETOR)
-    this.emitir(solicitante, id, alvo.papel, papel)
+    if (rebaixamento) this.emitir(solicitante, rebaixamento)
+    this.emitir(solicitante, promocao)
 
     return {
       alterado: true,
@@ -123,32 +135,23 @@ export class CargosService {
     )
   }
 
-  private emitir(
-    { id: autorId, atleticaId }: SolicitanteNaAtletica,
-    usuarioId: string,
-    papelAnterior: Papel,
-    papelNovo: Papel,
-  ): void {
-    this.eventos.emitirAposCommit('usuario.papelAlterado', {
-      atleticaId,
-      usuarioId,
-      papelAnterior,
-      papelNovo,
-      autorId,
-    })
+  private emitir({ id: autorId, atleticaId }: SolicitanteNaAtletica, mudanca: MudancaPapel): void {
+    this.eventos.emitirAposCommit('usuario.papelAlterado', { atleticaId, autorId, ...mudanca })
   }
 }
 
 function entradaCargo(
-  usuarioId: string,
-  antes: Papel,
-  depois: Papel,
-  contexto?: Record<string, unknown>,
+  { usuarioId, papelAnterior, papelNovo }: MudancaPapel,
+  contexto?: { substituidoPor: string },
 ): EntradaAuditoria {
+  const { antes, depois } = diferenca({ papel: papelAnterior }, { papel: papelNovo }) ?? {
+    antes: {},
+    depois: {},
+  }
   return {
     entidade: 'VinculoAtletica',
     acao: 'CARGO_ALTERADO',
     entidadeId: usuarioId,
-    dados: { antes: { papel: antes }, depois: { papel: depois }, ...(contexto && { contexto }) },
+    dados: { antes, depois, ...(contexto && { contexto }) },
   }
 }

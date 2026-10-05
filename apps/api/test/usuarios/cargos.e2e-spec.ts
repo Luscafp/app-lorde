@@ -187,7 +187,7 @@ describe('Cargos (#28)', () => {
         expect(recusa.status).toBe(409)
         const { code, message, details } = erro(recusa)
         expect(code).toBe('SUBSTITUICAO_NECESSARIA')
-        expect(message).toMatch(/^Ana Souza é o\(a\) atual .+ e passará a Diretor\(a\)\.$/)
+        expect(message).toMatch(/^Ana Souza é o atual .+ e passará a Diretor\.$/)
         expect(details.map(({ field }) => field)).toEqual(['confirmarSubstituicao'])
         expect([await papelDe(ana.id), await papelDe(bruno.id)]).toEqual([cargo, 'DIRETOR'])
         expect(await eventosDeCargo()).toEqual([])
@@ -309,7 +309,9 @@ describe('Cargos (#28)', () => {
         apiB.alterar(a.id, { papel: 'DIRETOR' }),
       ])
 
-      expect(respostas.map(({ status }) => status).sort()).toEqual([200, 403])
+      expect(respostas.map(({ status }) => status).sort()).toEqual([200, 409])
+      const perdedora = respostas.find(({ status }) => status === 409)
+      expect(perdedora && erro(perdedora).code).toBe('ULTIMO_ADMINISTRADOR')
       expect(
         await prismaTeste.vinculoAtletica.count({
           where: { atleticaId: padraoId, papel: 'ADMINISTRADOR' },

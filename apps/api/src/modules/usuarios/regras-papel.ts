@@ -57,7 +57,7 @@ export async function papelDoSolicitante(
   minimo: Papel,
 ): Promise<Papel> {
   const ator = await tx.vinculoAtletica.findFirst({
-    where: { usuarioId: solicitanteId, ativo: true },
+    where: { usuarioId: solicitanteId, ativo: true, usuario: { excluidoEm: null } },
     select: { papel: true },
   })
   if (!ator || !temNivelMinimo(ator.papel, minimo)) throw erroSemPermissao()
@@ -109,8 +109,7 @@ export function calcularPermissoes(
   return {
     podeAlterarSituacao: bloqueio === null,
     motivoBloqueio: bloqueio && MENSAGEM_DE_BLOQUEIO[bloqueio],
-    podeAlterarPapel:
-      ehAdministrador(solicitante.papel) && !alvo.excluido && alvo.id !== solicitante.id,
+    podeAlterarPapel: ehAdministrador(solicitante.papel) && !alvo.excluido,
     ehUltimoAdministrador: ehUltimoAdmin && !alvo.excluido,
   }
 }
