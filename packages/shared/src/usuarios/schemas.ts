@@ -35,8 +35,6 @@ export const listarUsuariosQuerySchema = paginacaoQuerySchema
 
 export const alterarSituacaoSchema = z.object({ ativo: z.boolean() }).strict()
 
-export const usuarioIdParamSchema = z.object({ id: z.uuid({ error: 'Id inválido.' }) }).strict()
-
 /** `.strict()`: `email`, `papel` e `ativo` no corpo → `400` (issue #13 §10). */
 export const atualizarPerfilSchema = z.object({ nome: nomeSchema }).strict()
 

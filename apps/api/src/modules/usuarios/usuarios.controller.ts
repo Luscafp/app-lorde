@@ -5,7 +5,7 @@ import {
   Papel,
   situacaoAlteradaSchema,
   usuarioDetalheSchema,
-  usuarioIdParamSchema,
+  idParamSchema,
   type ListaUsuarios,
   type SituacaoAlterada,
   type UsuarioDetalhe,
@@ -29,7 +29,7 @@ import type { UsuarioAutenticado } from '../auth/tipos'
 import { GestaoUsuariosService } from './gestao-usuarios.service'
 
 class ListarUsuariosQueryDto extends createZodDto(listarUsuariosQuerySchema) {}
-class UsuarioIdParamDto extends createZodDto(usuarioIdParamSchema) {}
+class UsuarioIdParamDto extends createZodDto(idParamSchema) {}
 class AlterarSituacaoDto extends createZodDto(alterarSituacaoSchema) {}
 class ListaUsuariosDto extends createZodDto(listaUsuariosSchema) {}
 class UsuarioDetalheDto extends createZodDto(usuarioDetalheSchema) {}

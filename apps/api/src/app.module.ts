@@ -18,6 +18,7 @@ import { AuthModule } from './modules/auth/auth.module'
 import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.module'
 import { HealthModule } from './modules/health/health.module'
 import { ModalidadesModule } from './modules/modalidades/modalidades.module'
+import { NoticiasModule } from './modules/noticias/noticias.module'
 import { TimesModule } from './modules/times/times.module'
 import { UploadsModule } from './modules/uploads/uploads.module'
 import { UsuariosModule } from './modules/usuarios/usuarios.module'
@@ -46,6 +47,7 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module'
     AtleticasAdversariasModule,
     HealthModule,
     ModalidadesModule,
+    NoticiasModule,
     TimesModule,
     UploadsModule,
     UsuariosModule,

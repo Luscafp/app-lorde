@@ -5,7 +5,6 @@ import {
   atualizarFotoSchema,
   atualizarPerfilSchema,
   listarUsuariosQuerySchema,
-  usuarioIdParamSchema,
 } from './schemas'
 
 function campos(resultado: { error?: { issues: { path: PropertyKey[] }[] } }): string[] {
@@ -50,15 +49,6 @@ describe('alterarSituacaoSchema', () => {
 
   it.each([{}, { ativo: 'false' }, { ativo: false, papel: 'ATLETA' }])('rejeita %o', (corpo) => {
     expect(alterarSituacaoSchema.safeParse(corpo).success).toBe(false)
-  })
-})
-
-describe('usuarioIdParamSchema', () => {
-  it('exige UUID', () => {
-    expect(usuarioIdParamSchema.safeParse({ id: 'abc' }).success).toBe(false)
-    expect(
-      usuarioIdParamSchema.safeParse({ id: '6f1c2a7e-2f5b-4c39-9a0e-3f3b1b8d2c11' }).success,
-    ).toBe(true)
   })
 })
 
