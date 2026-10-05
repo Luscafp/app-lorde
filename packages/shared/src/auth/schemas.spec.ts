@@ -3,10 +3,14 @@ import {
   cadastroFormSchema,
   cadastroSchema,
   emailSchema,
+  esqueciSenhaSchema,
   loginSchema,
   nomeSchema,
+  novaSenhaFormSchema,
+  redefinirSenhaSchema,
   refreshTokenSchema,
   senhaSchema,
+  verificarCodigoSchema,
 } from './schemas'
 
 function mensagens(resultado: { error?: { issues: { message: string }[] } }): string[] {
@@ -149,5 +153,59 @@ describe('refreshTokenSchema', () => {
     ['com campo desconhecido', { refreshToken: 'a.b', usuarioId: 'x' }],
   ])('rejeita corpo %s', (_caso, corpo) => {
     expect(refreshTokenSchema.safeParse(corpo).success).toBe(false)
+  })
+})
+
+describe('esqueciSenhaSchema', () => {
+  it('normaliza o e-mail', () => {
+    expect(esqueciSenhaSchema.parse({ email: ' ANA@ex.com ' })).toEqual({ email: 'ana@ex.com' })
+  })
+
+  it('rejeita campo desconhecido', () => {
+    expect(esqueciSenhaSchema.safeParse({ email: 'ana@ex.com', x: 1 }).success).toBe(false)
+  })
+})
+
+describe('verificarCodigoSchema', () => {
+  it.each(['048213', '000000', '999999'])('aceita %s', (codigo) => {
+    expect(verificarCodigoSchema.safeParse({ email: 'ana@ex.com', codigo }).success).toBe(true)
+  })
+
+  it.each(['48213', '0482130', '04821a', ' 048213', '０４８２１３'])('rejeita %p', (codigo) => {
+    const resultado = verificarCodigoSchema.safeParse({ email: 'ana@ex.com', codigo })
+    expect(campos(resultado)).toEqual(['codigo'])
+    expect(mensagens(resultado)).toEqual(['Informe os 6 dígitos do código.'])
+  })
+
+  it('rejeita campo desconhecido', () => {
+    const corpo = { email: 'ana@ex.com', codigo: '048213', novaSenha: 'lorde2026' }
+    expect(verificarCodigoSchema.safeParse(corpo).success).toBe(false)
+  })
+})
+
+describe('redefinirSenhaSchema', () => {
+  const valido = { email: 'ana@ex.com', codigo: '048213', novaSenha: 'novaSenha9' }
+
+  it('aceita', () => {
+    expect(redefinirSenhaSchema.parse(valido)).toEqual(valido)
+  })
+
+  it('senha fraca → erro em novaSenha', () => {
+    const resultado = redefinirSenhaSchema.safeParse({ ...valido, novaSenha: 'abcdefgh' })
+    expect(campos(resultado)).toEqual(['novaSenha'])
+  })
+
+  it('rejeita campo desconhecido', () => {
+    expect(redefinirSenhaSchema.safeParse({ ...valido, usuarioId: 'x' }).success).toBe(false)
+  })
+})
+
+describe('novaSenhaFormSchema', () => {
+  it('confirmação diferente → erro em confirmarSenha', () => {
+    const resultado = novaSenhaFormSchema.safeParse({
+      novaSenha: 'novaSenha9',
+      confirmarSenha: 'novaSenha8',
+    })
+    expect(campos(resultado)).toEqual(['confirmarSenha'])
   })
 })

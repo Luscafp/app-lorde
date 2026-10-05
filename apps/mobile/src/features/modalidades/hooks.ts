@@ -12,6 +12,7 @@ import {
 } from './api'
 
 const PREFIXO = chaves.modalidades().slice(0, 1)
+const ERROS_DO_FORMULARIO = ['VALIDATION_ERROR', 'MODALIDADE_DUPLICADA']
 
 export function useModalidades(filtro: FiltroModalidades = {}) {
   return useQuery({
@@ -25,12 +26,12 @@ function useInvalidarModalidades() {
   return () => cliente.invalidateQueries({ queryKey: PREFIXO })
 }
 
-/** Os erros ficam com o formulário. */
+/** Os erros de campo ficam com o formulário. */
 export function useCriarModalidade() {
   const invalidar = useInvalidarModalidades()
   return useAcaoOnline<Modalidade, ApiErro, ModalidadeCriacao>({
     mutationFn: (dados) => criarModalidade(dados),
-    meta: { toastDeErro: false },
+    meta: { errosNaTela: ERROS_DO_FORMULARIO },
     onSuccess: invalidar,
   })
 }
@@ -38,12 +39,12 @@ export function useCriarModalidade() {
 type Atualizacao = { id: string; dados: ModalidadeAtualizacao }
 type Anteriores = { anteriores: [QueryKey, Modalidade[] | undefined][] }
 
-/** Otimista, com rollback em erro; quem chama mostra o erro (no campo ou em toast). */
+/** Otimista, com rollback em erro; os erros de campo ficam com o formulário. */
 export function useAtualizarModalidade() {
   const cliente = useQueryClient()
   return useAcaoOnline<Modalidade, ApiErro, Atualizacao, Anteriores>({
     mutationFn: ({ id, dados }) => atualizarModalidade(id, dados),
-    meta: { toastDeErro: false },
+    meta: { errosNaTela: ERROS_DO_FORMULARIO },
     onMutate: async ({ id, dados }) => {
       await cliente.cancelQueries({ queryKey: PREFIXO })
       const anteriores = cliente.getQueriesData<Modalidade[]>({ queryKey: PREFIXO })
@@ -66,7 +67,7 @@ export function useExcluirModalidade() {
   const invalidar = useInvalidarModalidades()
   return useAcaoOnline<void, ApiErro, string>({
     mutationFn: (id) => excluirModalidade(id),
-    meta: { toastDeErro: false },
+    meta: { errosNaTela: ['MODALIDADE_COM_DEPENDENCIAS'] },
     onSuccess: invalidar,
   })
 }

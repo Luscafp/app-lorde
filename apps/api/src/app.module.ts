@@ -18,6 +18,7 @@ import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.mod
 import { HealthModule } from './modules/health/health.module'
 import { ModalidadesModule } from './modules/modalidades/modalidades.module'
 import { UploadsModule } from './modules/uploads/uploads.module'
+import { UsuariosModule } from './modules/usuarios/usuarios.module'
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { UploadsModule } from './modules/uploads/uploads.module'
     HealthModule,
     ModalidadesModule,
     UploadsModule,
+    UsuariosModule,
     DiagnosticoForaDeProducao,
   ],
   providers: [

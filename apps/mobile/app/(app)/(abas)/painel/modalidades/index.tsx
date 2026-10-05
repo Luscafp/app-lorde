@@ -9,7 +9,6 @@ import {
   useExcluirModalidade,
   useModalidades,
 } from '@/features/modalidades'
-import { mostrarErroDaMutacao } from '@/infra/query/query-client'
 import { useSessao } from '@/infra/sessao/store'
 
 const novaModalidade = () => router.push('/painel/modalidades/nova')
@@ -20,7 +19,7 @@ export default function ModalidadesPainel() {
   const alternar = useAtualizarModalidade()
   const excluir = useExcluirModalidade()
   const definirAtiva = (modalidade: Modalidade, ativa: boolean) =>
-    alternar.mutate({ id: modalidade.id, dados: { ativa } }, { onError: mostrarErroDaMutacao })
+    alternar.mutate({ id: modalidade.id, dados: { ativa } })
   const desativar = (modalidade: Modalidade) => definirAtiva(modalidade, false)
 
   function aoAlternar(modalidade: Modalidade, ativa: boolean) {
@@ -35,8 +34,8 @@ export default function ModalidadesPainel() {
     excluir.mutate(modalidade.id, {
       onSuccess: () => toast.sucesso('Modalidade excluída'),
       onError: (erro) => {
-        if (erro.code !== 'MODALIDADE_COM_DEPENDENCIAS') return mostrarErroDaMutacao(erro)
-        toast.erro(erro.message, { titulo: 'Desativar', onPress: () => desativar(modalidade) })
+        if (erro.code !== 'MODALIDADE_COM_DEPENDENCIAS') return
+        toast.erro(erro.message, { rotulo: 'Desativar', aoTocar: () => desativar(modalidade) })
       },
     })
   }

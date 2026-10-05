@@ -182,8 +182,8 @@ describe('Lista de modalidades do Painel', () => {
     await waitFor(() => expect(toast.erro).toHaveBeenCalledTimes(1))
     const [texto, acao] = jest.mocked(toast.erro).mock.lastCall ?? ['']
     expect(texto).toBe(mensagem)
-    expect(acao?.titulo).toBe('Desativar')
-    await act(() => acao?.onPress())
+    expect(acao?.rotulo).toBe('Desativar')
+    await act(() => acao?.aoTocar())
     await waitFor(() =>
       expect(api.atualizarModalidade).toHaveBeenCalledWith(FUTSAL.id, { ativa: false }),
     )

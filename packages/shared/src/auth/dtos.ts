@@ -22,5 +22,20 @@ export const respostaSessaoSchema = z
   })
   .strict()
 
+/** Validade do código de recuperação de senha (UC09). */
+export const VALIDADE_CODIGO_MS = 15 * 60_000
+
+export const MENSAGEM_RECUPERACAO_ENVIADA =
+  'Se este e-mail estiver cadastrado, você receberá um código em instantes.'
+
+/** `202` de `POST /auth/senha/esqueci`: sempre igual, exista ou não o e-mail (UC09). */
+export const respostaEsqueciSenhaSchema = z
+  .object({ message: z.literal(MENSAGEM_RECUPERACAO_ENVIADA) })
+  .strict()
+
+export const respostaVerificarCodigoSchema = z.object({ valido: z.literal(true) }).strict()
+
 export type UsuarioSessao = z.infer<typeof usuarioSessaoSchema>
 export type RespostaSessao = z.infer<typeof respostaSessaoSchema>
+export type RespostaEsqueciSenha = z.infer<typeof respostaEsqueciSenhaSchema>
+export type RespostaVerificarCodigo = z.infer<typeof respostaVerificarCodigoSchema>

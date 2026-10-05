@@ -8,6 +8,13 @@ import {
 } from '@/infra/api/api-erro'
 import { aoEncerrarSessao } from '@/infra/sessao/store'
 
+declare module '@tanstack/react-query' {
+  interface Register {
+    /** `errosNaTela`: códigos que a própria tela mostra, sem o toast global. */
+    mutationMeta: { errosNaTela?: readonly string[] }
+  }
+}
+
 const MINUTO = 60_000
 const MAXIMO_TENTATIVAS = 2
 
@@ -16,25 +23,20 @@ export function deveRepetir(falhas: number, erro: unknown): boolean {
 }
 
 /** Sucesso é toast da própria tela; o encerramento de sessão já mostrou o seu toast. */
-export function mostrarErroDaMutacao(erro: unknown): void {
-  if (ehSessaoEncerrada(erro)) return
-  toast.erro(erro instanceof ApiErro ? erro.message : MENSAGEM_ERRO_GENERICO)
-}
-
-/** `meta: { toastDeErro: false }`: a própria tela mostra o erro (ex.: abaixo do campo). */
-function aoFalharMutacao(
+export function mostrarErroDaMutacao(
   erro: unknown,
-  _variaveis: unknown,
-  _contexto: unknown,
-  mutacao: Mutation<unknown, unknown, unknown>,
+  mutacao?: Pick<Mutation<unknown, unknown, unknown>, 'meta'>,
 ): void {
-  if (mutacao.meta?.toastDeErro === false) return
-  mostrarErroDaMutacao(erro)
+  if (ehSessaoEncerrada(erro)) return
+  if (erro instanceof ApiErro && mutacao?.meta?.errosNaTela?.includes(erro.code)) return
+  toast.erro(erro instanceof ApiErro ? erro.message : MENSAGEM_ERRO_GENERICO)
 }
 
 export function criarQueryClient(): QueryClient {
   return new QueryClient({
-    mutationCache: new MutationCache({ onError: aoFalharMutacao }),
+    mutationCache: new MutationCache({
+      onError: (erro, _variaveis, _resultado, mutacao) => mostrarErroDaMutacao(erro, mutacao),
+    }),
     defaultOptions: {
       queries: {
         staleTime: MINUTO,

@@ -193,9 +193,23 @@ revogar(tx, sessaoId, motivo, agora?): Promise<boolean>
 
 Quem chama `revogarTodas` emite `usuario.sessaoEncerrada` com a lista devolvida como `sessaoIds`, e só se ela não for vazia (convenções §11.8). `motivo` ∈ `MotivoRevogacao` (`eventos-dominio.ts`).
 
+### Recuperação de senha (`RecuperacaoSenhaService`)
+
+Rotas `@Publico()` do `AuthController` (UC09, épico #11), entrada pelos schemas `esqueciSenhaSchema`, `verificarCodigoSchema` e `redefinirSenhaSchema` (`@atletica/shared`, `.strict()`):
+
+| Rota                                                        | Resposta                         | Faz                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /auth/senha/esqueci` `{ email }`                      | `202 { message }` (sempre igual) | Conta o pedido (3/h por e-mail, exista ou não; 10/h por IP). Só conta ativa, não excluída e com vínculo ativo recebe o código: grava `CodigoVerificacao` (`RECUPERAR_SENHA`, `hashCodigo`, 15 min) e envia o template `recuperar-senha` **sem aguardar**.                            |
+| `POST /auth/senha/verificar-codigo` `{ email, codigo }`     | `200 { valido: true }`           | Confere sem consumir.                                                                                                                                                                                                                                                                |
+| `POST /auth/senha/redefinir` `{ email, codigo, novaSenha }` | `204`                            | Transação: consome o código (`UPDATE ... WHERE usadoEm IS NULL`, protege corrida), grava o `senhaHash`, `revogarTodas(..., 'RECUPERACAO_SENHA')` e apaga as falhas de login do e-mail. Após o commit, se revogou alguma sessão, emite `usuario.sessaoEncerrada` com `autorId: null`. |
+
+- Só vale o código **mais recente** do usuário: um pedido novo invalida os anteriores, mesmo não usados. Código errado, expirado, usado, de outro tipo ou e-mail sem código → o mesmo `400 CODIGO_INVALIDO`. Cada erro soma `tentativas`; na 5ª o código expira. Erros também contam por IP (`CODIGO_TENTATIVA`, 30/h).
+- `novaSenha` é validada pelo pipe antes do código: senha fraca → `400 VALIDATION_ERROR` sem gastar tentativa.
+- `429` do limite por e-mail: "Limite de 3 envios por hora atingido. Tente novamente em X min." (o app mostra a `message`).
+
 ### Agendador (`src/infra/agendador`)
 
-Único registro do `ScheduleModule` (`@nestjs/schedule`, convenções §11.6). Jobs usam `@Cron(expr, { name, timeZone: FUSO_PADRAO })` e recebem o relógio por parâmetro num método separado (o `cron` passa argumentos próprios ao `onTick`). `LimpezaDiariaJob` (`manutencao.limpeza-diaria`, 03:00) apaga `TentativaAcesso` com mais de 24 h e `Sessao` expiradas ou revogadas há mais de 30 dias. A #62 acrescenta `CodigoVerificacao` ao mesmo job.
+Único registro do `ScheduleModule` (`@nestjs/schedule`, convenções §11.6). Jobs usam `@Cron(expr, { name, timeZone: FUSO_PADRAO })` e recebem o relógio por parâmetro num método separado (o `cron` passa argumentos próprios ao `onTick`). `LimpezaDiariaJob` (`manutencao.limpeza-diaria`, 03:00) apaga `TentativaAcesso` e `CodigoVerificacao` com mais de 24 h e `Sessao` expiradas ou revogadas há mais de 30 dias. `LimpezaOrfaosJob` (`uploads.limpeza-orfaos`, 03:30) fica no `UploadsModule` (ver [Limpeza de órfãos](#limpeza-de-órfãos)).
 
 ### Limite de tentativas (`RateLimitService`)
 
@@ -206,6 +220,7 @@ verificar(tipo, chave, { maximo, janelaMs, bloqueioMs? }, agora?): Promise<numbe
 registrar(tipo, chave, agora?): Promise<void>
 consumir(tipo, chave, limite, agora?): Promise<number> // verificar + registrar atômicos
 limpar(tipo, chave): Promise<void>
+limparPorPrefixo(tipo, prefixo, cliente?): Promise<void> // ex.: falhas de login `email|*`; aceita a `tx`
 ```
 
 - Bloqueado quando as `maximo` tentativas mais recentes cabem em `janelaMs`: sem `bloqueioMs`, até a mais antiga delas sair da janela (janela deslizante, ex.: 10 cadastros/h); com `bloqueioMs`, até `última + bloqueioMs` (login: 15 min após a 5ª falha). `verificar` lança `ErroLimiteExcedido` → `429 RATE_LIMITED` com `Retry-After` em segundos (o filtro global põe o cabeçalho).
@@ -258,6 +273,46 @@ await this.transacao.executar(async (tx) => {
 return { fotoUrl: this.uploads.urlPublica(fotoKey) }
 ```
 
+### Limpeza de órfãos
+
+`LimpezaOrfaosJob` (`uploads.limpeza-orfaos`) roda todo dia às 03:30 de `America/Fortaleza` (`FUSO_PADRAO`) e chama `LimpezaOrfaosService.executar(agora)`, que apaga do bucket as imagens que nenhum registro referencia (uploads abandonados e imagens substituídas cuja remoção falhou). Sem tabela própria:
+
+- lista o bucket com `ListObjectsV2`, em páginas de até 1000 objetos (`MaxKeys`), e só considera objetos com mais de 24 h e chave num dos formatos acima (o resto do bucket nunca é apagado);
+- procura as chaves em `Usuario.fotoKey`, `Noticia.imagemCapaKey` e `Banner.imagemKey` via `prisma.semEscopo` (todas as atléticas, inclusive registros excluídos logicamente) e apaga as demais com um `DeleteObjects` por página, antes de buscar a próxima;
+- uma chave que falha só gera `warn` e entra em `falhas`; o log `info` final traz `listados`, `referenciados` (candidatas ainda em uso), `removidos` e `falhas`. Erro na listagem ou no banco interrompe o job e vai para `logger.error` (Sentry): as páginas anteriores já foram limpas, e a próxima execução retoma o restante;
+- um disparo enquanto a execução anterior não terminou é ignorado (trava na instância).
+
+Execução manual em desenvolvimento (usa o `.env`, com o bucket do R2 configurado nele; os crons da API ficam parados durante o script, e o `.env` não deve apontar para o bucket de produção):
+
+```bash
+pnpm --filter api uploads:limpar-orfaos
+```
+
+## Usuários (`src/modules/usuarios`)
+
+Painel de Usuários da Presidência (UC23, #27). Todas as rotas exigem `@PapelMinimo(PRESIDENTE)` e respondem com `Cache-Control: no-store`.
+
+| Rota                                | Resposta                                                              |
+| ----------------------------------- | --------------------------------------------------------------------- |
+| `GET /api/v1/usuarios`              | `{ items, page, limit, total }`; `busca` (2–100), `papel`, `situacao` |
+| `GET /api/v1/usuarios/:id`          | perfil, times atuais, `estatisticas: null` (#35) e `permissoes`       |
+| `PATCH /api/v1/usuarios/:id/status` | `{ ativo }` → `{ id, situacao }`                                      |
+
+- A busca usa `unaccent(lower(nome)) LIKE ...` ou `email LIKE ...` via `$queryRaw` (com `atleticaId` no SQL; `%`, `_` e `\` do termo viram literais). Contas excluídas nunca aparecem na lista.
+- A desativação grava `VinculoAtletica.ativo` (não `Usuario.ativo`, reservado à exclusão da #12), revoga as sessões da atlética (`CONTA_DESATIVADA`), audita `USUARIO_DESATIVADO`/`USUARIO_REATIVADO` e emite `usuario.sessaoEncerrada` após o commit só quando houve sessão revogada. O guard responde `401 CONTA_DESATIVADA` na requisição seguinte, mesmo com a sessão já revogada.
+- Regra de nível: só sobre nível estritamente inferior (`podeAgirSobre`), com o papel do solicitante relido na transação → `403 NIVEL_INSUFICIENTE`; a própria conta → `403 ALVO_PROPRIO`; excluída → `409 USUARIO_EXCLUIDO`; repetir a situação atual → `200` sem efeito.
+
+### `regras-papel.ts` (usado por #12 e #28)
+
+```ts
+bloquearPapeis(tx, atleticaId) // pg_advisory_xact_lock(hashtext('papeis:' || atleticaId)), até o commit
+garantirNaoUltimoAdministrador(tx, atleticaId, usuarioId) // 409 ULTIMO_ADMINISTRADOR; chame depois do lock
+ehUltimoAdministrador(cliente, atleticaId, usuarioId) // mesma contagem, sem lançar
+calcularPermissoes(solicitante, alvo, ehUltimoAdmin) // permissoes do detalhe
+```
+
+"Outro Administrador" = vínculo `ADMINISTRADOR` ativo, de conta não excluída, na mesma atlética. Toda alteração de papel ou situação abre `TransacaoService.executar`, chama `bloquearPapeis` primeiro e só então lê o vínculo do alvo (`FOR UPDATE`).
+
 ## Banco de dados e multi-atlética (`src/infra/prisma`, `src/infra/contexto`)
 
 `PrismaModule` e `ContextoModule` são globais (importados no `AppModule`): injete `PrismaService` e, se precisar, `ContextoAtletica`. O `PrismaService` conecta na subida e desconecta no `app.close()` (inclusive nos sinais de término, `enableShutdownHooks`).
@@ -269,7 +324,7 @@ return { fotoUrl: this.uploads.urlPublica(fotoKey) }
 | `prisma.db`        | sim (RNF20)         | **Padrão**, em todos os services.                                                                                                                             |
 | `prisma.semEscopo` | não                 | Só operações de conta que atravessam atléticas ou acontecem antes do contexto (login, sessão no guard, exclusão de conta), `/health`, seed e jobs de limpeza. |
 
-A regra de lint `no-restricted-syntax` só permite `semEscopo` em `src/modules/auth/**`, `src/modules/usuarios/conta*.ts`, `src/modules/health/**`, `src/infra/**` e `prisma/seed*.ts` (convenções §3). Qualquer outro uso exige justificativa no PR.
+A regra de lint `no-restricted-syntax` só permite `semEscopo` em `src/modules/auth/**`, `src/modules/usuarios/conta*.ts`, `src/modules/health/**`, `src/modules/uploads/limpeza-orfaos.service.ts` (a limpeza cruza todas as atléticas, #56), `src/infra/**` e `prisma/seed*.ts` (convenções §3). Qualquer outro uso exige justificativa no PR.
 
 ### Como o filtro funciona
 
