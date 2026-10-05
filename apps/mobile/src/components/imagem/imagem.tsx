@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { Image } from 'expo-image'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { corTextoSobre, paleta, useAtletica } from '@/features/atletica'
 
@@ -12,6 +12,8 @@ type Props = {
   nome?: string
   rotulo?: string
   className?: string
+  /** Substitui o fallback padrão (iniciais ou ícone neutro). */
+  fallback?: ReactNode
 }
 
 export function iniciais(nome: string): string {
@@ -47,7 +49,7 @@ function Fallback({ nome }: { nome?: string }) {
 }
 
 /** Toda imagem remota do app passa por aqui (convenções §10.8): cache em memória e disco. */
-export function Imagem({ uri, nome, rotulo, className }: Props) {
+export function Imagem({ uri, nome, rotulo, className, fallback }: Props) {
   const [uriComErro, setUriComErro] = useState<string | null>(null)
   const exibir = uri && uri !== uriComErro
 
@@ -72,7 +74,7 @@ export function Imagem({ uri, nome, rotulo, className }: Props) {
           />
         </>
       ) : (
-        <Fallback nome={nome} />
+        (fallback ?? <Fallback nome={nome} />)
       )}
     </View>
   )
