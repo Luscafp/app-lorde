@@ -30,6 +30,8 @@ updates:
       - dependency-name: 'react-native-worklets'
       - dependency-name: '@react-native-async-storage/async-storage'
       - dependency-name: '@react-native-community/netinfo'
+      - dependency-name: '@sentry/react-native'
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
       # NativeWind 4 depende do Tailwind 3; o Tailwind 4 só entra com o NativeWind 5.
       - dependency-name: 'tailwindcss'
         update-types: ['version-update:semver-major']
