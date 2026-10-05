@@ -33,6 +33,31 @@ export interface EventosDominio {
     papelNovo: Papel
     autorId: string
   }
+  /** #70 (avulso) e #20 (série: `eventoId` = 1ª ocorrência); ouvido pela #89. */
+  'evento.criado': PayloadBase & {
+    atleticaId: string
+    eventoId: string
+    timeId: string
+    serieId?: string
+    autorId: string
+  }
+  /** #70, #20 e #73 (`["status"]`); a #89 só notifica se `campos` tiver `inicio` ou `local`. */
+  'evento.alterado': PayloadBase & {
+    atleticaId: string
+    eventoIds: string[]
+    timeId: string
+    campos: CampoAlteradoEvento[]
+    autorId: string
+  }
+  /** #70, #20 e #73; um por operação, com todos os ids cancelados. Ouvido pela #89. */
+  'evento.cancelado': PayloadBase & {
+    atleticaId: string
+    eventoIds: string[]
+    timeId: string
+    autorId: string
+  }
 }
+
+export type CampoAlteradoEvento = 'inicio' | 'local' | 'status'
 
 export type NomeEventoDominio = keyof EventosDominio
