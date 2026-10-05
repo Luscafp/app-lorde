@@ -209,7 +209,7 @@ Rotas `@Publico()` do `AuthController` (UC09, épico #11), entrada pelos schemas
 
 ### Agendador (`src/infra/agendador`)
 
-Único registro do `ScheduleModule` (`@nestjs/schedule`, convenções §11.6). Jobs usam `@Cron(expr, { name, timeZone: FUSO_PADRAO })` e recebem o relógio por parâmetro num método separado (o `cron` passa argumentos próprios ao `onTick`). `LimpezaDiariaJob` (`manutencao.limpeza-diaria`, 03:00) apaga `TentativaAcesso` e `CodigoVerificacao` com mais de 24 h e `Sessao` expiradas ou revogadas há mais de 30 dias.
+Único registro do `ScheduleModule` (`@nestjs/schedule`, convenções §11.6). Jobs usam `@Cron(expr, { name, timeZone: FUSO_PADRAO })` e recebem o relógio por parâmetro num método separado (o `cron` passa argumentos próprios ao `onTick`). `LimpezaDiariaJob` (`manutencao.limpeza-diaria`, 03:00) apaga `TentativaAcesso` e `CodigoVerificacao` com mais de 24 h e `Sessao` expiradas ou revogadas há mais de 30 dias. `LimpezaOrfaosJob` (`uploads.limpeza-orfaos`, 03:30) fica no `UploadsModule` (ver [Limpeza de órfãos](#limpeza-de-órfãos)).
 
 ### Limite de tentativas (`RateLimitService`)
 
@@ -273,6 +273,46 @@ await this.transacao.executar(async (tx) => {
 return { fotoUrl: this.uploads.urlPublica(fotoKey) }
 ```
 
+### Limpeza de órfãos
+
+`LimpezaOrfaosJob` (`uploads.limpeza-orfaos`) roda todo dia às 03:30 de `America/Fortaleza` (`FUSO_PADRAO`) e chama `LimpezaOrfaosService.executar(agora)`, que apaga do bucket as imagens que nenhum registro referencia (uploads abandonados e imagens substituídas cuja remoção falhou). Sem tabela própria:
+
+- lista o bucket com `ListObjectsV2`, em páginas de até 1000 objetos (`MaxKeys`), e só considera objetos com mais de 24 h e chave num dos formatos acima (o resto do bucket nunca é apagado);
+- procura as chaves em `Usuario.fotoKey`, `Noticia.imagemCapaKey` e `Banner.imagemKey` via `prisma.semEscopo` (todas as atléticas, inclusive registros excluídos logicamente) e apaga as demais com um `DeleteObjects` por página, antes de buscar a próxima;
+- uma chave que falha só gera `warn` e entra em `falhas`; o log `info` final traz `listados`, `referenciados` (candidatas ainda em uso), `removidos` e `falhas`. Erro na listagem ou no banco interrompe o job e vai para `logger.error` (Sentry): as páginas anteriores já foram limpas, e a próxima execução retoma o restante;
+- um disparo enquanto a execução anterior não terminou é ignorado (trava na instância).
+
+Execução manual em desenvolvimento (usa o `.env`, com o bucket do R2 configurado nele; os crons da API ficam parados durante o script, e o `.env` não deve apontar para o bucket de produção):
+
+```bash
+pnpm --filter api uploads:limpar-orfaos
+```
+
+## Usuários (`src/modules/usuarios`)
+
+Painel de Usuários da Presidência (UC23, #27). Todas as rotas exigem `@PapelMinimo(PRESIDENTE)` e respondem com `Cache-Control: no-store`.
+
+| Rota                                | Resposta                                                              |
+| ----------------------------------- | --------------------------------------------------------------------- |
+| `GET /api/v1/usuarios`              | `{ items, page, limit, total }`; `busca` (2–100), `papel`, `situacao` |
+| `GET /api/v1/usuarios/:id`          | perfil, times atuais, `estatisticas: null` (#35) e `permissoes`       |
+| `PATCH /api/v1/usuarios/:id/status` | `{ ativo }` → `{ id, situacao }`                                      |
+
+- A busca usa `unaccent(lower(nome)) LIKE ...` ou `email LIKE ...` via `$queryRaw` (com `atleticaId` no SQL; `%`, `_` e `\` do termo viram literais). Contas excluídas nunca aparecem na lista.
+- A desativação grava `VinculoAtletica.ativo` (não `Usuario.ativo`, reservado à exclusão da #12), revoga as sessões da atlética (`CONTA_DESATIVADA`), audita `USUARIO_DESATIVADO`/`USUARIO_REATIVADO` e emite `usuario.sessaoEncerrada` após o commit só quando houve sessão revogada. O guard responde `401 CONTA_DESATIVADA` na requisição seguinte, mesmo com a sessão já revogada.
+- Regra de nível: só sobre nível estritamente inferior (`podeAgirSobre`), com o papel do solicitante relido na transação → `403 NIVEL_INSUFICIENTE`; a própria conta → `403 ALVO_PROPRIO`; excluída → `409 USUARIO_EXCLUIDO`; repetir a situação atual → `200` sem efeito.
+
+### `regras-papel.ts` (usado por #12 e #28)
+
+```ts
+bloquearPapeis(tx, atleticaId) // pg_advisory_xact_lock(hashtext('papeis:' || atleticaId)), até o commit
+garantirNaoUltimoAdministrador(tx, atleticaId, usuarioId) // 409 ULTIMO_ADMINISTRADOR; chame depois do lock
+ehUltimoAdministrador(cliente, atleticaId, usuarioId) // mesma contagem, sem lançar
+calcularPermissoes(solicitante, alvo, ehUltimoAdmin) // permissoes do detalhe
+```
+
+"Outro Administrador" = vínculo `ADMINISTRADOR` ativo, de conta não excluída, na mesma atlética. Toda alteração de papel ou situação abre `TransacaoService.executar`, chama `bloquearPapeis` primeiro e só então lê o vínculo do alvo (`FOR UPDATE`).
+
 ## Banco de dados e multi-atlética (`src/infra/prisma`, `src/infra/contexto`)
 
 `PrismaModule` e `ContextoModule` são globais (importados no `AppModule`): injete `PrismaService` e, se precisar, `ContextoAtletica`. O `PrismaService` conecta na subida e desconecta no `app.close()` (inclusive nos sinais de término, `enableShutdownHooks`).
@@ -284,7 +324,7 @@ return { fotoUrl: this.uploads.urlPublica(fotoKey) }
 | `prisma.db`        | sim (RNF20)         | **Padrão**, em todos os services.                                                                                                                             |
 | `prisma.semEscopo` | não                 | Só operações de conta que atravessam atléticas ou acontecem antes do contexto (login, sessão no guard, exclusão de conta), `/health`, seed e jobs de limpeza. |
 
-A regra de lint `no-restricted-syntax` só permite `semEscopo` em `src/modules/auth/**`, `src/modules/usuarios/conta*.ts`, `src/modules/health/**`, `src/infra/**` e `prisma/seed*.ts` (convenções §3). Qualquer outro uso exige justificativa no PR.
+A regra de lint `no-restricted-syntax` só permite `semEscopo` em `src/modules/auth/**`, `src/modules/usuarios/conta*.ts`, `src/modules/health/**`, `src/modules/uploads/limpeza-orfaos.service.ts` (a limpeza cruza todas as atléticas, #56), `src/infra/**` e `prisma/seed*.ts` (convenções §3). Qualquer outro uso exige justificativa no PR.
 
 ### Como o filtro funciona
 

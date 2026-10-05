@@ -17,6 +17,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "prisma db seed",
+    "uploads:limpar-orfaos": "nest start --entryFile limpar-orfaos",
     "docker:build": "docker build -f Dockerfile --build-arg GIT_COMMIT_SHA -t atletica-api ../..",
     "docker:verificar": "sh scripts/verificar-imagem.sh atletica-api"
   },

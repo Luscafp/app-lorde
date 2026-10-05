@@ -1,4 +1,4 @@
-import { S3Client } from '@aws-sdk/client-s3'
+import { DeleteObjectsCommand, S3Client } from '@aws-sdk/client-s3'
 import type { TestingModuleBuilder } from '@nestjs/testing'
 import { ASSINAR_URL, type AssinarUrl } from '../../src/modules/uploads/armazenamento'
 
@@ -29,4 +29,17 @@ export function simularArmazenamento(): ArmazenamentoSimulado {
         .overrideProvider(ASSINAR_URL)
         .useValue(assinar),
   }
+}
+
+/** Comandos de um tipo enviados ao `S3Client` simulado. */
+export function comandosEnviados<T>(send: jest.Mock, tipo: new (...args: never[]) => T): T[] {
+  return send.mock.calls
+    .map(([comando]: [unknown]) => comando)
+    .filter((comando): comando is T => comando instanceof tipo)
+}
+
+export function chavesApagadas(send: jest.Mock): (string | undefined)[] {
+  return comandosEnviados(send, DeleteObjectsCommand).flatMap(({ input }) =>
+    (input.Delete?.Objects ?? []).map(({ Key }) => Key),
+  )
 }

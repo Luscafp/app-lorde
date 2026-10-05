@@ -1,6 +1,6 @@
 import { esqueciSenhaSchema } from '@atletica/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useForm } from 'react-hook-form'
 import { Botao, Campo, Texto } from '@/components/ui'
 import { TelaRecuperacao, useEnviarCodigo, useRecuperacaoStore } from '@/features/recuperacao-senha'
@@ -8,13 +8,14 @@ import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
 
 export default function InformarEmail() {
   const router = useRouter()
-  const emailInicial = useRecuperacaoStore((estado) => estado.email)
+  const { email: emailRecebido } = useLocalSearchParams<{ email?: string }>()
+  const emailDoFluxo = useRecuperacaoStore((estado) => estado.email)
   const codigoEnviado = useRecuperacaoStore((estado) => estado.codigoEnviado)
   const enviar = useEnviarCodigo()
   const form = useForm({
     resolver: zodResolver(esqueciSenhaSchema),
     mode: 'onBlur',
-    defaultValues: { email: emailInicial },
+    defaultValues: { email: emailRecebido ?? emailDoFluxo },
   })
 
   const aoEnviar = form.handleSubmit((dados) =>

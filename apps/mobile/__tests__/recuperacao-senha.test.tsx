@@ -85,13 +85,15 @@ beforeEach(() => {
 afterEach(() => cliente.clear())
 
 describe('login', () => {
-  it('"Esqueci minha senha" abre a tela de e-mail', async () => {
+  it('"Esqueci minha senha" abre a tela de e-mail já preenchida com o e-mail do login', async () => {
     const caminho = await abrir('/login')
 
+    await fireEvent.changeText(screen.getByLabelText('E-mail'), EMAIL)
     await fireEvent.press(screen.getByText('Esqueci minha senha'))
 
     expect(await screen.findByRole('header', { name: 'Recuperar senha' })).toBeOnTheScreen()
-    expect(caminho()).toBe('/recuperar-senha')
+    expect(caminho()).toBe(`/recuperar-senha?email=${encodeURIComponent(EMAIL)}`)
+    expect(screen.getByLabelText('E-mail')).toHaveDisplayValue(EMAIL)
   })
 })
 
@@ -109,9 +111,8 @@ describe('tela de e-mail', () => {
     expect(useRecuperacaoStore.getState()).toMatchObject({ email: EMAIL, codigo: '' })
   })
 
-  it('vem preenchida com o e-mail do store (iniciado pelo login)', async () => {
-    useRecuperacaoStore.getState().iniciar(EMAIL)
-    await abrir('/recuperar-senha')
+  it('vem preenchida com o e-mail recebido do login', async () => {
+    await abrir(`/recuperar-senha?email=${encodeURIComponent(EMAIL)}`)
 
     expect(screen.getByLabelText('E-mail')).toHaveDisplayValue(EMAIL)
   })
