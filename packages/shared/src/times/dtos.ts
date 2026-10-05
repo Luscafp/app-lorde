@@ -25,5 +25,23 @@ export const timeDtoSchema = z
 
 export const listaTimesSchema = respostaPaginadaSchema(timeDtoSchema)
 
+/** Item de `GET /times/:id/elenco`: nunca traz e-mail (épico #16 §10). */
+export const membroElencoDtoSchema = z
+  .object({
+    usuarioId: z.uuid(),
+    nome: z.string(),
+    fotoUrl: z.string().nullable(),
+    entradaEm: z.iso.datetime(),
+    capitao: z.boolean(),
+  })
+  .strict()
+
+/** Sem paginação (convenções §4.4). */
+export const elencoDtoSchema = z
+  .object({ items: z.array(membroElencoDtoSchema), total: z.number().int() })
+  .strict()
+
 export type TimeDto = z.infer<typeof timeDtoSchema>
 export type ListaTimes = z.infer<typeof listaTimesSchema>
+export type MembroElencoDto = z.infer<typeof membroElencoDtoSchema>
+export type ElencoDto = z.infer<typeof elencoDtoSchema>

@@ -61,8 +61,21 @@ export const timesQuerySchema = paginacaoQuerySchema
 
 export const timeIdSchema = z.object({ id: z.uuid({ error: 'Id inválido.' }) }).strict()
 
+export const membroElencoParamsSchema = z
+  .object({
+    id: z.uuid({ error: 'Id inválido.' }),
+    usuarioId: z.uuid({ error: 'Usuário inválido.' }),
+  })
+  .strict()
+
+/** `usuarioId: null` remove o capitão (épico #16 §7). */
+export const capitaoUpdateSchema = z
+  .object({ usuarioId: z.uuid({ error: 'Usuário inválido.' }).nullable() })
+  .strict()
+
 export type TimeCriacao = z.infer<typeof timeCreateSchema>
 export type TimeAtualizacao = z.infer<typeof timeUpdateSchema>
 export type TimesQuery = z.infer<typeof timesQuerySchema>
 export type FiltrosTimes = Omit<z.input<typeof timesQuerySchema>, 'page' | 'limit'>
 export type TimeForm = z.input<typeof timeCreateSchema>
+export type CapitaoAtualizacao = z.infer<typeof capitaoUpdateSchema>
