@@ -290,16 +290,18 @@ pnpm --filter api uploads:limpar-orfaos
 
 ## Usuários (`src/modules/usuarios`)
 
-Painel de Usuários da Presidência (UC23, #27). Todas as rotas exigem `@PapelMinimo(PRESIDENTE)` e respondem com `Cache-Control: no-store`.
+Painel de Usuários da Presidência (UC23, #27) e cargos (UC24, #28). As rotas exigem `@PapelMinimo(PRESIDENTE)` — a de papel, `ADMINISTRADOR` — e respondem com `Cache-Control: no-store`.
 
-| Rota                                | Resposta                                                              |
-| ----------------------------------- | --------------------------------------------------------------------- |
-| `GET /api/v1/usuarios`              | `{ items, page, limit, total }`; `busca` (2–100), `papel`, `situacao` |
-| `GET /api/v1/usuarios/:id`          | perfil, times atuais, `estatisticas: null` (#35) e `permissoes`       |
-| `PATCH /api/v1/usuarios/:id/status` | `{ ativo }` → `{ id, situacao }`                                      |
+| Rota                                | Resposta                                                                   |
+| ----------------------------------- | -------------------------------------------------------------------------- |
+| `GET /api/v1/usuarios`              | `{ items, page, limit, total }`; `busca` (2–100), `papel`, `situacao`      |
+| `GET /api/v1/usuarios/:id`          | perfil, times atuais, `estatisticas: null` (#35) e `permissoes`            |
+| `PATCH /api/v1/usuarios/:id/status` | `{ ativo }` → `{ id, situacao }`                                           |
+| `PUT /api/v1/usuarios/:id/papel`    | `{ papel, confirmarSubstituicao? }` → `{ alterado, usuario, substituido }` |
 
 - A busca usa `unaccent(lower(nome)) LIKE ...` ou `email LIKE ...` via `$queryRaw` (com `atleticaId` no SQL; `%`, `_` e `\` do termo viram literais). Contas excluídas nunca aparecem na lista.
 - A desativação grava `VinculoAtletica.ativo` (não `Usuario.ativo`, reservado à exclusão da #12), revoga as sessões da atlética (`CONTA_DESATIVADA`), audita `USUARIO_DESATIVADO`/`USUARIO_REATIVADO` e emite `usuario.sessaoEncerrada` após o commit só quando houve sessão revogada. O guard responde `401 CONTA_DESATIVADA` na requisição seguinte, mesmo com a sessão já revogada.
+- Cargos (`CargosService`): Presidente/Vice ocupado por outro → `409 SUBSTITUICAO_NECESSARIA` até o reenvio com `confirmarSubstituicao: true`, que rebaixa o ocupante a Diretor antes do alvo (índices `vinculo_presidente_unico`/`vinculo_vice_unico`; `P2002` → `409 CONFLITO_CONCORRENTE`). Último Administrador ativo → `409 ULTIMO_ADMINISTRADOR`; promover conta desativada → `409 USUARIO_DESATIVADO`. Cada vínculo alterado gera `CARGO_ALTERADO` e `usuario.papelAlterado` após o commit; sem revogar sessões (o guard relê o papel a cada requisição).
 - Regra de nível: só sobre nível estritamente inferior (`podeAgirSobre`), com o papel do solicitante relido na transação → `403 NIVEL_INSUFICIENTE`; a própria conta → `403 ALVO_PROPRIO`; excluída → `409 USUARIO_EXCLUIDO`; repetir a situação atual → `200` sem efeito.
 
 ### Perfil (`/me`, `PerfilService`)
@@ -326,6 +328,8 @@ bloquearPapeis(tx, atleticaId) // pg_advisory_xact_lock(hashtext('papeis:' || at
 garantirNaoUltimoAdministrador(tx, atleticaId, usuarioId) // 409 ULTIMO_ADMINISTRADOR; chame depois do lock
 ehUltimoAdministrador(cliente, atleticaId, usuarioId) // mesma contagem, sem lançar
 calcularPermissoes(solicitante, alvo, ehUltimoAdmin) // permissoes do detalhe
+bloquearVinculo(tx, usuarioId, atleticaId) // vínculo do alvo com FOR UPDATE; depois do lock
+papelDoSolicitante(tx, solicitanteId, minimo) // relê o papel sob o lock; 403 FORBIDDEN abaixo do mínimo
 ```
 
 "Outro Administrador" = vínculo `ADMINISTRADOR` ativo, de conta não excluída, na mesma atlética. Toda alteração de papel ou situação abre `TransacaoService.executar`, chama `bloquearPapeis` primeiro e só então lê o vínculo do alvo (`FOR UPDATE`).

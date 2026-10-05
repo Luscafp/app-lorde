@@ -1,7 +1,7 @@
 import type { ListaUsuarios, UsuarioDetalhe, UsuarioResumo } from '@atletica/shared'
 import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
-import { Alert, Text, type AlertButton } from 'react-native'
+import { Alert, type AlertButton } from 'react-native'
 import { toast } from '@/components/ui/toast'
 import { ApiErro } from '@/infra/api/api-erro'
 import { criarQueryClient } from '@/infra/query/query-client'
@@ -197,14 +197,14 @@ describe('Detalhe do usuário', () => {
   it.each([
     [false, 0],
     [true, 1],
-  ])('espaço "Alterar cargo" com podeAlterarPapel=%s', async (podeAlterarPapel, vezes) => {
+  ])('botão "Alterar cargo" com podeAlterarPapel=%s', async (podeAlterarPapel, vezes) => {
     jest
       .mocked(buscarUsuario)
       .mockResolvedValue(detalhe({ permissoes: { ...detalhe().permissoes, podeAlterarPapel } }))
-    await renderizar(<DetalheUsuario id={ID} alterarCargo={() => <Text>Alterar cargo</Text>} />)
+    await renderizar(<DetalheUsuario id={ID} />)
 
     expect(await screen.findByRole('button', { name: 'Desativar conta' })).toBeOnTheScreen()
-    expect(screen.queryAllByText('Alterar cargo')).toHaveLength(vezes)
+    expect(screen.queryAllByRole('button', { name: 'Alterar cargo' })).toHaveLength(vezes)
   })
 
   it('confirmar desativação → mutation, toast e recarga (critério 6)', async () => {

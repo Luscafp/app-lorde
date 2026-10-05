@@ -55,6 +55,19 @@ export const situacaoAlteradaSchema = z
   .object({ id: z.uuid(), situacao: z.enum(SITUACOES_FILTRO) })
   .strict()
 
+const mudancaDePapelSchema = z
+  .object({ id: z.uuid(), papelAnterior: z.enum(Papel), papel: z.enum(Papel) })
+  .strict()
+
+/** `substituido`: ocupante anterior de Presidente/Vice, rebaixado a Diretor (RN07). */
+export const papelAlteradoSchema = z
+  .object({
+    alterado: z.boolean(),
+    usuario: mudancaDePapelSchema,
+    substituido: mudancaDePapelSchema.extend({ nome: z.string() }).nullable(),
+  })
+  .strict()
+
 /** Time atual do usuário autenticado (`GET /me`). */
 export const timeDoPerfilSchema = z
   .object({
@@ -91,6 +104,7 @@ export type PermissoesUsuario = z.infer<typeof permissoesUsuarioSchema>
 export type TimeDoUsuario = z.infer<typeof timeDoUsuarioSchema>
 export type UsuarioDetalhe = z.infer<typeof usuarioDetalheSchema>
 export type SituacaoAlterada = z.infer<typeof situacaoAlteradaSchema>
+export type PapelAlterado = z.infer<typeof papelAlteradoSchema>
 export type TimeDoPerfil = z.infer<typeof timeDoPerfilSchema>
 export type Perfil = z.infer<typeof perfilSchema>
 export type FotoAtualizada = z.infer<typeof fotoAtualizadaSchema>

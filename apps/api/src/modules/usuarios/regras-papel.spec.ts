@@ -36,13 +36,13 @@ describe('calcularPermissoes', () => {
     },
   )
 
-  it('si mesmo: bloqueado com mensagem própria e sem alterar papel', () => {
+  it('si mesmo: situação bloqueada com mensagem própria, papel alterável (#28 critérios 9 e 13)', () => {
     expect(
       calcularPermissoes(administrador, alvo(Papel.ADMINISTRADOR, { id: 'adm' }), true),
     ).toEqual({
       podeAlterarSituacao: false,
       motivoBloqueio: MENSAGEM_ALVO_PROPRIO,
-      podeAlterarPapel: false,
+      podeAlterarPapel: true,
       ehUltimoAdministrador: true,
     })
   })

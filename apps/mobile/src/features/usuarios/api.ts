@@ -1,9 +1,12 @@
 import {
   listaUsuariosSchema,
+  papelAlteradoSchema,
   situacaoAlteradaSchema,
   usuarioDetalheSchema,
+  type AlterarPapel,
   type FiltrosUsuarios,
   type ListaUsuarios,
+  type PapelAlterado,
   type SituacaoAlterada,
   type UsuarioDetalhe,
 } from '@atletica/shared'
@@ -29,4 +32,8 @@ export async function buscarUsuario(id: string, sinal?: AbortSignal): Promise<Us
 
 export async function alterarSituacao(id: string, ativo: boolean): Promise<SituacaoAlterada> {
   return situacaoAlteradaSchema.parse(await api.patch(`/usuarios/${id}/status`, { ativo }))
+}
+
+export async function alterarPapel(id: string, corpo: AlterarPapel): Promise<PapelAlterado> {
+  return papelAlteradoSchema.parse(await api.put(`/usuarios/${id}/papel`, corpo))
 }

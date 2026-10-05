@@ -1,16 +1,19 @@
 import {
+  alterarPapelSchema,
   alterarSituacaoSchema,
   listarUsuariosQuerySchema,
   listaUsuariosSchema,
   Papel,
+  papelAlteradoSchema,
   situacaoAlteradaSchema,
   usuarioDetalheSchema,
   idParamSchema,
   type ListaUsuarios,
+  type PapelAlterado,
   type SituacaoAlterada,
   type UsuarioDetalhe,
 } from '@atletica/shared'
-import { Body, Controller, Get, Header, Param, Patch, Query } from '@nestjs/common'
+import { Body, Controller, Get, Header, Param, Patch, Put, Query } from '@nestjs/common'
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -26,6 +29,15 @@ import { AtleticaAtual } from '../auth/decorators/atletica-atual.decorator'
 import { PapelMinimo } from '../auth/decorators/papel-minimo.decorator'
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator'
 import type { UsuarioAutenticado } from '../auth/tipos'
+import type { ErroNegocio } from '../../common/erros/erro-negocio'
+import { CargosService } from './cargos.service'
+import {
+  erroConflitoConcorrente,
+  erroSubstituicaoNecessaria,
+  erroUltimoAdministrador,
+  erroUsuarioDesativado,
+  erroUsuarioExcluido,
+} from './erros'
 import { GestaoUsuariosService } from './gestao-usuarios.service'
 
 class ListarUsuariosQueryDto extends createZodDto(listarUsuariosQuerySchema) {}
@@ -34,6 +46,8 @@ class AlterarSituacaoDto extends createZodDto(alterarSituacaoSchema) {}
 class ListaUsuariosDto extends createZodDto(listaUsuariosSchema) {}
 class UsuarioDetalheDto extends createZodDto(usuarioDetalheSchema) {}
 class SituacaoAlteradaDto extends createZodDto(situacaoAlteradaSchema) {}
+class AlterarPapelDto extends createZodDto(alterarPapelSchema) {}
+class PapelAlteradoDto extends createZodDto(papelAlteradoSchema) {}
 
 const ID_EXEMPLO = '0b6f8a52-8e5d-4a43-9d6c-1f0f3c2b7a90'
 
@@ -78,6 +92,32 @@ const EXEMPLO_DETALHE: UsuarioDetalhe = {
   },
 }
 
+const EXEMPLO_PAPEL_ALTERADO: PapelAlterado = {
+  alterado: true,
+  usuario: { id: ID_EXEMPLO, papelAnterior: 'DIRETOR', papel: 'PRESIDENTE' },
+  substituido: {
+    id: '7c2e4b9a-1d3f-4a5b-8c6d-0e1f2a3b4c5d',
+    nome: 'Ana Souza',
+    papelAnterior: 'PRESIDENTE',
+    papel: 'DIRETOR',
+  },
+}
+
+const CONFLITOS_PAPEL: readonly (readonly [ErroNegocio, string])[] = [
+  [erroSubstituicaoNecessaria('Ana Souza', Papel.PRESIDENTE), 'cargo ocupado, sem confirmação'],
+  [erroUltimoAdministrador(), 'único Administrador ativo perderia o cargo (RN08)'],
+  [erroUsuarioExcluido(), 'conta excluída'],
+  [erroUsuarioDesativado(), 'promoção de conta desativada'],
+  [erroConflitoConcorrente(), 'outro cargo alterado ao mesmo tempo'],
+]
+
+const EXEMPLOS_CONFLITO_PAPEL = Object.fromEntries(
+  CONFLITOS_PAPEL.map(([{ statusCode, code, message, details }]) => [
+    code,
+    { value: { statusCode, code, message, details } },
+  ]),
+)
+
 const NAO_ENCONTRADO = '`NOT_FOUND`: inexistente ou sem vínculo com a atlética do token.'
 
 @ApiTags('Usuários')
@@ -87,7 +127,10 @@ const NAO_ENCONTRADO = '`NOT_FOUND`: inexistente ou sem vínculo com a atlética
   description: '`UNAUTHENTICATED`, `TOKEN_EXPIRED` ou `CONTA_DESATIVADA`.',
 })
 export class UsuariosController {
-  constructor(private readonly gestao: GestaoUsuariosService) {}
+  constructor(
+    private readonly gestao: GestaoUsuariosService,
+    private readonly cargos: CargosService,
+  ) {}
 
   @Get()
   @Header('Cache-Control', 'no-store')
@@ -150,5 +193,36 @@ export class UsuariosController {
     @UsuarioAtual() usuario: UsuarioAutenticado,
   ): Promise<SituacaoAlterada> {
     return this.gestao.alterarSituacao(id, ativo, usuario)
+  }
+
+  @Put(':id/papel')
+  @PapelMinimo(Papel.ADMINISTRADOR)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Concede ou revoga o cargo de um usuário (UC24)',
+    description:
+      'Só o Administrador. Vale na próxima requisição do afetado, sem novo login. Repetir o ' +
+      'papel atual responde 200 com `alterado: false`. Escolher Presidente ou Vice ocupado ' +
+      'exige `confirmarSubstituicao: true`: o ocupante volta a Diretor (RN07).\n\n' +
+      '| HTTP | code | Quando |\n|---|---|---|\n' +
+      '| 400 | `VALIDATION_ERROR` | papel inválido ou campo extra |\n' +
+      '| 403 | `FORBIDDEN` | solicitante não é Administrador |\n' +
+      '| 404 | `NOT_FOUND` | inexistente ou de outra atlética |\n' +
+      CONFLITOS_PAPEL.map(([{ code }, quando]) => `| 409 | \`${code}\` | ${quando} |`).join('\n'),
+  })
+  @ApiOkResponse({ type: PapelAlteradoDto, example: EXEMPLO_PAPEL_ALTERADO })
+  @ApiBadRequestResponse({ description: '`VALIDATION_ERROR`.' })
+  @ApiForbiddenResponse({ description: '`FORBIDDEN`: exige Administrador.' })
+  @ApiNotFoundResponse({ description: NAO_ENCONTRADO })
+  @ApiConflictResponse({
+    description: `${CONFLITOS_PAPEL.map(([{ code }]) => `\`${code}\``).join(', ')}.`,
+    content: { 'application/json': { examples: EXEMPLOS_CONFLITO_PAPEL } },
+  })
+  alterarPapel(
+    @Param() { id }: UsuarioIdParamDto,
+    @Body() corpo: AlterarPapelDto,
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+  ): Promise<PapelAlterado> {
+    return this.cargos.alterarPapel(id, corpo, usuario)
   }
 }

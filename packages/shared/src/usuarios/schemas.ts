@@ -35,6 +35,14 @@ export const listarUsuariosQuerySchema = paginacaoQuerySchema
 
 export const alterarSituacaoSchema = z.object({ ativo: z.boolean() }).strict()
 
+/** Corpo de `PUT /usuarios/:id/papel` (issue #28). */
+export const alterarPapelSchema = z
+  .object({
+    papel: z.enum(Papel, { error: 'Papel inválido.' }),
+    confirmarSubstituicao: z.boolean().optional(),
+  })
+  .strict()
+
 /** `.strict()`: `email`, `papel` e `ativo` no corpo → `400` (issue #13 §10). */
 export const atualizarPerfilSchema = z.object({ nome: nomeSchema }).strict()
 
@@ -62,6 +70,7 @@ export const alterarSenhaFormSchema = alterarSenhaSchema
 export type ListarUsuariosQuery = z.infer<typeof listarUsuariosQuerySchema>
 export type FiltrosUsuarios = Omit<z.input<typeof listarUsuariosQuerySchema>, 'page' | 'limit'>
 export type AlterarSituacao = z.infer<typeof alterarSituacaoSchema>
+export type AlterarPapel = z.infer<typeof alterarPapelSchema>
 export type AtualizarPerfil = z.infer<typeof atualizarPerfilSchema>
 export type AtualizarFoto = z.infer<typeof atualizarFotoSchema>
 export type AlterarSenha = z.infer<typeof alterarSenhaSchema>

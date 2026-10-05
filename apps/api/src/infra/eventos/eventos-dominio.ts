@@ -1,3 +1,5 @@
+import type { Papel } from '@atletica/shared'
+
 /** Todo payload tem `autorId` (`null` = sistema) e `atleticaId` quando aplicável (§11.8). */
 export interface PayloadBase {
   atleticaId?: string
@@ -22,6 +24,14 @@ export interface EventosDominio {
     usuarioId: string
     sessaoIds: string[]
     motivo: MotivoRevogacao
+  }
+  /** #28, um por vínculo alterado; ouvido pela #89 (push de cargo, RN35). */
+  'usuario.papelAlterado': PayloadBase & {
+    atleticaId: string
+    usuarioId: string
+    papelAnterior: Papel
+    papelNovo: Papel
+    autorId: string
   }
 }
 
