@@ -1,20 +1,9 @@
 import { ehIconeModalidade, ICONES_MODALIDADE } from './icones'
-import {
-  modalidadeCreateSchema,
-  modalidadesQuerySchema,
-  modalidadeUpdateSchema,
-  normalizarNomeModalidade,
-} from './schemas'
+import { modalidadeCreateSchema, modalidadesQuerySchema, modalidadeUpdateSchema } from './schemas'
 
 function campos(resultado: { error?: { issues: { path: PropertyKey[] }[] } }): string[] {
   return (resultado.error?.issues ?? []).map(({ path }) => path.join('.'))
 }
-
-describe('normalizarNomeModalidade', () => {
-  it('remove espaços nas pontas e colapsa os internos', () => {
-    expect(normalizarNomeModalidade('  Vôlei   de  Praia ')).toBe('Vôlei de Praia')
-  })
-})
 
 describe('modalidadeCreateSchema', () => {
   it('normaliza o nome', () => {

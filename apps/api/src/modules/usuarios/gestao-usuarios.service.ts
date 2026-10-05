@@ -9,6 +9,7 @@ import {
   type UsuarioDetalhe,
 } from '@atletica/shared'
 import { Injectable } from '@nestjs/common'
+import { padraoLike } from '../../common/busca'
 import { TransacaoService } from '../../infra/eventos/apos-commit'
 import { EventosDominioService } from '../../infra/eventos/eventos-dominio.service'
 import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prisma.service'
@@ -48,11 +49,6 @@ interface VinculoBloqueado {
 
 function situacaoDe(ativo: boolean): SituacaoFiltro {
   return ativo ? SituacaoUsuario.ATIVO : SituacaoUsuario.DESATIVADO
-}
-
-/** `%`, `_` e `\` do termo viram literais no `LIKE`. */
-function padraoLike(termo: string): string {
-  return `%${termo.replace(/[\\%_]/g, (caractere) => `\\${caractere}`)}%`
 }
 
 function filtrosDaLista(atleticaId: string, query: ListarUsuariosQuery): Prisma.Sql {

@@ -17,6 +17,10 @@ export function erroModalidadeComDependencias(): ErroNegocio {
   )
 }
 
-export function erroModalidadeNaoEncontrada(): ErroNegocio {
-  return new ErroNegocio(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Modalidade não encontrada.')
+const MODALIDADE_NAO_ENCONTRADA = 'Modalidade não encontrada.'
+
+/** `campo`: a modalidade veio no corpo de outro recurso (ex.: `modalidadeId` do time). */
+export function erroModalidadeNaoEncontrada(campo?: string): ErroNegocio {
+  const details = campo ? [{ field: campo, message: MODALIDADE_NAO_ENCONTRADA }] : undefined
+  return new ErroNegocio(HttpStatus.NOT_FOUND, 'NOT_FOUND', MODALIDADE_NAO_ENCONTRADA, details)
 }

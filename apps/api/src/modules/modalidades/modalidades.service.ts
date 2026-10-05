@@ -1,5 +1,5 @@
 import {
-  normalizarNomeModalidade,
+  normalizarEspacos,
   type Modalidade,
   type ModalidadeAtualizacao,
   type ModalidadeCriacao,
@@ -7,8 +7,9 @@ import {
 import { Injectable } from '@nestjs/common'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client'
 import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prisma.service'
-import { AuditoriaService, type EntradaAuditoria } from '../auditoria/auditoria.service'
-import { diferenca, type DiferencaAuditoria } from '../auditoria/diferenca'
+import { AuditoriaService } from '../auditoria/auditoria.service'
+import { diferenca } from '../auditoria/diferenca'
+import { entradasDaAlteracao } from '../auditoria/entradas-da-alteracao'
 import {
   erroModalidadeComDependencias,
   erroModalidadeDuplicada,
@@ -19,30 +20,14 @@ const CAMPOS = { id: true, nome: true, icone: true, ativa: true } as const
 
 const ordemAlfabetica = new Intl.Collator('pt-BR', { sensitivity: 'base' })
 
-type EntradaModalidade = Extract<EntradaAuditoria, { entidade: 'Modalidade' }>
+const ACOES_DA_ALTERACAO = {
+  alteracao: 'MODALIDADE_ALTERADA',
+  ativacao: 'MODALIDADE_ATIVADA',
+  desativacao: 'MODALIDADE_DESATIVADA',
+} as const
 
 function semId({ nome, icone, ativa }: Modalidade) {
   return { nome, icone, ativa }
-}
-
-/** Separa a troca de `ativa` (ATIVADA/DESATIVADA) da troca de nome/ícone (ALTERADA). */
-function entradasDaAlteracao(id: string, diff: DiferencaAuditoria): EntradaModalidade[] {
-  const { ativa: ativaAntes, ...antes } = diff.antes
-  const { ativa: ativaDepois, ...depois } = diff.depois
-  const entradas: EntradaModalidade[] = []
-  const base = { entidade: 'Modalidade', entidadeId: id } as const
-
-  if (Object.keys(depois).length > 0) {
-    entradas.push({ ...base, acao: 'MODALIDADE_ALTERADA', dados: { antes, depois } })
-  }
-  if (ativaDepois !== undefined) {
-    entradas.push({
-      ...base,
-      acao: ativaDepois ? 'MODALIDADE_ATIVADA' : 'MODALIDADE_DESATIVADA',
-      dados: { antes: { ativa: ativaAntes }, depois: { ativa: ativaDepois } },
-    })
-  }
-  return entradas
 }
 
 /** Catálogo global de modalidades (RF34); `Modalidade` não tem escopo de atlética. */
@@ -62,7 +47,7 @@ export class ModalidadesService {
   }
 
   criar(entrada: ModalidadeCriacao): Promise<Modalidade> {
-    const dados = { ...entrada, nome: normalizarNomeModalidade(entrada.nome) }
+    const dados = { ...entrada, nome: normalizarEspacos(entrada.nome) }
     return this.gravar(async (tx) => {
       const criada = await tx.modalidade.create({ data: dados, select: CAMPOS })
       await this.auditoria.registrar(tx, {
@@ -78,16 +63,17 @@ export class ModalidadesService {
   /** Sem mudança: devolve a modalidade sem gravar nem auditar (convenções §7). */
   atualizar(id: string, entrada: ModalidadeAtualizacao): Promise<Modalidade> {
     const dados =
-      entrada.nome === undefined
-        ? entrada
-        : { ...entrada, nome: normalizarNomeModalidade(entrada.nome) }
+      entrada.nome === undefined ? entrada : { ...entrada, nome: normalizarEspacos(entrada.nome) }
     return this.gravar(async (tx) => {
       const antes = await this.buscar(tx, id)
       const diff = diferenca(antes, { ...antes, ...dados }, ['nome', 'icone', 'ativa'])
       if (!diff) return antes
 
       const depois = await tx.modalidade.update({ where: { id }, data: dados, select: CAMPOS })
-      await this.auditoria.registrarVarios(tx, entradasDaAlteracao(id, diff))
+      await this.auditoria.registrarVarios(
+        tx,
+        entradasDaAlteracao('Modalidade', id, diff, 'ativa', ACOES_DA_ALTERACAO),
+      )
       return depois
     })
   }
