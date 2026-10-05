@@ -40,6 +40,13 @@ export default function Painel() {
   return (
     <ScrollView className="flex-1 bg-fundo" contentContainerClassName="gap-4 p-4">
       <Texto variante="titulo">Painel</Texto>
+      {/* Até a tela de times (#65), abre direto a lista de modalidades. */}
+      <ItemPainel
+        titulo="Times e modalidades"
+        descricao="Cadastrar, editar e desativar modalidades"
+        icone="trophy-outline"
+        href="/painel/modalidades"
+      />
       {ehPresidencia && (
         <ItemPainel
           titulo="Usuários"

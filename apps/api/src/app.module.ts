@@ -16,6 +16,7 @@ import { AuditoriaModule } from './modules/auditoria/auditoria.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.module'
 import { HealthModule } from './modules/health/health.module'
+import { ModalidadesModule } from './modules/modalidades/modalidades.module'
 import { UploadsModule } from './modules/uploads/uploads.module'
 import { UsuariosModule } from './modules/usuarios/usuarios.module'
 
@@ -41,6 +42,7 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module'
     AuthModule,
     AtleticasModule,
     HealthModule,
+    ModalidadesModule,
     UploadsModule,
     UsuariosModule,
     DiagnosticoForaDeProducao,

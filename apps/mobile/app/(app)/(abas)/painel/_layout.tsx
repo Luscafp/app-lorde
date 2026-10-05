@@ -15,6 +15,9 @@ export default function LayoutPainel() {
       }}
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="modalidades/index" options={{ title: 'Modalidades' }} />
+      <Stack.Screen name="modalidades/nova" options={{ title: 'Nova modalidade' }} />
+      <Stack.Screen name="modalidades/[id]" options={{ title: 'Editar modalidade' }} />
       <Stack.Screen name="usuarios/index" options={{ title: 'Usuários' }} />
       <Stack.Screen name="usuarios/[id]" options={{ title: 'Usuário' }} />
     </Stack>
