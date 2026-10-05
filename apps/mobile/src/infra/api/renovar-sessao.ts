@@ -1,5 +1,6 @@
 import { respostaSessaoSchema } from '@atletica/shared'
 import { toast } from '@/components/ui/toast'
+import { execucaoUnica } from '@/infra/execucao-unica'
 import { useSessao, type MotivoEncerramento } from '@/infra/sessao/store'
 import {
   ApiErro,
@@ -19,8 +20,6 @@ const MENSAGEM_POR_MOTIVO: Record<MotivoDoRefresh, string> = {
   CONTA_DESATIVADA: MENSAGEM_CONTA_DESATIVADA,
   SESSAO_EXPIRADA: MENSAGEM_SESSAO_EXPIRADA,
 }
-
-let renovacaoEmAndamento: Promise<void> | null = null
 
 function sessaoEncerrada(mensagem: string): ApiErro {
   return new ApiErro({ status: 401, code: CodigoLocal.SESSAO_ENCERRADA, message: mensagem })
@@ -68,9 +67,4 @@ async function executarRenovacao(): Promise<void> {
 }
 
 /** Single-flight: a rotação com detecção de reuso revogaria a sessão num refresh paralelo. */
-export function renovarSessao(): Promise<void> {
-  renovacaoEmAndamento ??= executarRenovacao().finally(() => {
-    renovacaoEmAndamento = null
-  })
-  return renovacaoEmAndamento
-}
+export const renovarSessao = execucaoUnica(executarRenovacao)

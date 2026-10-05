@@ -12,14 +12,19 @@ function emSerie<T>(operacao: () => Promise<T>): Promise<T> {
   return resultado
 }
 
-async function ler(): Promise<string[]> {
+function tokensDe(bruto: string): string[] {
   try {
-    const bruto = await SecureStore.getItemAsync(CHAVE_LOGOUT_PENDENTE)
-    const valor: unknown = bruto ? JSON.parse(bruto) : []
+    const valor: unknown = JSON.parse(bruto)
     return Array.isArray(valor) ? valor.filter((item) => typeof item === 'string') : []
   } catch {
     return []
   }
+}
+
+/** Erro do secure-store sobe: devolver `[]` faria a próxima gravação apagar a lista. */
+async function ler(): Promise<string[]> {
+  const bruto = await SecureStore.getItemAsync(CHAVE_LOGOUT_PENDENTE)
+  return bruto ? tokensDe(bruto) : []
 }
 
 async function gravar(tokens: string[]): Promise<void> {

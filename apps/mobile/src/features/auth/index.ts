@@ -9,5 +9,6 @@ export {
   acompanharLogoutPendente,
   MENSAGEM_SESSAO_ENCERRADA,
   processarLogoutPendente,
+  sair,
+  TEMPO_LIMITE_LOGOUT_MS,
 } from './logout'
-export { useLogout } from './use-logout'

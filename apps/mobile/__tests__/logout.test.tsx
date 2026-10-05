@@ -15,9 +15,15 @@ import PaginaNaoEncontrada from '../app/+not-found'
 import LayoutRaiz from '../app/_layout'
 import { toast } from '@/components/ui/toast'
 import { CHAVE_CACHE_ATLETICA } from '@/features/atletica/api'
-import { BotaoSair, MENSAGEM_SESSAO_ENCERRADA, processarLogoutPendente } from '@/features/auth'
-import { sair, TEMPO_LIMITE_LOGOUT_MS } from '@/features/auth/logout'
+import {
+  BotaoSair,
+  MENSAGEM_SESSAO_ENCERRADA,
+  processarLogoutPendente,
+  sair,
+  TEMPO_LIMITE_LOGOUT_MS,
+} from '@/features/auth'
 import { api } from '@/infra/api/cliente'
+import { chaves } from '@/infra/query/chaves'
 import { queryClient } from '@/infra/query/query-client'
 import {
   adicionarLogoutPendente,
@@ -174,7 +180,7 @@ describe('BotaoSair', () => {
 
   it('online: revoga na API uma vez, limpa storage e cache, mostra o login e não grava pendente', async () => {
     respostas.set('/auth/logout', com({ status: 204 }))
-    queryClient.setQueryData(['eventos'], [{ id: 1 }])
+    queryClient.setQueryData(chaves.eventos.todos(), [{ id: 1 }])
     const caminho = await abrirPerfil()
 
     await confirmarSaida()
@@ -184,7 +190,7 @@ describe('BotaoSair', () => {
     expect(tokensEnviadosAoLogout()).toEqual(['refresh'])
     expect(itensSeguros.has(CHAVE_REFRESH_TOKEN)).toBe(false)
     expect(await AsyncStorage.getItem(CHAVE_DADOS_SESSAO)).toBeNull()
-    expect(queryClient.getQueryData(['eventos'])).toBeUndefined()
+    expect(queryClient.getQueryData(chaves.eventos.todos())).toBeUndefined()
     expect(await listarLogoutPendente()).toEqual([])
     expect(toast.sucesso).toHaveBeenCalledWith(MENSAGEM_SESSAO_ENCERRADA)
   })
@@ -234,6 +240,24 @@ describe('sair', () => {
     expect(await listarLogoutPendente()).toEqual(['refresh'])
   })
 
+  it('429 grava o pendente', async () => {
+    respostas.set('/auth/logout', com({ status: 429, corpo: { code: 'RATE_LIMITED' } }))
+
+    await sair()
+
+    expect(await listarLogoutPendente()).toEqual(['refresh'])
+  })
+
+  it('falha do secure-store ao gravar o pendente não impede o logout local', async () => {
+    onlineManager.setOnline(false)
+    jest.mocked(SecureStore.setItemAsync).mockRejectedValueOnce(new Error('keystore'))
+
+    await sair()
+
+    expect(useSessao.getState().status).toBe('anonimo')
+    expect(toast.sucesso).toHaveBeenCalledWith(MENSAGEM_SESSAO_ENCERRADA)
+  })
+
   it('refresh com 401 encerra a sessão sem gravar logoutPendente', async () => {
     useSessao.setState({ accessTokenExpiraEm: new Date(Date.now() - 1000).toISOString() })
     respostas.set('/auth/refresh', com({ status: 401, corpo: { code: 'NAO_AUTENTICADO' } }))
@@ -262,6 +286,16 @@ describe('processarLogoutPendente', () => {
 
     expect(tokensEnviadosAoLogout()).toEqual(['r1', 'r2'])
     expect(await listarLogoutPendente()).toEqual(['r2'])
+  })
+
+  it('falha de leitura do secure-store não apaga os pendentes', async () => {
+    await adicionarLogoutPendente('r1')
+    onlineManager.setOnline(false)
+    jest.mocked(SecureStore.getItemAsync).mockRejectedValueOnce(new Error('keystore'))
+
+    await expect(adicionarLogoutPendente('r2')).rejects.toThrow('keystore')
+
+    expect(await listarLogoutPendente()).toEqual(['r1'])
   })
 
   it('offline não chama a API', async () => {

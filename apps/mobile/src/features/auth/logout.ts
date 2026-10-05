@@ -1,6 +1,7 @@
 import { onlineManager } from '@tanstack/react-query'
 import { toast } from '@/components/ui/toast'
-import { ApiErro, ehErroTransitorio } from '@/infra/api/api-erro'
+import { ApiErro, CodigoApi, ehErroTransitorio } from '@/infra/api/api-erro'
+import { execucaoUnica } from '@/infra/execucao-unica'
 import {
   adicionarLogoutPendente,
   listarLogoutPendente,
@@ -12,7 +13,9 @@ import { revogarSessao } from './api'
 export const TEMPO_LIMITE_LOGOUT_MS = 5_000
 export const MENSAGEM_SESSAO_ENCERRADA = 'Sessão encerrada'
 
-let processamento: Promise<void> | null = null
+function ehRespostaDefinitiva(erro: unknown): boolean {
+  return erro instanceof ApiErro && !ehErroTransitorio(erro) && erro.code !== CodigoApi.RATE_LIMITED
+}
 
 /** `true` quando a API respondeu: `204`, ou um `4xx` que não muda com nova tentativa. */
 async function revogarNoServidor(refreshToken: string): Promise<boolean> {
@@ -23,18 +26,20 @@ async function revogarNoServidor(refreshToken: string): Promise<boolean> {
     await revogarSessao(refreshToken, controle.signal)
     return true
   } catch (erro) {
-    return erro instanceof ApiErro && !ehErroTransitorio(erro)
+    return ehRespostaDefinitiva(erro)
   } finally {
     clearTimeout(limite)
   }
 }
 
+async function revogarOuGuardar(refreshToken: string): Promise<void> {
+  if (!(await revogarNoServidor(refreshToken))) await adicionarLogoutPendente(refreshToken)
+}
+
 /** UC08: sem resposta da API o token vai para `logoutPendente`; a sessão local sempre termina. */
 export async function sair(): Promise<void> {
   const { refreshToken } = useSessao.getState()
-  if (refreshToken && !(await revogarNoServidor(refreshToken))) {
-    await adicionarLogoutPendente(refreshToken)
-  }
+  if (refreshToken) await revogarOuGuardar(refreshToken).catch(() => undefined)
   await useSessao.getState().encerrarSessao({ motivo: 'LOGOUT' })
   toast.sucesso(MENSAGEM_SESSAO_ENCERRADA)
 }
@@ -46,17 +51,13 @@ async function executarProcessamento(): Promise<void> {
   }
 }
 
-export function processarLogoutPendente(): Promise<void> {
-  processamento ??= executarProcessamento().finally(() => {
-    processamento = null
-  })
-  return processamento
-}
+export const processarLogoutPendente = execucaoUnica(executarProcessamento)
 
-/** Processa no start do app e a cada volta da conexão. Devolve o cancelamento. */
-export function acompanharLogoutPendente(): () => void {
-  void processarLogoutPendente()
-  return onlineManager.subscribe((online) => {
-    if (online) void processarLogoutPendente()
+/** Processa no start do app e a cada volta da conexão; uma falha fica para o próximo gatilho. */
+export function acompanharLogoutPendente(): void {
+  const processar = () => void processarLogoutPendente().catch(() => undefined)
+  processar()
+  onlineManager.subscribe((online) => {
+    if (online) processar()
   })
 }
