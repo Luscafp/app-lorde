@@ -1,7 +1,6 @@
-import Ionicons from '@expo/vector-icons/Ionicons'
 import type { Modalidade } from '@atletica/shared'
-import { FlatList, Pressable, Switch, View } from 'react-native'
-import { Texto } from '@/components/ui'
+import { FlatList, Switch, View } from 'react-native'
+import { BotaoIcone, Texto } from '@/components/ui'
 import { paleta, useAtletica } from '@/features/atletica'
 import { ModalidadeIcone } from './modalidade-icone'
 
@@ -13,32 +12,6 @@ type Props = {
   aoEditar: (modalidade: Modalidade) => void
   aoAlternar: (modalidade: Modalidade, ativa: boolean) => void
   aoExcluir: (modalidade: Modalidade) => void
-}
-
-function BotaoIcone({
-  icone,
-  rotulo,
-  cor = paleta.texto,
-  ...props
-}: {
-  icone: 'create-outline' | 'trash-outline'
-  rotulo: string
-  cor?: string
-  disabled?: boolean
-  onPress: () => void
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={rotulo}
-      accessibilityState={{ disabled: !!props.disabled }}
-      className="h-11 w-11 items-center justify-center"
-      style={{ opacity: props.disabled ? 0.5 : 1 }}
-      {...props}
-    >
-      <Ionicons name={icone} size={22} color={cor} />
-    </Pressable>
-  )
 }
 
 export function ListaModalidadesPainel({
@@ -56,6 +29,7 @@ export function ListaModalidadesPainel({
       data={modalidades}
       keyExtractor={({ id }) => id}
       contentContainerClassName="gap-2 p-4"
+      extraData={acoesHabilitadas}
       renderItem={({ item }) => (
         <View className="flex-row items-center gap-3 rounded-2xl border border-borda bg-cartao px-3 py-2">
           <ModalidadeIcone

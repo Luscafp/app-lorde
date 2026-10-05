@@ -1,6 +1,7 @@
 export { Alerta, type VarianteAlerta } from './alerta'
 export { AvisoOffline } from './aviso-offline'
 export { Botao, type VarianteBotao } from './botao'
+export { BotaoIcone } from './botao-icone'
 export { CaixaSelecao } from './caixa-selecao'
 export { Campo } from './campo'
 export { CampoCodigo, DIGITOS_CODIGO } from './campo-codigo'
