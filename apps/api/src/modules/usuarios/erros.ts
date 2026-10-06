@@ -42,12 +42,12 @@ export function erroDeBloqueio(bloqueio: Bloqueio): ErroNegocio {
   return ERRO_DE_BLOQUEIO[bloqueio]()
 }
 
-export function erroUltimoAdministrador(): ErroNegocio {
-  return new ErroNegocio(
-    HttpStatus.CONFLICT,
-    'ULTIMO_ADMINISTRADOR',
-    'É preciso haver ao menos um Administrador ativo.',
-  )
+export const MENSAGEM_ULTIMO_ADMINISTRADOR = 'É preciso haver ao menos um Administrador ativo.'
+export const MENSAGEM_ULTIMO_ADMINISTRADOR_EXCLUSAO =
+  'Você é o único Administrador. Conceda o cargo a outra pessoa antes de excluir sua conta.'
+
+export function erroUltimoAdministrador(mensagem = MENSAGEM_ULTIMO_ADMINISTRADOR): ErroNegocio {
+  return new ErroNegocio(HttpStatus.CONFLICT, 'ULTIMO_ADMINISTRADOR', mensagem)
 }
 
 export function erroSubstituicaoNecessaria(ocupante: string, cargo: Papel): ErroNegocio {
@@ -82,6 +82,15 @@ const SENHA_IGUAL_ATUAL = 'A nova senha deve ser diferente da atual.'
 export function erroSenhaIncorreta(): ErroNegocio {
   return new ErroNegocio(HttpStatus.BAD_REQUEST, 'SENHA_INCORRETA', SENHA_INCORRETA, [
     { field: 'senhaAtual', message: SENHA_INCORRETA },
+  ])
+}
+
+const SENHA_CONFIRMACAO_INCORRETA = 'Senha incorreta.'
+
+/** Confirmação por senha da exclusão de conta (#12); 400 pelo mesmo motivo de `erroSenhaIncorreta`. */
+export function erroSenhaConfirmacaoIncorreta(): ErroNegocio {
+  return new ErroNegocio(HttpStatus.BAD_REQUEST, 'SENHA_INCORRETA', SENHA_CONFIRMACAO_INCORRETA, [
+    { field: 'senha', message: SENHA_CONFIRMACAO_INCORRETA },
   ])
 }
 

@@ -321,11 +321,20 @@ Perfil do usuário autenticado (UC10, UC11, #13). Só `@UsuarioAtual()`, sem `:i
 - Senha: 5 senhas atuais erradas em 15 min por usuário (`SENHA_CONFIRMACAO_FALHA`, chave `usuarioId`, o mesmo contador da #12). A troca revoga as outras sessões com `TROCA_SENHA` (`exceto` = sessão do token) e emite `usuario.sessaoEncerrada` só com as revogadas. `SENHA_INCORRETA` é 400 para o app não tentar o refresh.
 - Sem auditoria (convenções §7).
 
+### Exclusão de conta (`DELETE /me/conta`, `ContaService`)
+
+`{ senha }` → `204` (UC13, RN33, #12); `400 SENHA_INCORRETA` (campo `senha`), `409 ULTIMO_ADMINISTRADOR`, `429` (mesmo contador de `PUT /me/senha`).
+
+- Uma transação (`TransacaoService.executar`). Os vínculos de todas as atléticas da conta são lidos com `semEscopo`; o trabalho de cada atlética roda em `executarComAtletica`.
+- Ordem: `bloquearPapeis` + `garantirNaoUltimoAdministrador` em cada atlética onde a conta é Administrador ativo → `ElencoService.encerrarVinculo` por time (`EXCLUSAO_CONTA`), solicitações `PENDENTE` → `CANCELADA`, vínculos → `ATLETA`/inativos, auditoria `CONTA_EXCLUIDA` (uma por atlética, `{ antes: { papel }, depois: null, contexto: { timeIds } }`) → anonimização da conta → `revogarTodas(CONTA_EXCLUIDA)`.
+- Anonimização: nome `Usuário excluído`, e-mail `excluido+<id>@anonimo.invalid` (libera o original para novo cadastro), `senhaHash = '!'`, sem foto, `ativo = false`, `excluidoEm`. Apaga códigos de verificação, preferências, dispositivos push e as tentativas de login/recuperação do e-mail original. Ficam `AceiteTermos`, participações passadas e autorias.
+- Após o commit: `usuario.sessaoEncerrada` com todas as sessões revogadas e remoção da foto no R2 (falha só gera log).
+
 ### `regras-papel.ts` (usado por #12 e #28)
 
 ```ts
 bloquearPapeis(tx, atleticaId) // pg_advisory_xact_lock(hashtext('papeis:' || atleticaId)), até o commit
-garantirNaoUltimoAdministrador(tx, atleticaId, usuarioId) // 409 ULTIMO_ADMINISTRADOR; chame depois do lock
+garantirNaoUltimoAdministrador(tx, atleticaId, usuarioId, mensagem?) // 409 ULTIMO_ADMINISTRADOR; chame depois do lock
 ehUltimoAdministrador(cliente, atleticaId, usuarioId) // mesma contagem, sem lançar
 calcularPermissoes(solicitante, alvo, ehUltimoAdmin) // permissoes do detalhe
 bloquearVinculo(tx, usuarioId, atleticaId) // vínculo do alvo com FOR UPDATE; depois do lock

@@ -67,6 +67,15 @@ export const alterarSenhaFormSchema = alterarSenhaSchema
     error: 'As senhas não conferem.',
   })
 
+export const excluirContaSchema = z
+  .object({
+    senha: z
+      .string()
+      .min(1, { error: 'Informe a senha.' })
+      .max(SENHA_MAX, { error: `A senha deve ter no máximo ${SENHA_MAX} caracteres.` }),
+  })
+  .strict()
+
 export type ListarUsuariosQuery = z.infer<typeof listarUsuariosQuerySchema>
 export type FiltrosUsuarios = Omit<z.input<typeof listarUsuariosQuerySchema>, 'page' | 'limit'>
 export type AlterarSituacao = z.infer<typeof alterarSituacaoSchema>
@@ -75,3 +84,4 @@ export type AtualizarPerfil = z.infer<typeof atualizarPerfilSchema>
 export type AtualizarFoto = z.infer<typeof atualizarFotoSchema>
 export type AlterarSenha = z.infer<typeof alterarSenhaSchema>
 export type AlterarSenhaForm = z.infer<typeof alterarSenhaFormSchema>
+export type ExcluirConta = z.infer<typeof excluirContaSchema>
