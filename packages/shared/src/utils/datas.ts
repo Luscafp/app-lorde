@@ -91,6 +91,11 @@ export function chaveDiaLocal(instante: Instante): string {
   return `${ano}-${mes}-${dia}`
 }
 
+/** 00:00 do dia local do instante, em UTC (`hojeLocal` no servidor). */
+export function inicioDoDiaLocal(instante: Instante): Date {
+  return localParaUtc(chaveDiaLocal(instante), '00:00')
+}
+
 /** Data (`"aaaa-mm-dd"`) e hora (`"HH:mm"`) no fuso padrão → instante UTC. */
 export function localParaUtc(data: string, hora: string): Date {
   const [, ano, mes, dia] = DATA_LOCAL.exec(data) ?? []

@@ -1,4 +1,4 @@
-import type { Evento, Prisma } from '../../src/generated/prisma/client'
+import type { Evento, Prisma, SerieRecorrencia } from '../../src/generated/prisma/client'
 import { prismaTeste } from '../setup/prisma-teste'
 import { proximaSequencia } from './sequencia'
 import { criarTime, criarTimeAdversario } from './times'
@@ -64,6 +64,25 @@ export function criarJogo(dados: DadosEvento): Promise<Evento> {
 
 export function criarTreino(dados: DadosEvento): Promise<Evento> {
   return criarEvento({ ...dados, tipo: 'TREINO' })
+}
+
+/** Série semanal de um time da atlética; não gera as ocorrências. */
+export async function criarSerie(
+  dados: Pick<SerieRecorrencia, 'atleticaId' | 'timeId'> & Partial<SerieRecorrencia>,
+): Promise<SerieRecorrencia> {
+  const criadoPorId =
+    dados.criadoPorId ?? (await criarUsuario({ papel: 'DIRETOR', atleticaId: dados.atleticaId })).id
+  return prismaTeste.serieRecorrencia.create({
+    data: {
+      diasSemana: [1, 3],
+      horario: '18:30',
+      dataInicio: new Date('2026-10-05'),
+      dataFim: new Date('2027-04-05'),
+      local: `Quadra ${proximaSequencia()}`,
+      ...dados,
+      criadoPorId,
+    },
+  })
 }
 
 /** Resposta e presença com as datas exigidas pelos CHECKs `participacao_*_coerente`. */

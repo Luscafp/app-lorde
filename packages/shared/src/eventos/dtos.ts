@@ -1,7 +1,9 @@
 import { z } from 'zod'
 import { Resultado, StatusEvento, TipoEvento } from '../enums/evento'
+import { respostaPaginadaSchema } from '../utils/paginacao'
+import { MotivoBloqueioResposta } from './participacao'
 
-/** Resposta de `POST /eventos` e `PATCH /eventos/:id`; a #75 estende. */
+/** Resposta de `POST /eventos` e `PATCH /eventos/:id`; base do detalhe. */
 export const eventoDtoSchema = z
   .object({
     id: z.uuid(),
@@ -41,5 +43,63 @@ export const eventoCanceladoDtoSchema = z
   })
   .strict()
 
+/** Resposta do usuário do token; `null` sem resposta. */
+export const minhaParticipacaoSchema = z
+  .object({ confirmado: z.boolean(), respondidoEm: z.iso.datetime() })
+  .strict()
+  .nullable()
+
+/** Item de `GET /eventos`. */
+export const eventoResumoSchema = eventoDtoSchema
+  .omit({ observacoes: true, criadoEm: true, atualizadoEm: true })
+  .extend({ souMembro: z.boolean(), minhaParticipacao: minhaParticipacaoSchema })
+  .strict()
+
+export const listaEventosSchema = respostaPaginadaSchema(eventoResumoSchema)
+
+/** `GET /eventos/:id` (épico #22 §7). */
+export const eventoDetalheSchema = eventoDtoSchema
+  .extend({
+    serie: z
+      .object({
+        id: z.uuid(),
+        diasSemana: z.array(z.number().int()),
+        horario: z.string(),
+        dataInicio: z.iso.date(),
+        dataFim: z.iso.date(),
+      })
+      .strict()
+      .nullable(),
+    /** Só o elenco atual do time. */
+    contagem: z
+      .object({
+        confirmados: z.number().int(),
+        recusados: z.number().int(),
+        semResposta: z.number().int(),
+        elenco: z.number().int(),
+      })
+      .strict(),
+    /** "Quem vai": membros atuais com `confirmado = true`. */
+    confirmados: z.array(
+      z
+        .object({
+          id: z.uuid(),
+          nome: z.string(),
+          fotoUrl: z.string().nullable(),
+          capitao: z.boolean(),
+        })
+        .strict(),
+    ),
+    souMembro: z.boolean(),
+    minhaParticipacao: minhaParticipacaoSchema,
+    podeResponder: z.boolean(),
+    motivoBloqueioResposta: z.enum(MotivoBloqueioResposta).nullable(),
+  })
+  .strict()
+
 export type EventoDto = z.infer<typeof eventoDtoSchema>
 export type EventoCanceladoDto = z.infer<typeof eventoCanceladoDtoSchema>
+export type MinhaParticipacao = z.infer<typeof minhaParticipacaoSchema>
+export type EventoResumoDto = z.infer<typeof eventoResumoSchema>
+export type ListaEventos = z.infer<typeof listaEventosSchema>
+export type EventoDetalheDto = z.infer<typeof eventoDetalheSchema>

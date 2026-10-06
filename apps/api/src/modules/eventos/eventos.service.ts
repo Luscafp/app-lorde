@@ -7,7 +7,6 @@ import type {
 } from '@atletica/shared'
 import { Injectable } from '@nestjs/common'
 import type { DetalheErro } from '../../common/erros/erro-negocio'
-import type { Prisma } from '../../generated/prisma/client'
 import { TransacaoService } from '../../infra/eventos/apos-commit'
 import type { CampoAlteradoEvento } from '../../infra/eventos/eventos-dominio'
 import { EventosDominioService } from '../../infra/eventos/eventos-dominio.service'
@@ -25,32 +24,8 @@ import {
   erroEventoFinalizado,
   erroEventoNaoEncontrado,
 } from './erros'
+import { CAMPOS_EVENTO, paraEventoDto, type LinhaEvento } from './evento-dto'
 import { EventosValidator, type TimeDoEvento } from './eventos.validator'
-
-const CAMPOS = {
-  id: true,
-  tipo: true,
-  status: true,
-  inicio: true,
-  local: true,
-  observacoes: true,
-  serieId: true,
-  timeId: true,
-  timeAdversarioId: true,
-  placarTime: true,
-  placarAdversario: true,
-  resultado: true,
-  criadoEm: true,
-  atualizadoEm: true,
-  time: {
-    select: { id: true, nome: true, modalidade: { select: { id: true, nome: true, icone: true } } },
-  },
-  timeAdversario: {
-    select: { id: true, nome: true, atletica: { select: { id: true, nome: true, sigla: true } } },
-  },
-} as const satisfies Prisma.EventoSelect
-
-type LinhaEvento = Prisma.EventoGetPayload<{ select: typeof CAMPOS }>
 
 export type AutorEvento = Pick<UsuarioAutenticado, 'id' | 'atleticaId'>
 
@@ -78,27 +53,6 @@ function auditaveis(evento: LinhaEvento) {
     placarTime,
     placarAdversario,
     resultado,
-  }
-}
-
-function paraDto(evento: LinhaEvento): EventoDto {
-  const { modalidade, ...time } = evento.time
-  return {
-    id: evento.id,
-    tipo: evento.tipo,
-    status: evento.status,
-    inicio: evento.inicio.toISOString(),
-    local: evento.local,
-    observacoes: evento.observacoes,
-    serieId: evento.serieId,
-    time,
-    modalidade,
-    timeAdversario: evento.timeAdversario,
-    placarTime: evento.placarTime,
-    placarAdversario: evento.placarAdversario,
-    resultado: evento.resultado,
-    criadoEm: evento.criadoEm.toISOString(),
-    atualizadoEm: evento.atualizadoEm.toISOString(),
   }
 }
 
@@ -133,7 +87,7 @@ export class EventosService {
           observacoes: entrada.observacoes ?? null,
           criadoPorId: autor.id,
         },
-        select: CAMPOS,
+        select: CAMPOS_EVENTO,
       })
       await this.auditoria.registrar(tx, {
         entidade: 'Evento',
@@ -147,7 +101,7 @@ export class EventosService {
         timeId: criado.timeId,
         autorId: autor.id,
       })
-      return paraDto(criado)
+      return paraEventoDto(criado)
     })
   }
 
@@ -163,7 +117,7 @@ export class EventosService {
       const inicio = entrada.inicio === undefined ? antes.inicio : new Date(entrada.inicio)
       const alvo: LinhaEvento = { ...antes, ...entrada, inicio }
       const diff = diferenca(antes, alvo, CAMPOS_EDITAVEIS)
-      if (!diff) return paraDto(antes)
+      if (!diff) return paraEventoDto(antes)
 
       const alterados = Object.keys(diff.depois) as CampoEditavel[]
       if (antes.status === 'FINALIZADO' && alterados.some((campo) => campo !== 'observacoes')) {
@@ -174,7 +128,7 @@ export class EventosService {
       const depois = await tx.evento.update({
         where: { id },
         data: diff.depois,
-        select: CAMPOS,
+        select: CAMPOS_EVENTO,
       })
       await this.auditoria.registrar(tx, {
         entidade: 'Evento',
@@ -193,7 +147,7 @@ export class EventosService {
           autorId: autor.id,
         })
       }
-      return paraDto(depois)
+      return paraEventoDto(depois)
     })
   }
 
@@ -259,7 +213,10 @@ export class EventosService {
   }
 
   private async buscar(tx: TransacaoComEscopo, id: string): Promise<LinhaEvento> {
-    const evento = await tx.evento.findFirst({ where: { id, ...naoExcluido }, select: CAMPOS })
+    const evento = await tx.evento.findFirst({
+      where: { id, ...naoExcluido },
+      select: CAMPOS_EVENTO,
+    })
     if (!evento) throw erroEventoNaoEncontrado()
     return evento
   }
