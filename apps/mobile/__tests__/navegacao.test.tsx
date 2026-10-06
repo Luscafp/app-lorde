@@ -20,6 +20,8 @@ import Login from '../app/(publico)/login'
 import { redirectSystemPath } from '../app/+native-intent'
 import PaginaNaoEncontrada from '../app/+not-found'
 import LayoutRaiz from '../app/_layout'
+import * as apiTimes from '@/features/times/api'
+import { ApiErro } from '@/infra/api/cliente'
 import { consumirDestinoAposLogin } from '@/infra/sessao/destino'
 import {
   CHAVE_DADOS_SESSAO,
@@ -118,11 +120,17 @@ describe('navegação', () => {
   )
 
   it('deep link /times/:id abre o detalhe do time (#17)', async () => {
+    const buscarTime = jest
+      .spyOn(apiTimes, 'buscarTime')
+      .mockRejectedValue(new ApiErro({ status: 404, code: 'NOT_FOUND', message: 'x' }))
     await comSessaoSalva('ATLETA')
     const rota = renderRouter(rotas, { initialUrl: '/times/b2a1c3d4' })
     await rota
     await waitFor(() => expect(rota.getPathname()).toBe('/times/b2a1c3d4'))
+    expect(await screen.findByText('Time não encontrado')).toBeOnTheScreen()
+    expect(buscarTime).toHaveBeenCalledWith('b2a1c3d4', expect.anything())
     expect(screen.queryByText('Página não encontrada')).toBeNull()
+    buscarTime.mockRestore()
   })
 
   it('deep link /painel de ATLETA redireciona ao Início', async () => {

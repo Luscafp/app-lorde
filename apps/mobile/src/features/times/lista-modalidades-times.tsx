@@ -6,6 +6,7 @@ import { TelaDados } from '@/components/estado'
 import { Texto } from '@/components/ui'
 import { paleta, useAtletica } from '@/features/atletica'
 import { ModalidadeIcone, useModalidades } from '@/features/modalidades'
+import { combinarConsultas } from '@/infra/query/combinar-consultas'
 import { CartaoTime } from './cartao-time'
 import { contar, porNome } from './formatacao'
 import { useTimesProprios } from './hooks'
@@ -29,10 +30,7 @@ function useGrupos() {
       modalidades.data && times.data
         ? agruparPorModalidade(modalidades.data, times.data)
         : undefined,
-    isError: modalidades.isError || times.isError,
-    isRefetching: modalidades.isRefetching || times.isRefetching,
-    dataUpdatedAt: Math.min(modalidades.dataUpdatedAt, times.dataUpdatedAt),
-    refetch: () => Promise.all([modalidades.refetch(), times.refetch()]),
+    ...combinarConsultas([modalidades, times]),
   }
 }
 
@@ -91,6 +89,7 @@ function Acordeao({ grupos, atualizando, aoAtualizar, aoAbrirTime }: PropsAcorde
 
   return (
     <FlatList
+      testID="lista-modalidades"
       data={grupos}
       keyExtractor={({ modalidade }) => modalidade.id}
       extraData={abertas}

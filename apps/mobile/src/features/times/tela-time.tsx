@@ -5,6 +5,7 @@ import { Texto } from '@/components/ui'
 import { useAtletica } from '@/features/atletica'
 import { ModalidadeIcone } from '@/features/modalidades'
 import { ehNaoEncontrado } from '@/infra/api/api-erro'
+import { combinarConsultas } from '@/infra/query/combinar-consultas'
 import { AcaoEntradaTime } from './acao-entrada-time'
 import { contar } from './formatacao'
 import { useElenco, useTime } from './hooks'
@@ -28,11 +29,10 @@ function CabecalhoTime({ time }: { time: TimeDto }) {
   )
 }
 
-/** Os próximos treinos (#67) entram como seção entre o elenco e a ação. */
 export function TelaTime({ timeId, aoVoltar }: { timeId: string; aoVoltar: () => void }) {
   const time = useTime(timeId)
   const elenco = useElenco(timeId)
-  const atualizar = () => void Promise.all([time.refetch(), elenco.refetch()])
+  const ambas = combinarConsultas([time, elenco])
 
   if (ehNaoEncontrado(time.error)) {
     return (
@@ -49,19 +49,22 @@ export function TelaTime({ timeId, aoVoltar }: { timeId: string; aoVoltar: () =>
     <View className="flex-1 bg-fundo">
       <TelaDados consulta={time} esqueleto="detalhe">
         {(dados) => (
-          <ScrollView
-            contentContainerClassName="gap-6 p-4"
-            refreshControl={
-              <RefreshControl
-                refreshing={time.isRefetching || elenco.isRefetching}
-                onRefresh={atualizar}
-              />
-            }
-          >
-            <CabecalhoTime time={dados} />
-            <ListaElenco consulta={elenco} />
+          <>
+            <ScrollView
+              testID="detalhe-time"
+              contentContainerClassName="gap-6 p-4"
+              refreshControl={
+                <RefreshControl
+                  refreshing={ambas.isRefetching}
+                  onRefresh={() => void ambas.refetch()}
+                />
+              }
+            >
+              <CabecalhoTime time={dados} />
+              <ListaElenco consulta={elenco} />
+            </ScrollView>
             <AcaoEntradaTime time={dados} />
-          </ScrollView>
+          </>
         )}
       </TelaDados>
     </View>

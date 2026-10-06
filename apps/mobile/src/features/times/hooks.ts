@@ -3,13 +3,12 @@ import {
   type AtleticaAdversaria,
   type AtleticaAdversariaAtualizacao,
   type AtleticaAdversariaCriacao,
-  type ListaTimes,
   type TimeAtualizacao,
   type TimeCriacao,
   type TimeDto,
 } from '@atletica/shared'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
@@ -60,22 +59,28 @@ export function useTime(id: string) {
 
 const FILTRO_PROPRIOS: FiltrosTimes = { escopo: EscopoTimes.PROPRIOS }
 
-async function listarTodosProprios(sinal: AbortSignal): Promise<TimeDto[]> {
-  const paginas: ListaTimes[] = []
-  for (let page: number | undefined = 1; page;) {
-    const pagina = await listarTimes(FILTRO_PROPRIOS, page, sinal)
-    paginas.push(pagina)
-    page = pagina.items.length > 0 ? proximaPagina(pagina) : undefined
-  }
-  return juntarPaginas(paginas)
-}
-
-/** Todas as páginas numa consulta: o acordeão abre sem nova espera e funciona offline. */
+/** Busca todas as páginas antes de devolver: o acordeão abre sem nova espera e funciona offline. */
 export function useTimesProprios() {
-  return useQuery({
+  const consulta = useInfiniteQuery({
     queryKey: chaves.times.lista(FILTRO_PROPRIOS),
-    queryFn: ({ signal }) => listarTodosProprios(signal),
+    queryFn: ({ pageParam, signal }) => listarTimes(FILTRO_PROPRIOS, pageParam, signal),
+    initialPageParam: 1,
+    getNextPageParam: (pagina) => (pagina.items.length > 0 ? proximaPagina(pagina) : undefined),
+    select: (dados) => juntarPaginas(dados.pages),
   })
+  const { hasNextPage, isFetching, isFetchNextPageError, fetchNextPage } = consulta
+
+  useEffect(() => {
+    if (hasNextPage && !isFetching && !isFetchNextPageError) void fetchNextPage()
+  }, [hasNextPage, isFetching, isFetchNextPageError, fetchNextPage])
+
+  return {
+    data: hasNextPage ? undefined : consulta.data,
+    isError: consulta.isError,
+    isRefetching: consulta.isRefetching && !consulta.isFetchingNextPage,
+    dataUpdatedAt: consulta.dataUpdatedAt,
+    refetch: consulta.refetch,
+  }
 }
 
 export function useElenco(timeId: string) {

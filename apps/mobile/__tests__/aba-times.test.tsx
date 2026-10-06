@@ -1,11 +1,13 @@
 import type { ElencoDto, MembroElencoDto, Modalidade, TimeDto } from '@atletica/shared'
 import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native'
-import type { ReactNode } from 'react'
+import type { ReactElement, ReactNode } from 'react'
+import type { RefreshControlProps } from 'react-native'
 import * as apiModalidades from '@/features/modalidades/api'
 import { ListaModalidadesTimes, TelaTime, useTimesProprios } from '@/features/times'
 import * as apiTimes from '@/features/times/api'
 import { ApiErro } from '@/infra/api/cliente'
+import { chaves } from '@/infra/query/chaves'
 import { criarQueryClient } from '@/infra/query/query-client'
 import { useSessao } from '@/infra/sessao/store'
 
@@ -67,6 +69,13 @@ function Provedor({ children }: { children: ReactNode }) {
 
 const renderizar = (elemento: ReactNode) => render(<Provedor>{elemento}</Provedor>)
 
+function puxarParaAtualizar(testID: string) {
+  const { refreshControl } = screen.getByTestId(testID).props as {
+    refreshControl: ReactElement<RefreshControlProps>
+  }
+  return act(() => refreshControl.props.onRefresh?.())
+}
+
 beforeEach(() => {
   jest.clearAllMocks()
   cliente = criarQueryClient()
@@ -102,6 +111,16 @@ describe('useTimesProprios', () => {
     await waitFor(() => expect(result.current.data).toHaveLength(23))
     expect(api.listarTimes).toHaveBeenCalledTimes(2)
     expect(api.listarTimes).toHaveBeenNthCalledWith(2, { escopo: 'PROPRIOS' }, 2, expect.anything())
+  })
+
+  it('guarda as páginas no mesmo formato da lista paginada do Painel', async () => {
+    const { result } = await renderHook(() => useTimesProprios(), { wrapper: Provedor })
+
+    await waitFor(() => expect(result.current.data).toHaveLength(2))
+    expect(cliente.getQueryData(chaves.times.lista({ escopo: 'PROPRIOS' }))).toEqual({
+      pages: [pagina([MASCULINO, FEMININO])],
+      pageParams: [1],
+    })
   })
 })
 
@@ -173,6 +192,16 @@ describe('ListaModalidadesTimes', () => {
     await fireEvent.press(await screen.findByRole('button', { name: 'Tentar novamente' }))
 
     expect(await screen.findByText('Futsal Masculino')).toBeOnTheScreen()
+  })
+
+  it('puxar para atualizar refaz modalidades e times', async () => {
+    await renderizar(<ListaModalidadesTimes aoAbrirTime={jest.fn()} />)
+    await screen.findByText('Futsal Masculino')
+
+    await puxarParaAtualizar('lista-modalidades')
+
+    await waitFor(() => expect(api.listarTimes).toHaveBeenCalledTimes(2))
+    expect(buscarModalidades).toHaveBeenCalledTimes(2)
   })
 
   it('offline com cache: dados e faixa "Modo offline" (critério 11)', async () => {
@@ -260,6 +289,25 @@ describe('TelaTime', () => {
     expect(await screen.findByRole('header', { name: 'Futsal Masculino' })).toBeOnTheScreen()
     await fireEvent.press(await screen.findByRole('button', { name: 'Tentar novamente' }))
     expect(await screen.findByText('Ana Souza')).toBeOnTheScreen()
+  })
+
+  it('puxar para atualizar refaz time e elenco', async () => {
+    await renderizar(<TelaTime timeId="t-masc" aoVoltar={jest.fn()} />)
+    await screen.findByText('Ana Souza')
+
+    await puxarParaAtualizar('detalhe-time')
+
+    await waitFor(() => expect(api.buscarElenco).toHaveBeenCalledTimes(2))
+    expect(api.buscarTime).toHaveBeenCalledTimes(2)
+  })
+
+  it('offline sem cache: "Sem conexão" (critério 11)', async () => {
+    onlineManager.setOnline(false)
+    await renderizar(<TelaTime timeId="t-masc" aoVoltar={jest.fn()} />)
+
+    expect(
+      await screen.findByText('Sem conexão. Conecte-se à internet para carregar os dados.'),
+    ).toBeOnTheScreen()
   })
 
   it('offline com cache mostra uma única faixa', async () => {
