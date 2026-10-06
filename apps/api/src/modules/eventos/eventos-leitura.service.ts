@@ -15,7 +15,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service'
 import type { UsuarioAutenticado } from '../auth/tipos'
 import { UploadsService } from '../uploads/uploads.service'
 import { erroEventoNaoEncontrado } from './erros'
-import { CAMPOS_EVENTO, paraEventoDto } from './evento-dto'
+import { CAMPOS_EVENTO, paraEventoDto, paraEventoResumo } from './evento-dto'
 import { filtroPeriodo, ordemPadrao } from './periodo'
 
 const CAMPOS_DETALHE = {
@@ -73,7 +73,7 @@ function filtros(query: ListarEventosQuery, leitor: Leitor, agora: Date): Prisma
 
 /** Leitura de eventos para qualquer papel (épico #22, issue #75). */
 @Injectable()
-export class EventosQueryService {
+export class EventosLeituraService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly uploads: UploadsService,
@@ -114,14 +114,11 @@ export class EventosQueryService {
     const minhas = new Map(participacoes.map((linha) => [linha.eventoId, linha]))
 
     return {
-      items: eventos.map((evento): EventoResumoDto => {
-        const { observacoes: _o, criadoEm: _c, atualizadoEm: _a, ...resumo } = paraEventoDto(evento)
-        return {
-          ...resumo,
-          souMembro: meusTimes.has(evento.timeId),
-          minhaParticipacao: minhaParticipacao(minhas.get(evento.id)),
-        }
-      }),
+      items: eventos.map((evento): EventoResumoDto => ({
+        ...paraEventoResumo(paraEventoDto(evento)),
+        souMembro: meusTimes.has(evento.timeId),
+        minhaParticipacao: minhaParticipacao(minhas.get(evento.id)),
+      })),
       page,
       limit,
       total,

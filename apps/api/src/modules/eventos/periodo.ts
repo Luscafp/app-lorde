@@ -11,7 +11,7 @@ function proximos(agora: Date): Prisma.EventoWhereInput {
   }
 }
 
-/** Predicado de `periodo` (épico #22 §3); `hojeLocal` sempre do relógio do servidor. */
+/** Predicado de `periodo` (épico #22 §3); o dia local vem sempre do relógio do servidor. */
 export function filtroPeriodo(periodo: PeriodoEventos, agora: Date): Prisma.EventoWhereInput {
   if (periodo === 'PROXIMOS') return proximos(agora)
   if (periodo === 'PASSADOS') return { NOT: proximos(agora) }

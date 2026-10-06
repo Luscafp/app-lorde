@@ -145,4 +145,3 @@ export type CriarEvento = z.infer<typeof criarEventoSchema>
 export type EditarEvento = z.infer<typeof editarEventoSchema>
 export type CriarEventoForm = z.input<typeof criarEventoSchema>
 export type ListarEventosQuery = z.infer<typeof listarEventosQuerySchema>
-export type FiltrosEventos = Omit<z.input<typeof listarEventosQuerySchema>, 'page' | 'limit'>

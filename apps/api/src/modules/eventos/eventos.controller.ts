@@ -46,7 +46,8 @@ import { createZodDto } from 'nestjs-zod'
 import { PapelMinimo } from '../auth/decorators/papel-minimo.decorator'
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator'
 import type { UsuarioAutenticado } from '../auth/tipos'
-import { EventosQueryService } from './eventos-query.service'
+import { paraEventoResumo } from './evento-dto'
+import { EventosLeituraService } from './eventos-leitura.service'
 import { EventosService } from './eventos.service'
 
 /** União discriminada não é tipável como classe; o pipe valida pelo schema e devolve `CriarEvento`. */
@@ -87,12 +88,10 @@ const EXEMPLO: EventoDto = {
   atualizadoEm: '2026-09-30T14:00:00.000Z',
 }
 
-const { observacoes: _o, criadoEm: _c, atualizadoEm: _a, ...RESUMO } = EXEMPLO
-
 const EXEMPLO_LISTA: ListaEventos = {
   items: [
     {
-      ...RESUMO,
+      ...paraEventoResumo(EXEMPLO),
       souMembro: true,
       minhaParticipacao: { confirmado: true, respondidoEm: '2026-10-01T12:00:00.000Z' },
     },
@@ -136,7 +135,7 @@ const TIMES_INVALIDOS =
 export class EventosController {
   constructor(
     private readonly eventos: EventosService,
-    private readonly consulta: EventosQueryService,
+    private readonly leitura: EventosLeituraService,
   ) {}
 
   @Get()
@@ -159,7 +158,7 @@ export class EventosController {
     @Query() query: ListarEventosQueryDto,
     @UsuarioAtual() usuario: UsuarioAutenticado,
   ): Promise<ListaEventos> {
-    return this.consulta.listar(query, usuario)
+    return this.leitura.listar(query, usuario)
   }
 
   @Get(':id')
@@ -178,7 +177,7 @@ export class EventosController {
     @Param() { id }: EventoIdDto,
     @UsuarioAtual() usuario: UsuarioAutenticado,
   ): Promise<EventoDetalheDto> {
-    return this.consulta.detalhar(id, usuario)
+    return this.leitura.detalhar(id, usuario)
   }
 
   @Post()

@@ -26,6 +26,14 @@ export const CAMPOS_EVENTO = {
 
 export type LinhaEvento = Prisma.EventoGetPayload<{ select: typeof CAMPOS_EVENTO }>
 
+export type EventoResumoBase = Omit<EventoDto, 'observacoes' | 'criadoEm' | 'atualizadoEm'>
+
+/** Campos do item de `GET /eventos`, sem os dados do usuário. */
+export function paraEventoResumo(dto: EventoDto): EventoResumoBase {
+  const { observacoes: _o, criadoEm: _c, atualizadoEm: _a, ...resumo } = dto
+  return resumo
+}
+
 export function paraEventoDto(evento: LinhaEvento): EventoDto {
   const { modalidade, ...time } = evento.time
   return {

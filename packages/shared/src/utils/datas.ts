@@ -91,7 +91,7 @@ export function chaveDiaLocal(instante: Instante): string {
   return `${ano}-${mes}-${dia}`
 }
 
-/** 00:00 do dia local do instante, em UTC (`hojeLocal` no servidor). */
+/** 00:00 do dia local do instante, em UTC. */
 export function inicioDoDiaLocal(instante: Instante): Date {
   return localParaUtc(chaveDiaLocal(instante), '00:00')
 }
