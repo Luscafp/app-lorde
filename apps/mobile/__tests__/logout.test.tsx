@@ -131,7 +131,7 @@ async function abrirPerfil() {
 }
 
 async function confirmarSaida() {
-  await fireEvent.press(screen.getByRole('button', { name: 'Sair' }))
+  await fireEvent.press(screen.getByRole('button', { name: 'Sair da conta' }))
   await tocarNoAlerta('Sair')
 }
 
@@ -165,7 +165,7 @@ describe('BotaoSair', () => {
   it('mostra a confirmação e "Cancelar" não faz nada', async () => {
     const caminho = await abrirPerfil()
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Sair' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Sair da conta' }))
     expect(Alert.alert).toHaveBeenCalledWith(
       'Sair da conta',
       'Deseja encerrar a sessão neste dispositivo?',

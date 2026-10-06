@@ -14,6 +14,8 @@ export default function LayoutPerfil() {
       <Stack.Screen name="configuracoes/index" options={{ title: 'Configurações' }} />
       <Stack.Screen name="configuracoes/editar-perfil" options={{ title: 'Editar perfil' }} />
       <Stack.Screen name="configuracoes/alterar-senha" options={{ title: 'Alterar senha' }} />
+      <Stack.Screen name="configuracoes/sobre" options={{ title: 'Sobre o aplicativo' }} />
+      <Stack.Screen name="configuracoes/excluir-conta" options={{ title: 'Excluir conta' }} />
     </Stack>
   )
 }

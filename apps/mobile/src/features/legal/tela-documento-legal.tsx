@@ -2,15 +2,20 @@ import Ionicons from '@expo/vector-icons/Ionicons'
 import type { DocumentoLegal } from '@atletica/shared'
 import { useRouter } from 'expo-router'
 import { Pressable, View } from 'react-native'
+import { FaixaOffline } from '@/components/estado'
 import { TelaRolavel } from '@/components/tela-rolavel'
 import { Alerta, Texto } from '@/components/ui'
 import { paleta } from '@/features/atletica'
+import { useOnline } from '@/infra/rede/online'
+import { BlocoVersaoAceita } from './bloco-versao-aceita'
 
 export function TelaDocumentoLegal({ documento }: { documento: DocumentoLegal }) {
   const router = useRouter()
+  const online = useOnline()
 
   return (
     <TelaRolavel>
+      {!online && <FaixaOffline />}
       {router.canGoBack() && (
         <Pressable
           accessibilityRole="button"
@@ -22,6 +27,7 @@ export function TelaDocumentoLegal({ documento }: { documento: DocumentoLegal })
         </Pressable>
       )}
       <Texto variante="titulo">{documento.titulo}</Texto>
+      <BlocoVersaoAceita />
       {documento.provisorio && (
         <Alerta variante="alerta" titulo="Texto provisório">
           Este texto ainda não é a versão definitiva e pode mudar antes do lançamento.
