@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { Noticia, Prisma } from '../../src/generated/prisma/client'
 import { prismaTeste } from '../setup/prisma-teste'
 import { proximaSequencia } from './sequencia'
@@ -26,4 +27,9 @@ export async function criarNoticia(dados: DadosNoticia): Promise<Noticia> {
       autorId,
     },
   })
+}
+
+/** Chave de capa no formato do presign (finalidade `NOTICIA`, convenções §11.5). */
+export function chaveDeCapa(atleticaId: string, usuarioId: string, ext = 'jpg'): string {
+  return `atleticas/${atleticaId}/noticias/${usuarioId}/${randomUUID()}.${ext}`
 }

@@ -15,14 +15,12 @@ import { SenhaService } from '../../infra/senha/senha.service'
 import { erroNaoAutenticado } from '../auth/erros'
 import { RateLimitService, TipoTentativa, type LimiteTentativas } from '../auth/rate-limit.service'
 import { SessaoService } from '../auth/sessao.service'
-import type { UsuarioAutenticado } from '../auth/tipos'
+import type { UsuarioAutenticado, UsuarioNaAtletica } from '../auth/tipos'
 import { UploadsService } from '../uploads/uploads.service'
 import { erroSenhaIgualAtual, erroSenhaIncorreta } from './erros'
 
 /** Mesmo contador da exclusão de conta (#12): chave = `usuarioId`. */
 export const LIMITE_SENHA_ATUAL: LimiteTentativas = { maximo: 5, janelaMs: 15 * MINUTO_MS }
-
-type Solicitante = Pick<UsuarioAutenticado, 'id' | 'atleticaId'>
 
 export interface DadosPerfil {
   id: string
@@ -118,7 +116,7 @@ export class PerfilService {
   ) {}
 
   /** Uma consulta só (RNF03); o papel é o do vínculo atual, não o do login. */
-  async obter({ id, atleticaId }: Solicitante): Promise<Perfil> {
+  async obter({ id, atleticaId }: UsuarioNaAtletica): Promise<Perfil> {
     const dados = await this.prisma.db.usuario.findUnique({
       where: { id },
       select: camposPerfil(atleticaId),
@@ -127,13 +125,16 @@ export class PerfilService {
     return montarPerfil(dados, this.uploads.urlPublica(dados.fotoKey))
   }
 
-  async atualizar(solicitante: Solicitante, { nome }: AtualizarPerfil): Promise<Perfil> {
+  async atualizar(solicitante: UsuarioNaAtletica, { nome }: AtualizarPerfil): Promise<Perfil> {
     await this.prisma.db.usuario.update({ where: { id: solicitante.id }, data: { nome } })
     return this.obter(solicitante)
   }
 
   /** A chave só é validada quando muda; a foto anterior sai do R2 depois do commit. */
-  async atualizarFoto({ id, atleticaId }: Solicitante, fotoKey: string): Promise<FotoAtualizada> {
+  async atualizarFoto(
+    { id, atleticaId }: UsuarioNaAtletica,
+    fotoKey: string,
+  ): Promise<FotoAtualizada> {
     const anterior = await this.fotoKeyAtual(id)
     if (anterior !== fotoKey) {
       await this.uploads.validarKey({
@@ -148,7 +149,7 @@ export class PerfilService {
   }
 
   /** Idempotente: sem foto, nada muda. */
-  async removerFoto({ id }: Solicitante): Promise<void> {
+  async removerFoto({ id }: UsuarioNaAtletica): Promise<void> {
     const anterior = await this.fotoKeyAtual(id)
     if (anterior) await this.trocarFoto(id, anterior, null)
   }
