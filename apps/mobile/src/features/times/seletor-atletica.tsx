@@ -1,51 +1,14 @@
-import Ionicons from '@expo/vector-icons/Ionicons'
 import { useState } from 'react'
-import { ActivityIndicator, Pressable, TextInput, View } from 'react-native'
-import { Botao, Texto } from '@/components/ui'
+import { ActivityIndicator, View } from 'react-native'
+import { Botao, CampoBusca, Texto } from '@/components/ui'
 import { paleta, useAtletica } from '@/features/atletica'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
-import { useValorAtrasado } from '@/infra/use-valor-atrasado'
 import { SheetAtleticaAdversaria } from './form-atletica-adversaria'
-import { useAtleticasAdversarias } from './hooks'
-
-const ATRASO_BUSCA_MS = 300
+import { rotuloAtletica } from './formatacao'
+import { useBuscaAdversarias } from './hooks'
+import { OpcaoRadio } from './opcao-radio'
 
 export type AtleticaEscolhida = { id: string; nome: string; sigla: string | null }
-
-export const rotuloAtletica = ({ nome, sigla }: Omit<AtleticaEscolhida, 'id'>) =>
-  sigla ? `${nome} (${sigla})` : nome
-
-function Opcao({
-  rotulo,
-  marcada,
-  desabilitada,
-  aoEscolher,
-}: {
-  rotulo: string
-  marcada: boolean
-  desabilitada?: boolean
-  aoEscolher: () => void
-}) {
-  const { corPrimaria } = useAtletica()
-  return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityLabel={rotulo}
-      accessibilityState={{ selected: marcada, disabled: !!desabilitada }}
-      disabled={desabilitada}
-      onPress={aoEscolher}
-      className="min-h-[44px] flex-row items-center gap-2 rounded-xl border-2 bg-superficie px-3 py-2"
-      style={{ borderColor: marcada ? corPrimaria : paleta.borda, opacity: desabilitada ? 0.5 : 1 }}
-    >
-      <Ionicons
-        name={marcada ? 'radio-button-on' : 'radio-button-off'}
-        size={18}
-        color={marcada ? corPrimaria : paleta['texto-suave']}
-      />
-      <Texto className="flex-1">{rotulo}</Texto>
-    </Pressable>
-  )
-}
 
 function BuscaAdversaria({
   selecionada,
@@ -54,10 +17,8 @@ function BuscaAdversaria({
   selecionada: AtleticaEscolhida | null
   aoSelecionar: (atletica: AtleticaEscolhida) => void
 }) {
-  const [termo, setTermo] = useState('')
   const [cadastrando, setCadastrando] = useState(false)
-  const busca = useValorAtrasado(termo.trim(), ATRASO_BUSCA_MS)
-  const consulta = useAtleticasAdversarias(busca || undefined)
+  const { termo, setTermo, consulta } = useBuscaAdversarias()
   const encontradas = juntarPaginas(consulta.data?.pages ?? [])
   const opcoes =
     selecionada && !encontradas.some(({ id }) => id === selecionada.id)
@@ -66,16 +27,7 @@ function BuscaAdversaria({
 
   return (
     <View className="gap-2">
-      <TextInput
-        value={termo}
-        onChangeText={setTermo}
-        accessibilityLabel="Buscar atlética adversária"
-        placeholder="Buscar atlética adversária"
-        placeholderTextColor={paleta['texto-suave']}
-        autoCorrect={false}
-        returnKeyType="search"
-        className="min-h-[44px] rounded-xl border border-borda bg-superficie px-3 py-2 text-base text-texto"
-      />
+      <CampoBusca rotulo="Buscar atlética adversária" valor={termo} aoMudar={setTermo} />
       {consulta.isPending && <ActivityIndicator color={paleta['texto-suave']} />}
       {consulta.isError && (
         <Texto variante="legenda">Não foi possível carregar as atléticas adversárias.</Texto>
@@ -85,7 +37,7 @@ function BuscaAdversaria({
       )}
       <View accessibilityRole="radiogroup" className="gap-2">
         {opcoes.map((atletica) => (
-          <Opcao
+          <OpcaoRadio
             key={atletica.id}
             rotulo={rotuloAtletica(atletica)}
             marcada={atletica.id === selecionada?.id}
@@ -112,43 +64,47 @@ function BuscaAdversaria({
 }
 
 type Props = {
-  adversaria: boolean
-  aoMudarTipo: (adversaria: boolean) => void
-  selecionada: AtleticaEscolhida | null
-  aoSelecionar: (atletica: AtleticaEscolhida) => void
+  /** `null`: atlética própria; vazio: adversária ainda não escolhida. */
+  valor: string | null | undefined
+  aoMudar: (id: string | null) => void
+  /** Adversária do time em edição, para exibir o nome. */
+  inicial?: AtleticaEscolhida
   /** Na edição a atlética do time é imutável. */
   desabilitado?: boolean
   erro?: string
 }
 
-export function SeletorAtletica({
-  adversaria,
-  aoMudarTipo,
-  selecionada,
-  aoSelecionar,
-  desabilitado,
-  erro,
-}: Props) {
+export function SeletorAtletica({ valor, aoMudar, inicial, desabilitado, erro }: Props) {
   const propria = useAtletica()
+  const [escolhida, setEscolhida] = useState<AtleticaEscolhida | null>(inicial ?? null)
+  const adversaria = valor !== null
+  const selecionada = escolhida?.id === valor ? escolhida : null
+
+  function selecionar(atletica: AtleticaEscolhida) {
+    setEscolhida(atletica)
+    aoMudar(atletica.id)
+  }
 
   return (
     <View className="gap-2">
       <Texto variante="rotulo">Atlética</Texto>
       <View accessibilityRole="radiogroup" className="flex-row gap-2">
         <View className="flex-1">
-          <Opcao
+          <OpcaoRadio
             rotulo={propria.sigla ?? propria.nome}
             marcada={!adversaria}
             desabilitada={desabilitado}
-            aoEscolher={() => aoMudarTipo(false)}
+            aoEscolher={() => aoMudar(null)}
           />
         </View>
         <View className="flex-1">
-          <Opcao
+          <OpcaoRadio
             rotulo="Adversária"
             marcada={adversaria}
             desabilitada={desabilitado}
-            aoEscolher={() => aoMudarTipo(true)}
+            aoEscolher={() => {
+              if (!adversaria) aoMudar(escolhida?.id ?? '')
+            }}
           />
         </View>
       </View>
@@ -156,7 +112,7 @@ export function SeletorAtletica({
         <Texto variante="legenda">{rotuloAtletica(selecionada)}</Texto>
       )}
       {adversaria && !desabilitado && (
-        <BuscaAdversaria selecionada={selecionada} aoSelecionar={aoSelecionar} />
+        <BuscaAdversaria selecionada={selecionada} aoSelecionar={selecionar} />
       )}
       {desabilitado && <Texto variante="legenda">A atlética do time não pode ser alterada.</Texto>}
       {erro && (

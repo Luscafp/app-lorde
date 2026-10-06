@@ -1,16 +1,21 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { timeCreateSchema, type TimeCriacao, type TimeDto, type TimeForm } from '@atletica/shared'
-import { useState } from 'react'
+import { timeCreateSchema, type TimeCriacao, type TimeDto } from '@atletica/shared'
 import { Controller, useForm } from 'react-hook-form'
 import { ScrollView, View } from 'react-native'
+import { z } from 'zod'
 import { FaixaOffline } from '@/components/estado'
 import { Botao, Campo, toast } from '@/components/ui'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
 import type { ApiErro } from '@/infra/api/cliente'
 import { mostrarErroDaMutacao } from '@/infra/query/query-client'
 import { useAtualizarTime, useCriarTime } from './hooks'
-import { SeletorAtletica, type AtleticaEscolhida } from './seletor-atletica'
+import { SeletorAtletica } from './seletor-atletica'
 import { SeletorModalidade } from './seletor-modalidade'
+
+/** `atleticaAdversariaId` vazio: "Adversária" marcada sem atlética escolhida. */
+const formTimeSchema = timeCreateSchema.extend({
+  atleticaAdversariaId: z.uuid({ error: 'Escolha a atlética adversária.' }).nullable(),
+})
 
 type Props = {
   /** Sem ele, cadastra um novo. */
@@ -22,20 +27,16 @@ export function FormTime({ time, aoSalvar }: Props) {
   const criar = useCriarTime()
   const atualizar = useAtualizarTime()
   const salvar = time ? atualizar : criar
-  const [adversaria, setAdversaria] = useState(time ? !time.atletica.propria : false)
-  const [atletica, setAtletica] = useState<AtleticaEscolhida | null>(
-    time && !time.atletica.propria ? time.atletica : null,
-  )
-  const form = useForm<TimeForm, unknown, TimeCriacao>({
-    resolver: zodResolver(timeCreateSchema),
+  const adversariaDoTime = time && !time.atletica.propria ? time.atletica : undefined
+  const form = useForm<z.input<typeof formTimeSchema>, unknown, z.output<typeof formTimeSchema>>({
+    resolver: zodResolver(formTimeSchema),
     mode: 'onBlur',
-    defaultValues: { nome: time?.nome ?? '', modalidadeId: time?.modalidade.id },
+    defaultValues: {
+      nome: time?.nome ?? '',
+      modalidadeId: time?.modalidade.id,
+      atleticaAdversariaId: adversariaDoTime?.id ?? null,
+    },
   })
-
-  function escolherAtletica(escolhida: AtleticaEscolhida) {
-    setAtletica(escolhida)
-    form.clearErrors('atleticaAdversariaId')
-  }
 
   const retorno = {
     onSuccess: () => {
@@ -47,16 +48,10 @@ export function FormTime({ time, aoSalvar }: Props) {
     },
   }
 
-  function enviar({ nome, modalidadeId }: TimeCriacao) {
-    if (time) return atualizar.mutate({ id: time.id, dados: { nome, modalidadeId } }, retorno)
-    if (adversaria && !atletica) {
-      form.setError('atleticaAdversariaId', { message: 'Escolha a atlética adversária.' })
-      return
-    }
-    criar.mutate(
-      { nome, modalidadeId, atleticaAdversariaId: adversaria ? atletica?.id : null },
-      retorno,
-    )
+  function enviar(dados: TimeCriacao) {
+    if (!time) return criar.mutate(dados, retorno)
+    const { nome, modalidadeId } = dados
+    atualizar.mutate({ id: time.id, dados: { nome, modalidadeId } }, retorno)
   }
 
   return (
@@ -77,13 +72,18 @@ export function FormTime({ time, aoSalvar }: Props) {
             />
           )}
         />
-        <SeletorAtletica
-          adversaria={adversaria}
-          aoMudarTipo={setAdversaria}
-          selecionada={atletica}
-          aoSelecionar={escolherAtletica}
-          desabilitado={!!time}
-          erro={form.formState.errors.atleticaAdversariaId?.message}
+        <Controller
+          control={form.control}
+          name="atleticaAdversariaId"
+          render={({ field, fieldState }) => (
+            <SeletorAtletica
+              valor={field.value}
+              aoMudar={field.onChange}
+              inicial={adversariaDoTime}
+              desabilitado={!!time}
+              erro={fieldState.error?.message}
+            />
+          )}
         />
         <Botao
           titulo="Salvar"

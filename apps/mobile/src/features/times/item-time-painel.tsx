@@ -1,8 +1,9 @@
 import type { TimeDto } from '@atletica/shared'
 import { Switch, View } from 'react-native'
-import { BotaoIcone, Selo, Texto } from '@/components/ui'
+import { BotaoIcone, CartaoLinha, Selo, Texto } from '@/components/ui'
 import { paleta, useAtletica } from '@/features/atletica'
 import { ModalidadeIcone } from '@/features/modalidades'
+import { contar } from './formatacao'
 
 type Props = {
   time: TimeDto
@@ -16,7 +17,7 @@ type Props = {
 }
 
 function resumoElenco({ totalMembros, capitao }: TimeDto): string {
-  const membros = totalMembros === 1 ? '1 membro' : `${totalMembros} membros`
+  const membros = contar(totalMembros, 'membro', 'membros')
   return capitao ? `${membros} · Capitão: ${capitao.nome}` : `${membros} · Sem capitão`
 }
 
@@ -33,7 +34,7 @@ export function ItemTimePainel({
   const { atletica } = time
 
   return (
-    <View className="flex-row items-center gap-3 rounded-2xl border border-borda bg-cartao px-3 py-2">
+    <CartaoLinha>
       <ModalidadeIcone
         icone={time.modalidade.icone}
         cor={time.ativo ? corPrimaria : paleta['texto-suave']}
@@ -79,6 +80,6 @@ export function ItemTimePainel({
           />
         )}
       </View>
-    </View>
+    </CartaoLinha>
   )
 }

@@ -18,7 +18,7 @@ type Props = {
   /** Sem ela, cadastra uma nova. */
   atletica?: AtleticaAdversaria
   aoSalvar: (atletica: AtleticaAdversaria) => void
-  aoCancelar?: () => void
+  aoCancelar: () => void
 }
 
 export function FormAtleticaAdversaria({ atletica, aoSalvar, aoCancelar }: Props) {
@@ -61,9 +61,7 @@ export function FormAtleticaAdversaria({ atletica, aoSalvar, aoCancelar }: Props
       />
       <Campo controle={form.control} nome="curso" rotulo="Curso (opcional)" />
       <View className="flex-row gap-3">
-        {aoCancelar && (
-          <Botao titulo="Cancelar" variante="secundaria" className="flex-1" onPress={aoCancelar} />
-        )}
+        <Botao titulo="Cancelar" variante="secundaria" className="flex-1" onPress={aoCancelar} />
         <Botao
           titulo="Salvar atlética"
           className="flex-1"

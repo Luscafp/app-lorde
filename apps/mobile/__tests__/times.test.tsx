@@ -224,11 +224,59 @@ describe('FormTime', () => {
     expect(toast.erro).not.toHaveBeenCalled()
   })
 
+  it.each([
+    [400, 'VALIDATION_ERROR', 'nome', 'Nome inválido.'],
+    [422, 'MODALIDADE_INATIVA', 'modalidadeId', 'Esta modalidade está inativa.'],
+  ])('%i %s aparece no campo %s', async (status, code, field, mensagem) => {
+    api.criarTime.mockRejectedValue(
+      new ApiErro({ status, code, message: mensagem, details: [{ field, message: mensagem }] }),
+    )
+    const aoSalvar = jest.fn()
+    await renderizar(<FormTime aoSalvar={aoSalvar} />)
+    await fireEvent.changeText(screen.getByLabelText('Nome'), 'Futsal Masculino')
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Futsal' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Salvar' }))
+
+    expect(await screen.findByText(mensagem)).toBeOnTheScreen()
+    expect(toast.erro).not.toHaveBeenCalled()
+    expect(aoSalvar).not.toHaveBeenCalled()
+  })
+
+  it('na edição, modalidade inativa do time não é oferecida, mas é mantida', async () => {
+    const handebol = {
+      id: '8b3e4c9a-4b7d-4e5b-9c2a-5b5d3d0f4e33',
+      nome: 'Handebol',
+      icone: 'handball',
+    }
+    api.atualizarTime.mockResolvedValue({ ...PROPRIO, modalidade: handebol })
+    await renderizar(<FormTime time={{ ...PROPRIO, modalidade: handebol }} aoSalvar={jest.fn()} />)
+
+    expect(await screen.findByText(/Handebol está inativa/)).toBeOnTheScreen()
+    expect(screen.queryByRole('radio', { name: 'Handebol' })).toBeNull()
+    await fireEvent.press(screen.getByRole('button', { name: 'Salvar' }))
+    await waitFor(() =>
+      expect(api.atualizarTime).toHaveBeenCalledWith(PROPRIO.id, {
+        nome: PROPRIO.nome,
+        modalidadeId: handebol.id,
+      }),
+    )
+  })
+
   it('offline: Salvar desabilitado e faixa offline', async () => {
     onlineManager.setOnline(false)
     await renderizar(<FormTime aoSalvar={jest.fn()} />)
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
     expect(screen.getByText('Modo offline')).toBeOnTheScreen()
+  })
+
+  it('offline na edição: Salvar desabilitado e faixa offline', async () => {
+    api.buscarTime.mockResolvedValue(PROPRIO)
+    await renderizar(<EditarTime />)
+    await screen.findByRole('radio', { name: 'Futsal' })
+    await act(() => onlineManager.setOnline(false))
+
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
+    expect(screen.getByText(/Modo offline/)).toBeOnTheScreen()
   })
 })
 
@@ -244,7 +292,7 @@ describe('FormAtleticaAdversaria', () => {
       }),
     )
     const aoSalvar = jest.fn()
-    await renderizar(<FormAtleticaAdversaria aoSalvar={aoSalvar} />)
+    await renderizar(<FormAtleticaAdversaria aoSalvar={aoSalvar} aoCancelar={jest.fn()} />)
     await fireEvent.changeText(screen.getByLabelText('Nome'), 'Atlética Fênix')
     await fireEvent.press(screen.getByRole('button', { name: 'Salvar atlética' }))
 

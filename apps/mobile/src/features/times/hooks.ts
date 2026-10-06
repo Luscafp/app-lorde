@@ -7,9 +7,11 @@ import type {
   TimeDto,
 } from '@atletica/shared'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
+import { useValorAtrasado } from '@/infra/use-valor-atrasado'
 import {
   atualizarAtleticaAdversaria,
   atualizarTime,
@@ -23,7 +25,7 @@ import {
   type FiltrosTimes,
 } from './api'
 
-const PREFIXO_ADVERSARIAS = chaves.painel.adversarias.lista({}).slice(0, 2)
+export const TIME_COM_DEPENDENCIAS = 'TIME_COM_DEPENDENCIAS'
 const ERROS_DO_TIME = [
   'VALIDATION_ERROR',
   'TIME_DUPLICADO',
@@ -31,6 +33,7 @@ const ERROS_DO_TIME = [
   'MODALIDADE_INATIVA',
 ]
 const ERROS_DA_ATLETICA = ['VALIDATION_ERROR', 'ATLETICA_DUPLICADA']
+const ATRASO_BUSCA_MS = 300
 
 const proximaPagina = ({ page, total }: { page: number; total: number }) =>
   page * LIMITE_PAGINA < total ? page + 1 : undefined
@@ -60,13 +63,21 @@ export function useAtleticasAdversarias(q?: string) {
   })
 }
 
+/** Busca de adversárias pelo termo digitado, com atraso. */
+export function useBuscaAdversarias() {
+  const [termo, setTermo] = useState('')
+  const busca = useValorAtrasado(termo.trim(), ATRASO_BUSCA_MS) || undefined
+  const consulta = useAtleticasAdversarias(busca)
+  return { termo, setTermo, busca, consulta }
+}
+
 /** Times mostram a sigla da adversária e adversárias contam times: uma escrita invalida os dois. */
 function useInvalidar() {
   const cliente = useQueryClient()
   return () =>
     Promise.all([
       cliente.invalidateQueries({ queryKey: chaves.times.todos() }),
-      cliente.invalidateQueries({ queryKey: PREFIXO_ADVERSARIAS }),
+      cliente.invalidateQueries({ queryKey: chaves.painel.adversarias.todos() }),
     ])
 }
 
@@ -88,7 +99,7 @@ export function useAtualizarTime() {
   return useAcaoOnline<TimeDto, ApiErro, Atualizacao<TimeAtualizacao>>({
     mutationFn: ({ id, dados }) => atualizarTime(id, dados),
     meta: { errosNaTela: ERROS_DO_TIME },
-    onSettled: invalidar,
+    onSuccess: invalidar,
   })
 }
 
@@ -97,7 +108,7 @@ export function useExcluirTime() {
   const invalidar = useInvalidar()
   return useAcaoOnline<void, ApiErro, string>({
     mutationFn: (id) => excluirTime(id),
-    meta: { errosNaTela: ['TIME_COM_DEPENDENCIAS'] },
+    meta: { errosNaTela: [TIME_COM_DEPENDENCIAS] },
     onSuccess: invalidar,
   })
 }

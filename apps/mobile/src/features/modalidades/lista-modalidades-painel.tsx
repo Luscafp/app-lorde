@@ -1,6 +1,6 @@
 import type { Modalidade } from '@atletica/shared'
 import { FlatList, Switch, View } from 'react-native'
-import { BotaoIcone, Texto } from '@/components/ui'
+import { BotaoIcone, CartaoLinha, Texto } from '@/components/ui'
 import { paleta, useAtletica } from '@/features/atletica'
 import { ModalidadeIcone } from './modalidade-icone'
 
@@ -31,7 +31,7 @@ export function ListaModalidadesPainel({
       contentContainerClassName="gap-2 p-4"
       extraData={acoesHabilitadas}
       renderItem={({ item }) => (
-        <View className="flex-row items-center gap-3 rounded-2xl border border-borda bg-cartao px-3 py-2">
+        <CartaoLinha>
           <ModalidadeIcone
             icone={item.icone}
             cor={item.ativa ? corPrimaria : paleta['texto-suave']}
@@ -65,7 +65,7 @@ export function ListaModalidadesPainel({
               onPress={() => aoExcluir(item)}
             />
           )}
-        </View>
+        </CartaoLinha>
       )}
     />
   )

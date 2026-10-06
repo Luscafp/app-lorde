@@ -10,6 +10,5 @@ export {
   useTime,
   useTimes,
 } from './hooks'
-export { ItemTimePainel } from './item-time-painel'
-export { rotuloAtletica } from './seletor-atletica'
-export { SeletorModalidade } from './seletor-modalidade'
+export { ListaAtleticasAdversarias } from './lista-atleticas-adversarias'
+export { ListaTimesPainel, type NavegacaoTimes } from './lista-times-painel'
