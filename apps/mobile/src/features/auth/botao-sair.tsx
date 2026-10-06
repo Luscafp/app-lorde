@@ -13,6 +13,11 @@ export function BotaoSair() {
   const { sair, saindo } = useLogout()
 
   return (
-    <Botao titulo="Sair" variante="perigo" carregando={saindo} onPress={() => confirmar(sair)} />
+    <Botao
+      titulo="Sair da conta"
+      variante="perigo"
+      carregando={saindo}
+      onPress={() => confirmar(sair)}
+    />
   )
 }

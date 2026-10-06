@@ -524,7 +524,60 @@ Times da atlética ativa e de adversárias. A extensão multi-atlética lê `Tim
 | `PATCH /times/:id`  | DIRETOR              | `200`; `nome`, `modalidadeId`, `ativo`; trocar a modalidade de time com eventos → `409 TIME_COM_EVENTOS`                                                       |
 | `DELETE /times/:id` | PRESIDENTE           | `204` (exclusão física); com evento, `MembroTime` (inclusive histórico) ou solicitação → `409 TIME_COM_DEPENDENCIAS`                                           |
 
-As listas paginadas (`/times`, `/atleticas-adversarias`) ordenam e filtram por nome em SQL (`unaccent(lower(nome))`) e leem os dados pelo Prisma (`naOrdemDosIds`, `src/common/busca.ts`). Em time adversário, `capitao` é `null` e `totalMembros` é `0`. Auditoria (entidade `Time`): `TIME_CRIADO`, `TIME_ALTERADO` (nome/modalidade), `TIME_ATIVADO`/`TIME_DESATIVADO` e `TIME_EXCLUIDO`. Fábricas: `criarTime`, `criarAtleticaAdversaria` e `criarTimeAdversario` em `test/fabricas/times.ts`.
+As listas paginadas (`/times`, `/atleticas-adversarias`) ordenam e filtram por nome em SQL (`unaccent(lower(nome))`) e leem os dados pelo Prisma (`naOrdemDosIds`, `src/common/busca.ts`). Em time adversário, `capitao` é `null` e `totalMembros` é `0`. Auditoria (entidade `Time`): `TIME_CRIADO`, `TIME_ALTERADO` (nome/modalidade), `TIME_ATIVADO`/`TIME_DESATIVADO` e `TIME_EXCLUIDO`. Fábricas: `criarTime`, `criarAtleticaAdversaria`, `criarTimeAdversario` e `adicionarMembro(time, usuario, { entradaEm?, saidaEm? })` em `test/fabricas/times.ts`.
+
+### Elenco e capitão (`ElencoController`, `ElencoService`)
+
+Só times da atlética ativa: time adversário → `422 TIME_ADVERSARIO`; de outra atlética que usa o app → `404`.
+
+| Rota                                  | Papel mínimo         | Resposta                                                                                                                      |
+| ------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `GET /times/:id/elenco`               | qualquer autenticado | `200 { items, total }` sem paginação, capitão primeiro e depois por nome; sem e-mail; fora da Diretoria, time inativo → `404` |
+| `DELETE /times/:id/elenco/:usuarioId` | DIRETOR              | `204`; sem vínculo ativo → `404 MEMBRO_NAO_ENCONTRADO`                                                                        |
+| `PUT /times/:id/capitao`              | DIRETOR              | `200` com o time; `{ usuarioId: null }` remove; fora do elenco → `422 CAPITAO_FORA_DO_ELENCO`                                 |
+
+Auditoria: `CAPITAO_DEFINIDO`/`CAPITAO_REMOVIDO` (entidade `Time`, `{ antes: { capitaoId }, depois: { capitaoId } }`; sem mudança não audita). Usuário excluído aparece como "Usuário excluído", sem foto.
+
+**`encerrarVinculo(tx, { timeId, usuarioId, motivo, executorId })`** — ponto único de saída do elenco (#12 e #34 o chamam; importe `TimesModule`). Roda na transação de quem chama e devolve `{ capitaniaRemovida, participacoesRemovidas }`:
+
+1. trava o `Time` com `FOR UPDATE` (o `PUT /capitao` também trava, então capitão e remoção não se cruzam);
+2. preenche `saidaEm` no vínculo ativo; sem vínculo → `404 MEMBRO_NAO_ENCONTRADO`;
+3. se era o capitão, `capitaoId = null`;
+4. apaga as `Participacao` do usuário em eventos do time `AGENDADO`, futuros e sem presença;
+5. audita na entidade `MembroTime` com ator `executorId`: `REMOVIDO_PELA_DIRETORIA` → `MEMBRO_REMOVIDO`, `SAIU` → `MEMBRO_SAIU`, `EXCLUSAO_CONTA` → `MEMBRO_REMOVIDO_EXCLUSAO_CONTA`, com `contexto: { timeId, usuarioId, capitaniaRemovida, participacoesRemovidas }`.
+
+Não emite evento de domínio. Para #34 (`MotivoSaida` exportado por `elenco.service.ts`):
+
+```ts
+await this.prisma.db.$transaction((tx) =>
+  this.elenco.encerrarVinculo(tx, {
+    timeId,
+    usuarioId,
+    motivo: MotivoSaida.SAIU,
+    executorId: usuarioId,
+  }),
+)
+```
+
+## Notícias (`src/modules/noticias`)
+
+`NoticiasModule` reúne a leitura pública (`/noticias`, #78: só publicadas e não excluídas) e a gestão pelo Painel (`/painel/noticias`, #80). Schemas e DTOs em `@atletica/shared` (`noticias/`): título `trim` 3–120; conteúdo em Markdown restrito até 10 000 (vazio no rascunho); `noticiaPublicacaoSchema` exige conteúdo após `trim` e capa. Exclusão lógica (`excluidoEm`): toda leitura filtra `excluidoEm IS NULL`.
+
+| Rota                                    | Papel mínimo | Resposta                                                                                                 |
+| --------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------- |
+| `GET /painel/noticias?status=&q=`       | DIRETOR      | `200` paginado, rascunhos e publicadas por `atualizadoEm` desc; `q` busca no título sem acento nem caixa |
+| `GET /painel/noticias/:id`              | DIRETOR      | `200` com `conteudo` e `autor`                                                                           |
+| `POST /painel/noticias`                 | DIRETOR      | `201`; `publicar: true` cria já publicada                                                                |
+| `PATCH /painel/noticias/:id`            | DIRETOR      | `200`; `titulo`, `conteudo`, `imagemCapaKey` (`null` remove); publicada mantém status e `publicadaEm`    |
+| `POST /painel/noticias/:id/publicar`    | DIRETOR      | `200`, idempotente; `422 CAPA_OBRIGATORIA` / `CONTEUDO_OBRIGATORIO` (também ao editar publicada)         |
+| `POST /painel/noticias/:id/despublicar` | DIRETOR      | `200`, idempotente; `publicadaEm` é mantida                                                              |
+| `DELETE /painel/noticias/:id`           | PRESIDENTE   | `204` (exclusão lógica, em qualquer status)                                                              |
+
+- **Concorrência:** toda escrita bloqueia a linha (`SELECT ... FOR UPDATE`, com atlética e `excluidoEm IS NULL` no SQL); publicar e despublicar usam `updateMany` condicionado ao status. Dois cliques ou dois diretores geram uma publicação só.
+- **Capa:** `UploadsService.validarKey` (finalidade `NOTICIA`) só quando a chave muda; a anterior sai do R2 via `aposCommit` ao trocar ou remover. A exclusão lógica mantém a imagem.
+- **`noticia.publicada { atleticaId, noticiaId, autorId }`** só na primeira publicação (`autorId` = quem publicou); republicar mantém `publicadaEm` e não emite.
+- **Auditoria** (entidade `Noticia`): `NOTICIA_CRIADA` (`{ titulo, status }`), `NOTICIA_ALTERADA` (título e os indicadores `conteudoAlterado`/`capaAlterada`, nunca o texto nem a chave), `NOTICIA_PUBLICADA` (`contexto.primeiraPublicacao`), `NOTICIA_DESPUBLICADA` e `NOTICIA_EXCLUIDA`.
+- Fábricas: `criarNoticia` e `chaveDeCapa` em `test/fabricas/noticias.ts`.
 
 ## Eventos (`src/modules/eventos`)
 

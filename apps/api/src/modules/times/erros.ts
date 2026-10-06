@@ -26,6 +26,29 @@ export function erroTimeComEventos(): ErroNegocio {
   return erroDeCampo(HttpStatus.CONFLICT, 'TIME_COM_EVENTOS', 'modalidadeId', TIME_COM_EVENTOS)
 }
 
+export function erroTimeAdversario(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.UNPROCESSABLE_ENTITY,
+    'TIME_ADVERSARIO',
+    'Times adversários não têm elenco nem capitão.',
+  )
+}
+
+export function erroMembroNaoEncontrado(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.NOT_FOUND,
+    'MEMBRO_NAO_ENCONTRADO',
+    'Este usuário não faz parte do elenco do time.',
+  )
+}
+
+export function erroCapitaoForaDoElenco(): ErroNegocio {
+  const mensagem = 'O capitão precisa ser membro do elenco atual.'
+  return new ErroNegocio(HttpStatus.UNPROCESSABLE_ENTITY, 'CAPITAO_FORA_DO_ELENCO', mensagem, [
+    { field: 'usuarioId', message: mensagem },
+  ])
+}
+
 export function erroTimeComDependencias(): ErroNegocio {
   return new ErroNegocio(
     HttpStatus.CONFLICT,

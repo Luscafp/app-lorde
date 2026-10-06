@@ -7,7 +7,7 @@ import * as nativewind from 'nativewind'
 import type { ReactNode } from 'react'
 import { StyleSheet, Text } from 'react-native'
 import { carregarAtletica, corTextoSobre, ProvedorTema, useAtletica } from '@/features/atletica'
-import { CHAVE_CACHE_ATLETICA } from '@/features/atletica/api'
+import { CHAVE_CACHE_ATLETICA, CHAVE_CACHE_ATLETICA_SALVA_EM } from '@/features/atletica/api'
 import { hexParaRgb } from '@/features/atletica/cores'
 import { variaveisTema } from '@/features/atletica/provedor-tema'
 import { COR_NEUTRA, NOME_GENERICO } from '@/features/atletica/use-atletica'
@@ -93,6 +93,7 @@ describe('carregarAtletica e useAtletica', () => {
     const { result } = await renderAtletica()
     expect(result.current).toEqual(atletica)
     expect(JSON.parse((await AsyncStorage.getItem(CHAVE_CACHE_ATLETICA)) ?? '')).toEqual(atletica)
+    expect(Number(await AsyncStorage.getItem(CHAVE_CACHE_ATLETICA_SALVA_EM))).toBeGreaterThan(0)
   })
 
   it('usa o cache como dado inicial, sem esperar a rede, e atualiza em segundo plano', async () => {

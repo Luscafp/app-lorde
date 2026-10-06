@@ -16,6 +16,8 @@ export interface UsuarioAutenticado {
   nivel: NivelPapel
 }
 
+export type UsuarioNaAtletica = Pick<UsuarioAutenticado, 'id' | 'atleticaId'>
+
 export interface RequisicaoAutenticada extends Request {
   usuario?: UsuarioAutenticado
 }

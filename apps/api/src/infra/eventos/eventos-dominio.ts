@@ -33,6 +33,8 @@ export interface EventosDominio {
     papelNovo: Papel
     autorId: string
   }
+  /** #80, só na primeira publicação; `autorId` = quem publicou. Ouvido pela #89 (push de notícia). */
+  'noticia.publicada': PayloadBase & { atleticaId: string; noticiaId: string; autorId: string }
   /** Em série, `eventoId` é a 1ª ocorrência. */
   'evento.criado': PayloadBase & {
     atleticaId: string

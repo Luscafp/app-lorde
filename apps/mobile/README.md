@@ -12,7 +12,7 @@ Copie `.env.example` para `.env`. Variáveis `EXPO_PUBLIC_*` são embutidas no b
 | `EXPO_PUBLIC_AMBIENTE`   | `development`                     | `development \| homologacao \| producao` (convenções §11.11)                              |
 | `EXPO_PUBLIC_SENTRY_DSN` | vazio                             | DSN do projeto `atletica-app` (#93). Vazio = Sentry desligado.                            |
 
-Novas variáveis entram em `env.d.ts` (tipagem) e em `src/config/ambiente.ts`.
+Novas variáveis entram em `env.d.ts` (tipagem) e em `src/config/ambiente.ts`. Feature flags versionadas ficam em `src/config/features.ts` (convenções §10.7).
 
 ## Rotas
 
@@ -28,7 +28,8 @@ Grupos oficiais `(publico)` e `(app)/(abas)` (convenções §3 e §11.1).
 | `/`                           | `app/(app)/(abas)/index.tsx`                   | com sessão      |
 | `/agenda`                     | `app/(app)/(abas)/agenda.tsx`                  | com sessão      |
 | `/times`                      | `app/(app)/(abas)/times.tsx`                   | com sessão      |
-| `/perfil`                     | `app/(app)/(abas)/perfil.tsx`                  | com sessão      |
+| `/perfil`                     | `app/(app)/(abas)/perfil/index.tsx`            | com sessão      |
+| `/perfil/configuracoes/*`     | `app/(app)/(abas)/perfil/configuracoes/`       | com sessão      |
 | `/painel`                     | `app/(app)/(abas)/painel.tsx`                  | nível ≥ DIRETOR |
 | `/termos`                     | `app/termos.tsx`                               | todos           |
 | `/privacidade`                | `app/privacidade.tsx`                          | todos           |
@@ -62,8 +63,9 @@ Tokens ficam **só** no `expo-secure-store` (`auth.accessToken`, `auth.refreshTo
 
 ## Tema por atlética — `src/features/atletica`
 
-- `carregarAtletica()` (splash) lê o cache `atletica.v1`; sem cache, espera `GET /atletica` por até 3 s, sem repetir. Sem rede e sem cache: tema neutro (`#6B7280`) e nome "Atlética".
-- `useAtletica()` usa `useQuery({ queryKey: chaves.atletica() })` com o `atletica.v1` como dado inicial (vencido): a rede atualiza tela e cache em segundo plano e tenta de novo ao reconectar (`refetchOnReconnect`). Devolve `{ id, nome, sigla, curso, logoUrl, corPrimaria, corSecundaria, contatoEmail, contatoInstagram, contatoWhatsapp }`, já com o fallback aplicado (`id` é `null` sem dados).
+- `carregarAtletica()` (splash) lê o cache `atletica.v1` e a data em que foi gravado (`atletica.v1.salvaEm`); sem cache, espera `GET /atletica` por até 3 s, sem repetir. Sem rede e sem cache: tema neutro (`#6B7280`) e nome "Atlética".
+- `useConsultaAtletica()` é a consulta crua (para `TelaDados`): `useQuery({ queryKey: chaves.atletica() })` com o `atletica.v1` como dado inicial e `atletica.v1.salvaEm` como `dataUpdatedAt`, que a `FaixaOffline` exibe.
+- `useAtletica()` lê a `useConsultaAtletica()`: a rede atualiza tela e cache em segundo plano e tenta de novo ao reconectar (`refetchOnReconnect`). Devolve `{ id, nome, sigla, curso, logoUrl, corPrimaria, corSecundaria, contatoEmail, contatoInstagram, contatoWhatsapp }`, já com o fallback aplicado (`id` é `null` sem dados).
 - `ProvedorTema` define `--cor-primaria`/`--cor-secundaria` (`vars()` do NativeWind) no contêiner raiz. Use as classes `bg-primaria`, `text-secundaria`, `border-primaria/40` etc. A paleta escura fixa (`fundo`, `superficie`, `cartao`, `texto`, `texto-suave`, `borda`, `sucesso`, `alerta`, `erro`) está em `paleta.js` e no `tailwind.config.js`.
 - `corTextoSobre(hex)` devolve `#FFFFFF` ou `#000000` (maior contraste WCAG), para texto sobre a cor primária.
 
