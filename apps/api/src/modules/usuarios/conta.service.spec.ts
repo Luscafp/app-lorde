@@ -59,6 +59,10 @@ function criarServico({
     }
 
   const tx = {
+    $queryRaw: jest
+      .fn()
+      .mockResolvedValueOnce([{ email: 'ana@ex.com', fotoKey: FOTO }])
+      .mockResolvedValueOnce(vinculos),
     membroTime: {
       findMany: responder('membros', () =>
         [...(timesPorAtletica[atletica ?? ''] ?? [])].sort().map((timeId) => ({ timeId })),
@@ -78,12 +82,7 @@ function criarServico({
   const prisma = {
     semEscopo: {
       usuario: {
-        findUnique: jest.fn().mockResolvedValue({
-          senhaHash: 'hash',
-          email: 'ana@ex.com',
-          fotoKey: FOTO,
-          vinculos,
-        }),
+        findUnique: jest.fn().mockResolvedValue({ senhaHash: 'hash' }),
       },
     },
   }

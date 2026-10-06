@@ -1,6 +1,6 @@
 import { ROTULO_PAPEL, type Papel } from '@atletica/shared'
 import { HttpStatus } from '@nestjs/common'
-import { ErroNegocio } from '../../common/erros/erro-negocio'
+import { erroDeCampo, ErroNegocio } from '../../common/erros/erro-negocio'
 
 export const MENSAGEM_NIVEL_INSUFICIENTE =
   'Só é possível alterar usuários de nível de acesso inferior ao seu.'
@@ -42,7 +42,7 @@ export function erroDeBloqueio(bloqueio: Bloqueio): ErroNegocio {
   return ERRO_DE_BLOQUEIO[bloqueio]()
 }
 
-export const MENSAGEM_ULTIMO_ADMINISTRADOR = 'É preciso haver ao menos um Administrador ativo.'
+const MENSAGEM_ULTIMO_ADMINISTRADOR = 'É preciso haver ao menos um Administrador ativo.'
 export const MENSAGEM_ULTIMO_ADMINISTRADOR_EXCLUSAO =
   'Você é o único Administrador. Conceda o cargo a outra pessoa antes de excluir sua conta.'
 
@@ -75,23 +75,15 @@ export function erroConflitoConcorrente(): ErroNegocio {
   )
 }
 
-const SENHA_INCORRETA = 'Senha atual incorreta.'
+const SENHA_ATUAL_INCORRETA = 'Senha atual incorreta.'
 const SENHA_IGUAL_ATUAL = 'A nova senha deve ser diferente da atual.'
 
 /** 400, e não 401: um 401 dispararia o refresh e o logout do app (issue #13 §7.5). */
-export function erroSenhaIncorreta(): ErroNegocio {
-  return new ErroNegocio(HttpStatus.BAD_REQUEST, 'SENHA_INCORRETA', SENHA_INCORRETA, [
-    { field: 'senhaAtual', message: SENHA_INCORRETA },
-  ])
-}
-
-const SENHA_CONFIRMACAO_INCORRETA = 'Senha incorreta.'
-
-/** Confirmação por senha da exclusão de conta (#12); 400 pelo mesmo motivo de `erroSenhaIncorreta`. */
-export function erroSenhaConfirmacaoIncorreta(): ErroNegocio {
-  return new ErroNegocio(HttpStatus.BAD_REQUEST, 'SENHA_INCORRETA', SENHA_CONFIRMACAO_INCORRETA, [
-    { field: 'senha', message: SENHA_CONFIRMACAO_INCORRETA },
-  ])
+export function erroSenhaIncorreta(
+  field = 'senhaAtual',
+  mensagem = SENHA_ATUAL_INCORRETA,
+): ErroNegocio {
+  return erroDeCampo(HttpStatus.BAD_REQUEST, 'SENHA_INCORRETA', field, mensagem)
 }
 
 export function erroSenhaIgualAtual(): ErroNegocio {

@@ -2,10 +2,11 @@ import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { Alert, type AlertButton } from 'react-native'
 import { toast } from '@/components/ui/toast'
-import { ExcluirConta, MENSAGEM_CONTA_EXCLUIDA, MENSAGEM_EXCLUSAO_OFFLINE } from '@/features/perfil'
+import { ExcluirConta, MENSAGEM_CONTA_EXCLUIDA } from '@/features/perfil'
 import * as apiPerfil from '@/features/perfil/api'
 import { ApiErro } from '@/infra/api/api-erro'
 import { criarQueryClient } from '@/infra/query/query-client'
+import { MENSAGEM_ACAO_OFFLINE } from '@/infra/query/use-acao-online'
 import { adicionarLogoutPendente } from '@/infra/sessao/logout-pendente'
 import { useSessao } from '@/infra/sessao/store'
 
@@ -86,7 +87,7 @@ describe('Excluir conta (#12)', () => {
     await renderizar()
     await preencher()
     expect(botaoExcluir()).toBeDisabled()
-    expect(screen.getByText(MENSAGEM_EXCLUSAO_OFFLINE)).toBeOnTheScreen()
+    expect(screen.getByText(MENSAGEM_ACAO_OFFLINE)).toBeOnTheScreen()
     expect(api.excluirConta).not.toHaveBeenCalled()
   })
 

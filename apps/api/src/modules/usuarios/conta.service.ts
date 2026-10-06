@@ -12,11 +12,12 @@ import { RateLimitService, TipoTentativa } from '../auth/rate-limit.service'
 import { SessaoService } from '../auth/sessao.service'
 import { ElencoService, MotivoSaida } from '../times/elenco.service'
 import { UploadsService } from '../uploads/uploads.service'
-import { erroSenhaConfirmacaoIncorreta, MENSAGEM_ULTIMO_ADMINISTRADOR_EXCLUSAO } from './erros'
+import { erroSenhaIncorreta, MENSAGEM_ULTIMO_ADMINISTRADOR_EXCLUSAO } from './erros'
 import { LIMITE_SENHA_ATUAL } from './perfil.service'
 import { bloquearPapeis, garantirNaoUltimoAdministrador } from './regras-papel'
 
 export const NOME_ANONIMO = 'Usuário excluído'
+const SENHA_INCORRETA = 'Senha incorreta.'
 /** Não é um hash Argon2id: `SenhaService.verificar` nunca confere. */
 export const SENHA_HASH_INVALIDO = '!'
 
@@ -49,32 +50,24 @@ export class ContaService {
     private readonly eventos: EventosDominioService,
   ) {}
 
-  /** A conta é global: os vínculos de todas as atléticas são lidos com `semEscopo` (§3). */
   async excluir(usuarioId: string, senha: string): Promise<void> {
     await this.limites.verificar(
       TipoTentativa.SENHA_CONFIRMACAO_FALHA,
       usuarioId,
       LIMITE_SENHA_ATUAL,
     )
-    const conta = await this.prisma.semEscopo.usuario.findUnique({
+    const credencial = await this.prisma.semEscopo.usuario.findUnique({
       where: { id: usuarioId },
-      select: {
-        senhaHash: true,
-        email: true,
-        fotoKey: true,
-        vinculos: {
-          orderBy: { atleticaId: 'asc' },
-          select: { atleticaId: true, papel: true, ativo: true },
-        },
-      },
+      select: { senhaHash: true },
     })
-    if (!conta) throw erroNaoAutenticado()
-    if (!(await this.senhas.verificar(conta.senhaHash, senha))) {
+    if (!credencial) throw erroNaoAutenticado()
+    if (!(await this.senhas.verificar(credencial.senhaHash, senha))) {
       await this.limites.registrar(TipoTentativa.SENHA_CONFIRMACAO_FALHA, usuarioId)
-      throw erroSenhaConfirmacaoIncorreta()
+      throw erroSenhaIncorreta('senha', SENHA_INCORRETA)
     }
 
     await this.transacao.executar(async (tx) => {
+      const conta = await this.travarConta(tx, usuarioId)
       for (const { atleticaId } of conta.vinculos.filter(ehAdministradorAtivo)) {
         await this.contexto.executarComAtletica(atleticaId, async () => {
           await bloquearPapeis(tx, atleticaId)
@@ -105,6 +98,20 @@ export class ContaService {
       const { fotoKey } = conta
       if (fotoKey) aposCommit(() => this.uploads.remover(fotoKey))
     })
+  }
+
+  /**
+   * A conta é global: SQL direto lê os vínculos de todas as atléticas, já dentro da transação.
+   * O `FOR UPDATE` serializa com outra exclusão ou troca de foto da mesma conta.
+   */
+  private async travarConta(tx: TransacaoComEscopo, usuarioId: string) {
+    const [usuario] = await tx.$queryRaw<{ email: string; fotoKey: string | null }[]>`
+      SELECT "email", "fotoKey" FROM "Usuario" WHERE "id" = ${usuarioId}::uuid FOR UPDATE`
+    if (!usuario) throw erroNaoAutenticado()
+    const vinculos = await tx.$queryRaw<Vinculo[]>`
+      SELECT "atleticaId", "papel", "ativo" FROM "VinculoAtletica"
+      WHERE "usuarioId" = ${usuarioId}::uuid ORDER BY "atleticaId"`
+    return { ...usuario, vinculos }
   }
 
   /** Roda no contexto da atlética; times em ordem de id para travar sempre na mesma ordem. */
@@ -139,7 +146,7 @@ export class ContaService {
     })
   }
 
-  /** `AceiteTermos`, participações passadas e autorias ficam, ligados à conta anônima. */
+  /** Modelos da conta, sem escopo por atlética. Ficam `AceiteTermos`, participações e autorias. */
   private async anonimizar(tx: TransacaoComEscopo, usuarioId: string, email: string) {
     await tx.usuario.update({
       where: { id: usuarioId },

@@ -4,13 +4,21 @@ import { useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { Alert, View } from 'react-native'
 import { TelaRolavel } from '@/components/tela-rolavel'
-import { Alerta, Botao, CaixaSelecao, CampoSenha, Texto, toast } from '@/components/ui'
+import {
+  Alerta,
+  AvisoOffline,
+  Botao,
+  CaixaSelecao,
+  CampoSenha,
+  Texto,
+  toast,
+} from '@/components/ui'
 import { ApiErro, CodigoApi } from '@/infra/api/api-erro'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
 import { useExcluirConta } from './consultas'
 
 export const MENSAGEM_CONTA_EXCLUIDA = 'Conta excluída'
-export const MENSAGEM_EXCLUSAO_OFFLINE = 'Conecte-se à internet para excluir a conta.'
+const CONFIRMACAO_IRREVERSIVEL = 'Entendo que esta ação não pode ser desfeita'
 
 const CONSEQUENCIAS = [
   'Seus dados pessoais serão anonimizados.',
@@ -77,19 +85,11 @@ export function ExcluirConta() {
         autoComplete="current-password"
         textContentType="password"
       />
-      <CaixaSelecao
-        marcada={entendido}
-        aoAlternar={setEntendido}
-        rotulo="Entendo que esta ação não pode ser desfeita"
-      >
-        <Texto>Entendo que esta ação não pode ser desfeita</Texto>
+      <CaixaSelecao marcada={entendido} aoAlternar={setEntendido} rotulo={CONFIRMACAO_IRREVERSIVEL}>
+        <Texto>{CONFIRMACAO_IRREVERSIVEL}</Texto>
       </CaixaSelecao>
       {bloqueio && <Alerta>{bloqueio}</Alerta>}
-      {!excluir.online && (
-        <Texto variante="legenda" className="text-center" accessibilityLiveRegion="polite">
-          {MENSAGEM_EXCLUSAO_OFFLINE}
-        </Texto>
-      )}
+      <AvisoOffline online={excluir.online} />
       <Botao
         titulo="Excluir minha conta"
         variante="perigo"
