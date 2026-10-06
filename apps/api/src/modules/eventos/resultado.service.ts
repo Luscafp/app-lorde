@@ -37,6 +37,13 @@ export class ResultadoService {
       if (antes.status !== 'FINALIZADO') {
         if (!entrada.finalizar) throw erroEventoNaoFinalizado()
         await this.status.trocar(tx, id, antes.status, 'FINALIZADO')
+        this.dominio.emitirAposCommit('evento.alterado', {
+          atleticaId: autor.atleticaId,
+          eventoIds: [id],
+          timeId: antes.timeId,
+          campos: ['status'],
+          autorId: autor.id,
+        })
       }
 
       const { placarTime, placarAdversario } = entrada

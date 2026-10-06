@@ -173,7 +173,18 @@ describe('ResultadoService.registrar', () => {
         tx,
         expect.objectContaining({ acao: 'RESULTADO_REGISTRADO' }),
       )
-      expect(dominio.emitirAposCommit).toHaveBeenCalledTimes(1)
+      expect(dominio.emitirAposCommit).toHaveBeenCalledTimes(2)
+      expect(dominio.emitirAposCommit).toHaveBeenLastCalledWith(
+        'evento.resultadoRegistrado',
+        expect.anything(),
+      )
+      expect(dominio.emitirAposCommit).toHaveBeenNthCalledWith(1, 'evento.alterado', {
+        atleticaId: ATUAL,
+        eventoIds: [ID],
+        timeId: TIME,
+        campos: ['status'],
+        autorId: AUTOR.id,
+      })
       expect(dto).toMatchObject({ status: 'FINALIZADO', resultado: 'VITORIA' })
     },
   )

@@ -402,9 +402,8 @@ describe('/eventos — status e resultado (#73)', () => {
         expect(resposta.body).toMatchObject({ status: 'FINALIZADO', resultado: 'EMPATE' })
         const acoes = (await registros()).map(({ acao }) => acao)
         expect(acoes).toEqual(['EVENTO_STATUS_ALTERADO', 'RESULTADO_REGISTRADO'])
-        await expect(emitidos()).resolves.toEqual([
-          expect.objectContaining({ nome: 'evento.resultadoRegistrado' }),
-        ])
+        const nomes = (await emitidos()).map(({ nome }) => nome)
+        expect(nomes).toEqual(['evento.alterado', 'evento.resultadoRegistrado'])
       },
     )
 

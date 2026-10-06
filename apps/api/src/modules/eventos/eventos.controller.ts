@@ -102,8 +102,8 @@ const TIMES_INVALIDOS =
 export class EventosController {
   constructor(
     private readonly eventos: EventosService,
-    private readonly status: EventosStatusService,
-    private readonly resultado: ResultadoService,
+    private readonly eventosStatus: EventosStatusService,
+    private readonly resultados: ResultadoService,
   ) {}
 
   @Post()
@@ -217,7 +217,7 @@ export class EventosController {
     @Body() { status }: AlterarStatusDto,
     @UsuarioAtual() usuario: UsuarioAutenticado,
   ): Promise<StatusEventoAlteradoDto> {
-    return this.status.alterar(id, status, usuario)
+    return this.eventosStatus.alterar(id, status, usuario)
   }
 
   @Put(':id/resultado')
@@ -259,7 +259,7 @@ export class EventosController {
     @Body() dados: ResultadoDto,
     @UsuarioAtual() usuario: UsuarioAutenticado,
   ): Promise<EventoDto> {
-    return this.resultado.registrar(id, dados, usuario)
+    return this.resultados.registrar(id, dados, usuario)
   }
 
   @Delete(':id')

@@ -1,5 +1,6 @@
 import {
   transicaoPermitida,
+  type Resultado,
   type StatusEvento,
   type StatusEventoAlteradoDto,
 } from '@atletica/shared'
@@ -15,7 +16,7 @@ import { EventosService, type AutorEvento } from './eventos.service'
 interface EventoLido {
   status: StatusEvento
   timeId: string
-  resultado: string | null
+  resultado: Resultado | null
 }
 
 /** Troca manual de status pela máquina de estados (épico #21 §4, issue #73). */
