@@ -1,11 +1,24 @@
-import type { AlterarSenha, AtualizarPerfil, FotoAtualizada, Perfil } from '@atletica/shared'
+import type {
+  AlterarSenha,
+  AtualizarPerfil,
+  ExcluirConta,
+  FotoAtualizada,
+  Perfil,
+} from '@atletica/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import type { ApiErro } from '@/infra/api/api-erro'
+import { CodigoApi, type ApiErro } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import { useSessao } from '@/infra/sessao/store'
-import { alterarSenha, atualizarPerfil, buscarPerfil, definirFoto, removerFoto } from './api'
+import {
+  alterarSenha,
+  atualizarPerfil,
+  buscarPerfil,
+  definirFoto,
+  excluirConta,
+  removerFoto,
+} from './api'
 
 const MINUTO = 60_000
 
@@ -71,5 +84,20 @@ export function useAlterarSenha() {
   return useAcaoOnline<void, ApiErro, AlterarSenha>({
     mutationFn: (dados) => alterarSenha(dados),
     meta: { errosNaTela: [CodigoPerfil.SENHA_INCORRETA, CodigoPerfil.SENHA_IGUAL_ATUAL] },
+  })
+}
+
+/** O servidor já revogou as sessões: encerra só a local, sem `logoutPendente`. */
+export function useExcluirConta() {
+  return useAcaoOnline<void, ApiErro, ExcluirConta>({
+    mutationFn: (dados) => excluirConta(dados),
+    onSuccess: () => useSessao.getState().encerrarSessao({ motivo: 'CONTA_EXCLUIDA' }),
+    meta: {
+      errosNaTela: [
+        CodigoPerfil.SENHA_INCORRETA,
+        CodigoApi.ULTIMO_ADMINISTRADOR,
+        CodigoApi.RATE_LIMITED,
+      ],
+    },
   })
 }
