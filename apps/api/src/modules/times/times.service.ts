@@ -23,23 +23,7 @@ import {
   erroTimeDuplicado,
   erroTimeNaoEncontrado,
 } from './erros'
-
-const CAMPOS = {
-  id: true,
-  nome: true,
-  ativo: true,
-  atleticaId: true,
-  modalidadeId: true,
-  modalidade: { select: { id: true, nome: true, icone: true } },
-  atletica: { select: { id: true, nome: true, sigla: true } },
-  capitao: { select: { id: true, nome: true } },
-  _count: { select: { membros: { where: { saidaEm: null } } } },
-} as const satisfies Prisma.TimeSelect
-
-type LinhaTime = Prisma.TimeGetPayload<{ select: typeof CAMPOS }>
-
-/** Visível para quem não é da Diretoria (épico #16 §7). */
-const VISIVEL_PARA_TODOS = { ativo: true, modalidade: { ativa: true } } as const
+import { CAMPOS_TIME, paraDto, VISIVEL_PARA_TODOS, type LinhaTime } from './linha-time'
 
 const CAMPOS_AUDITADOS = ['nome', 'modalidadeId', 'ativo'] as const
 
@@ -55,19 +39,6 @@ function eventosDoTime(id: string): Prisma.EventoWhereInput {
 
 function auditaveis({ nome, modalidadeId, atleticaId, ativo }: LinhaTime) {
   return { nome, modalidadeId, atleticaId, ativo }
-}
-
-function paraDto(time: LinhaTime, atleticaAtual: string): TimeDto {
-  const propria = time.atleticaId === atleticaAtual
-  return {
-    id: time.id,
-    nome: time.nome,
-    ativo: time.ativo,
-    modalidade: time.modalidade,
-    atletica: { ...time.atletica, propria },
-    capitao: propria ? time.capitao : null,
-    totalMembros: propria ? time._count.membros : 0,
-  }
 }
 
 /** `$queryRaw` não passa pela extensão multi-atlética: `escopo` aplica o filtro de `Time` no SQL. */
@@ -109,7 +80,8 @@ export class TimesService {
       ids: Prisma.sql`SELECT t."id" ${origem}
         ORDER BY unaccent(lower(m."nome")), unaccent(lower(t."nome")), t."id"`,
       total: Prisma.sql`SELECT count(*) AS "total" ${origem}`,
-      buscar: (ids) => this.prisma.db.time.findMany({ where: { id: { in: ids } }, select: CAMPOS }),
+      buscar: (ids) =>
+        this.prisma.db.time.findMany({ where: { id: { in: ids } }, select: CAMPOS_TIME }),
     })
     return { ...pagina, items: pagina.items.map((time) => paraDto(time, atleticaId)) }
   }
@@ -117,7 +89,7 @@ export class TimesService {
   async detalhar(id: string, atleticaId: string, incluirInativos: boolean): Promise<TimeDto> {
     const time = await this.prisma.db.time.findFirst({
       where: incluirInativos ? { id } : { id, ...VISIVEL_PARA_TODOS },
-      select: CAMPOS,
+      select: CAMPOS_TIME,
     })
     if (!time) throw erroTimeNaoEncontrado()
     return paraDto(time, atleticaId)
@@ -133,7 +105,7 @@ export class TimesService {
 
       const criado = await tx.time.create({
         data: { nome: entrada.nome, modalidadeId: entrada.modalidadeId, atleticaId: dona },
-        select: CAMPOS,
+        select: CAMPOS_TIME,
       })
       await this.auditoria.registrar(tx, {
         entidade: 'Time',
@@ -156,7 +128,7 @@ export class TimesService {
         await this.validarModalidade(tx, entrada.modalidadeId)
         await this.garantirSemEventos(tx, id)
       }
-      const depois = await tx.time.update({ where: { id }, data: entrada, select: CAMPOS })
+      const depois = await tx.time.update({ where: { id }, data: entrada, select: CAMPOS_TIME })
       await this.auditoria.registrarVarios(
         tx,
         entradasDaAlteracao('Time', id, diff, 'ativo', ACOES_DA_ALTERACAO),
@@ -195,7 +167,7 @@ export class TimesService {
   }
 
   private async buscar(tx: TransacaoComEscopo, id: string): Promise<LinhaTime> {
-    const time = await tx.time.findUnique({ where: { id }, select: CAMPOS })
+    const time = await tx.time.findUnique({ where: { id }, select: CAMPOS_TIME })
     if (!time) throw erroTimeNaoEncontrado()
     return time
   }

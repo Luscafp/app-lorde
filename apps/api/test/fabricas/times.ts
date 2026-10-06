@@ -1,4 +1,4 @@
-import type { Atletica, Prisma, Time } from '../../src/generated/prisma/client'
+import type { Atletica, MembroTime, Prisma, Time, Usuario } from '../../src/generated/prisma/client'
 import { prismaTeste } from '../setup/prisma-teste'
 import { criarAtletica, type DadosAtletica } from './atletica'
 import { criarModalidade } from './modalidades'
@@ -28,4 +28,21 @@ export async function criarTimeAdversario(
     : await criarAtleticaAdversaria()
   const time = await criarTime({ ...dados, atleticaId: atletica.id })
   return { ...time, atletica }
+}
+
+/** Vínculo ativo no elenco; `entradaEm` padrão um minuto atrás. */
+export function adicionarMembro(
+  time: Pick<Time, 'id' | 'atleticaId'>,
+  usuario: Pick<Usuario, 'id'>,
+  dados: Partial<Pick<MembroTime, 'entradaEm' | 'saidaEm'>> = {},
+): Promise<MembroTime> {
+  return prismaTeste.membroTime.create({
+    data: {
+      atleticaId: time.atleticaId,
+      timeId: time.id,
+      usuarioId: usuario.id,
+      entradaEm: new Date(Date.now() - 60_000),
+      ...dados,
+    },
+  })
 }
