@@ -10,6 +10,7 @@ const ANA = 'u1u1u1u1-0000-4000-8000-000000000001'
 const BRUNO = 'u2u2u2u2-0000-4000-8000-000000000002'
 const DIRETOR = 'u9u9u9u9-0000-4000-8000-000000000009'
 const MEMBRO = 'm1m1m1m1-0000-4000-8000-000000000001'
+const AGORA_DO_BANCO = new Date('2026-09-01T12:00:00.000Z')
 
 interface Cenario {
   usaAplicativo?: boolean | null
@@ -46,7 +47,7 @@ function criarServico(cenario: Cenario = {}) {
         return Promise.resolve({ id: TIME })
       }),
     },
-    $queryRaw: jest.fn().mockResolvedValue([{ capitaoId }]),
+    $queryRaw: jest.fn().mockResolvedValue([{ capitaoId, agora: AGORA_DO_BANCO }]),
     membroTime: {
       updateManyAndReturn: jest.fn().mockResolvedValue(membroAtivo ? [{ id: MEMBRO }] : []),
       count: jest.fn().mockResolvedValue(membroAtivo ? 1 : 0),
@@ -91,7 +92,7 @@ const encerrar = (motivo: MotivoSaida = MotivoSaida.REMOVIDO_PELA_DIRETORIA) => 
 
 describe('ElencoService', () => {
   describe('encerrarVinculo', () => {
-    it('trava o time antes de preencher saidaEm só no vínculo ativo', async () => {
+    it('trava o time antes de preencher saidaEm com o now() do banco só no vínculo ativo', async () => {
       const { servico, tx, transacao } = criarServico()
       await servico.encerrarVinculo(transacao, encerrar())
 
@@ -100,7 +101,7 @@ describe('ElencoService', () => {
       expect(ordem(tx.$queryRaw)).toBeLessThan(ordem(tx.membroTime.updateManyAndReturn))
       expect(tx.membroTime.updateManyAndReturn).toHaveBeenCalledWith({
         where: { timeId: TIME, usuarioId: ANA, saidaEm: null },
-        data: { saidaEm: expect.any(Date) as Date },
+        data: { saidaEm: AGORA_DO_BANCO },
         select: { id: true },
       })
     })
@@ -128,14 +129,11 @@ describe('ElencoService', () => {
       const resultado = await servico.encerrarVinculo(transacao, encerrar())
 
       expect(resultado.participacoesRemovidas).toBe(2)
-      const [{ data: dadosSaida }] = tx.membroTime.updateManyAndReturn.mock.calls[0] as [
-        { data: { saidaEm: Date } },
-      ]
       expect(tx.participacao.deleteMany).toHaveBeenCalledWith({
         where: {
           usuarioId: ANA,
           presente: null,
-          evento: { timeId: TIME, status: 'AGENDADO', inicio: { gt: dadosSaida.saidaEm } },
+          evento: { timeId: TIME, status: 'AGENDADO', inicio: { gt: AGORA_DO_BANCO } },
         },
       })
     })
@@ -155,7 +153,7 @@ describe('ElencoService', () => {
         usuarioId: DIRETOR,
         dados: {
           antes: { saidaEm: null },
-          depois: { saidaEm: expect.any(Date) as Date },
+          depois: { saidaEm: AGORA_DO_BANCO },
           contexto: {
             timeId: TIME,
             usuarioId: ANA,

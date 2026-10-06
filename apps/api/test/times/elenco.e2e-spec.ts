@@ -71,7 +71,7 @@ describe('/times/:id/elenco e /times/:id/capitao (#64)', () => {
   const vinculosAtivos = (usuarioId: string) =>
     prismaTeste.membroTime.count({ where: { timeId: time.id, usuarioId, saidaEm: null } })
 
-  async function criarEvento(dados: { inicio: Date; status?: 'AGENDADO' | 'FINALIZADO' }) {
+  async function criarEvento(dados: { inicio: Date }) {
     const autor = await usuario('DIRETOR')
     return prismaTeste.evento.create({
       data: {
@@ -160,23 +160,27 @@ describe('/times/:id/elenco e /times/:id/capitao (#64)', () => {
     it('apaga a confirmação futura e mantém a presença passada', async () => {
       const ana = await membro('Ana')
       const futuro = await criarEvento({ inicio: new Date(Date.now() + UMA_HORA) })
-      const passado = await criarEvento({
-        inicio: new Date(Date.now() - UMA_HORA),
-        status: 'FINALIZADO',
-      })
+      const passado = await criarEvento({ inicio: new Date(Date.now() - UMA_HORA) })
+      const passadoSemPresenca = await criarEvento({ inicio: new Date(Date.now() - UMA_HORA) })
+      const futuroComPresenca = await criarEvento({ inicio: new Date(Date.now() + UMA_HORA) })
       const agora = new Date()
       const resposta = { usuarioId: ana.id, atleticaId, confirmado: true, respondidoEm: agora }
+      const presenca = { presente: true, presencaRegistradaEm: agora }
       await prismaTeste.participacao.createMany({
         data: [
           { ...resposta, eventoId: futuro.id },
-          { ...resposta, eventoId: passado.id, presente: true, presencaRegistradaEm: agora },
+          { ...resposta, ...presenca, eventoId: passado.id },
+          { ...resposta, eventoId: passadoSemPresenca.id },
+          { ...resposta, ...presenca, eventoId: futuroComPresenca.id },
         ],
       })
 
       expect((await (await como('DIRETOR')).remover(ana.id)).status).toBe(204)
 
       const restantes = await prismaTeste.participacao.findMany({ where: { usuarioId: ana.id } })
-      expect(restantes.map(({ eventoId }) => eventoId)).toEqual([passado.id])
+      expect(restantes.map(({ eventoId }) => eventoId).sort()).toEqual(
+        [passado.id, passadoSemPresenca.id, futuroComPresenca.id].sort(),
+      )
       const [registro] = await registros('MembroTime')
       expect(registro?.dados).toMatchObject({ contexto: { participacoesRemovidas: 1 } })
     })

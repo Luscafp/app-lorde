@@ -1,4 +1,10 @@
-import { StatusEvento, type ElencoDto, type MembroElencoDto, type TimeDto } from '@atletica/shared'
+import {
+  StatusEvento,
+  type AcaoDaEntidade,
+  type ElencoDto,
+  type MembroElencoDto,
+  type TimeDto,
+} from '@atletica/shared'
 import { Injectable } from '@nestjs/common'
 import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import { AuditoriaService } from '../auditoria/auditoria.service'
@@ -23,7 +29,7 @@ const ACAO_DO_MOTIVO = {
   REMOVIDO_PELA_DIRETORIA: 'MEMBRO_REMOVIDO',
   SAIU: 'MEMBRO_SAIU',
   EXCLUSAO_CONTA: 'MEMBRO_REMOVIDO_EXCLUSAO_CONTA',
-} as const satisfies Record<MotivoSaida, string>
+} as const satisfies Record<MotivoSaida, AcaoDaEntidade<'MembroTime'>>
 
 export interface EncerramentoVinculo {
   timeId: string
@@ -41,6 +47,10 @@ export interface VinculoEncerrado {
 const NOME_USUARIO_EXCLUIDO = 'Usuário excluído'
 
 const ordemAlfabetica = new Intl.Collator('pt-BR', { sensitivity: 'base' })
+
+function vinculoAtivo(timeId: string, usuarioId: string) {
+  return { timeId, usuarioId, saidaEm: null }
+}
 
 function capitaoPrimeiroDepoisNome(a: MembroElencoDto, b: MembroElencoDto): number {
   if (a.capitao !== b.capitao) return a.capitao ? -1 : 1
@@ -106,10 +116,8 @@ export class ElencoService {
   }
 
   /**
-   * Ponto único de saída do elenco (convenções §11.6), usado também por #12 e #34, sempre na
-   * transação de quem chama. Trava o `Time`, preenche `saidaEm`, tira a capitania se for o caso,
-   * apaga as confirmações em eventos `AGENDADO` futuros sem presença e audita conforme o `motivo`.
-   * Não emite evento de domínio.
+   * Ponto único de saída do elenco (convenções §11.6, #12, #34), na transação de quem chama.
+   * Passos e auditoria: README da API, seção "Elenco e capitão". Não emite evento de domínio.
    *
    * @throws `404 NOT_FOUND` time inexistente ou de outra atlética que usa o app
    * @throws `422 TIME_ADVERSARIO`
@@ -119,11 +127,10 @@ export class ElencoService {
     tx: TransacaoComEscopo,
     { timeId, usuarioId, motivo, executorId }: EncerramentoVinculo,
   ): Promise<VinculoEncerrado> {
-    const capitaoId = await this.travarTimeProprio(tx, timeId)
-    const saidaEm = new Date()
+    const { capitaoId, agora: saidaEm } = await this.travarTimeProprio(tx, timeId)
 
     const [membro] = await tx.membroTime.updateManyAndReturn({
-      where: { timeId, usuarioId, saidaEm: null },
+      where: vinculoAtivo(timeId, usuarioId),
       data: { saidaEm },
       select: { id: true },
     })
@@ -163,7 +170,7 @@ export class ElencoService {
   /** `null` remove o capitão; sem mudança, responde sem auditar (convenções §7). */
   definirCapitao(timeId: string, usuarioId: string | null, atleticaId: string): Promise<TimeDto> {
     return this.prisma.db.$transaction(async (tx) => {
-      const anterior = await this.travarTimeProprio(tx, timeId)
+      const { capitaoId: anterior } = await this.travarTimeProprio(tx, timeId)
       if (usuarioId !== anterior) {
         if (usuarioId !== null && !(await this.ehMembroAtivo(tx, timeId, usuarioId))) {
           throw erroCapitaoForaDoElenco()
@@ -181,18 +188,21 @@ export class ElencoService {
     })
   }
 
-  /** `FOR UPDATE` serializa remoção e troca de capitão no mesmo time; devolve o `capitaoId`. */
-  private async travarTimeProprio(tx: TransacaoComEscopo, timeId: string): Promise<string | null> {
+  /** `FOR UPDATE` serializa remoção e troca de capitão no mesmo time; `agora` é o `now()` do banco. */
+  private async travarTimeProprio(
+    tx: TransacaoComEscopo,
+    timeId: string,
+  ): Promise<{ capitaoId: string | null; agora: Date }> {
     const time = await tx.time.findUnique({
       where: { id: timeId },
       select: { atletica: { select: { usaAplicativo: true } } },
     })
     garantirProprio(time)
 
-    const [travado] = await tx.$queryRaw<{ capitaoId: string | null }[]>`
-      SELECT "capitaoId" FROM "Time" WHERE "id" = ${timeId}::uuid FOR UPDATE`
+    const [travado] = await tx.$queryRaw<{ capitaoId: string | null; agora: Date }[]>`
+      SELECT "capitaoId", now() AS "agora" FROM "Time" WHERE "id" = ${timeId}::uuid FOR UPDATE`
     if (!travado) throw erroTimeNaoEncontrado()
-    return travado.capitaoId
+    return travado
   }
 
   private async ehMembroAtivo(
@@ -200,6 +210,6 @@ export class ElencoService {
     timeId: string,
     usuarioId: string,
   ): Promise<boolean> {
-    return (await tx.membroTime.count({ where: { timeId, usuarioId, saidaEm: null } })) > 0
+    return (await tx.membroTime.count({ where: vinculoAtivo(timeId, usuarioId) })) > 0
   }
 }

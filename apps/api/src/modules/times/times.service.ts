@@ -23,7 +23,7 @@ import {
   erroTimeDuplicado,
   erroTimeNaoEncontrado,
 } from './erros'
-import { CAMPOS_TIME as CAMPOS, paraDto, VISIVEL_PARA_TODOS, type LinhaTime } from './linha-time'
+import { CAMPOS_TIME, paraDto, VISIVEL_PARA_TODOS, type LinhaTime } from './linha-time'
 
 const CAMPOS_AUDITADOS = ['nome', 'modalidadeId', 'ativo'] as const
 
@@ -80,7 +80,8 @@ export class TimesService {
       ids: Prisma.sql`SELECT t."id" ${origem}
         ORDER BY unaccent(lower(m."nome")), unaccent(lower(t."nome")), t."id"`,
       total: Prisma.sql`SELECT count(*) AS "total" ${origem}`,
-      buscar: (ids) => this.prisma.db.time.findMany({ where: { id: { in: ids } }, select: CAMPOS }),
+      buscar: (ids) =>
+        this.prisma.db.time.findMany({ where: { id: { in: ids } }, select: CAMPOS_TIME }),
     })
     return { ...pagina, items: pagina.items.map((time) => paraDto(time, atleticaId)) }
   }
@@ -88,7 +89,7 @@ export class TimesService {
   async detalhar(id: string, atleticaId: string, incluirInativos: boolean): Promise<TimeDto> {
     const time = await this.prisma.db.time.findFirst({
       where: incluirInativos ? { id } : { id, ...VISIVEL_PARA_TODOS },
-      select: CAMPOS,
+      select: CAMPOS_TIME,
     })
     if (!time) throw erroTimeNaoEncontrado()
     return paraDto(time, atleticaId)
@@ -104,7 +105,7 @@ export class TimesService {
 
       const criado = await tx.time.create({
         data: { nome: entrada.nome, modalidadeId: entrada.modalidadeId, atleticaId: dona },
-        select: CAMPOS,
+        select: CAMPOS_TIME,
       })
       await this.auditoria.registrar(tx, {
         entidade: 'Time',
@@ -127,7 +128,7 @@ export class TimesService {
         await this.validarModalidade(tx, entrada.modalidadeId)
         await this.garantirSemEventos(tx, id)
       }
-      const depois = await tx.time.update({ where: { id }, data: entrada, select: CAMPOS })
+      const depois = await tx.time.update({ where: { id }, data: entrada, select: CAMPOS_TIME })
       await this.auditoria.registrarVarios(
         tx,
         entradasDaAlteracao('Time', id, diff, 'ativo', ACOES_DA_ALTERACAO),
@@ -166,7 +167,7 @@ export class TimesService {
   }
 
   private async buscar(tx: TransacaoComEscopo, id: string): Promise<LinhaTime> {
-    const time = await tx.time.findUnique({ where: { id }, select: CAMPOS })
+    const time = await tx.time.findUnique({ where: { id }, select: CAMPOS_TIME })
     if (!time) throw erroTimeNaoEncontrado()
     return time
   }
