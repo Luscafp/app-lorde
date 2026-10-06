@@ -18,6 +18,10 @@ export default function LayoutPainel() {
       <Stack.Screen name="modalidades/index" options={{ title: 'Modalidades' }} />
       <Stack.Screen name="modalidades/nova" options={{ title: 'Nova modalidade' }} />
       <Stack.Screen name="modalidades/[id]" options={{ title: 'Editar modalidade' }} />
+      <Stack.Screen name="noticias/index" options={{ title: 'Notícias' }} />
+      <Stack.Screen name="noticias/nova" options={{ title: 'Nova notícia' }} />
+      <Stack.Screen name="noticias/[id]/index" options={{ title: 'Editar notícia' }} />
+      <Stack.Screen name="noticias/[id]/previa" options={{ title: 'Prévia' }} />
       <Stack.Screen name="times/index" options={{ title: 'Times' }} />
       <Stack.Screen name="times/novo" options={{ title: 'Novo time' }} />
       <Stack.Screen name="times/[id]/editar" options={{ title: 'Editar time' }} />

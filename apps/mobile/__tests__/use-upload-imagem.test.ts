@@ -5,9 +5,14 @@ import { toast } from '@/components/ui/toast'
 import { ApiErro, api } from '@/infra/api/cliente'
 import { MENSAGEM_ACAO_OFFLINE } from '@/infra/query/use-acao-online'
 import { pedirPresign } from '@/features/uploads/api'
-import { ErroImagem, MENSAGEM_IMAGEM_GRANDE } from '@/features/uploads/comprimir'
+import {
+  ErroImagem,
+  MENSAGEM_FORMATO_INVALIDO,
+  MENSAGEM_IMAGEM_GRANDE,
+} from '@/features/uploads/comprimir'
 import {
   ACAO_ABRIR_CONFIGURACOES,
+  MENSAGEM_CAPA_INVALIDA,
   MENSAGEM_FALHA_ENVIO,
   MENSAGEM_PERMISSAO_CAMERA_NEGADA,
   MENSAGEM_PERMISSAO_NEGADA,
@@ -235,6 +240,20 @@ describe('useUploadImagem', () => {
     })
     expect(presign).not.toHaveBeenCalled()
   })
+
+  it.each([MENSAGEM_IMAGEM_GRANDE, MENSAGEM_FORMATO_INVALIDO])(
+    'capa de notícia: "%s" vira a mensagem do UC21 A4',
+    async (mensagem) => {
+      comprimirFalso.mockRejectedValue(new ErroImagem(mensagem))
+      const { result } = await renderHook(() => useUploadImagem('NOTICIA'), {
+        wrapper: comQuery(),
+      })
+      await act(() => result.current.selecionar('galeria'))
+
+      expect(result.current).toMatchObject({ estado: 'erro', erro: MENSAGEM_CAPA_INVALIDA })
+      expect(presign).not.toHaveBeenCalled()
+    },
+  )
 
   it('permissão negada → toast com atalho para as configurações, sem abrir a galeria', async () => {
     pickerFalso.requestMediaLibraryPermissionsAsync.mockResolvedValue({ granted: false })
