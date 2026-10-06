@@ -1,7 +1,16 @@
 import { Papel } from '@atletica/shared'
 import * as Sentry from '@sentry/react-native'
+import { renderHook } from '@testing-library/react-native'
 import { ambiente } from '@/config/ambiente'
-import { acompanharUsuario, iniciarSentry, limparBreadcrumb, limparEvento } from '@/infra/sentry'
+import {
+  acompanharUsuario,
+  iniciarSentry,
+  iniciarSpanAbertura,
+  limparBreadcrumb,
+  limparEvento,
+  marcarHomePronta,
+  useMarcarHomePronta,
+} from '@/infra/sentry'
 import { useSessao } from '@/infra/sessao/store'
 
 const DSN = 'https://chave@o1.ingest.sentry.io/1'
@@ -30,6 +39,50 @@ describe('iniciarSentry', () => {
         beforeSend: limparEvento,
       }),
     )
+  })
+})
+
+describe('span inicio_home_pronta', () => {
+  const startInactiveSpan = jest.mocked(Sentry.startInactiveSpan)
+
+  function iniciarComSpan() {
+    const end = jest.fn()
+    startInactiveSpan.mockReturnValueOnce({ end } as unknown as ReturnType<
+      typeof Sentry.startInactiveSpan
+    >)
+    jest.replaceProperty(ambiente, 'sentryDsn', DSN)
+    iniciarSpanAbertura()
+    return end
+  }
+
+  afterEach(() => marcarHomePronta())
+
+  it('iniciado uma vez e finalizado uma única vez no primeiro render com dados', async () => {
+    const end = iniciarComSpan()
+    expect(startInactiveSpan).toHaveBeenCalledTimes(1)
+    expect(startInactiveSpan).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'inicio_home_pronta', forceTransaction: true }),
+    )
+
+    const { rerender } = await renderHook(
+      ({ comDados }: { comDados: boolean }) => useMarcarHomePronta(comDados),
+      { initialProps: { comDados: false } },
+    )
+    expect(end).not.toHaveBeenCalled()
+
+    await rerender({ comDados: true })
+    await rerender({ comDados: false })
+    await rerender({ comDados: true })
+    expect(end).toHaveBeenCalledTimes(1)
+    expect(startInactiveSpan).toHaveBeenCalledTimes(1)
+  })
+
+  it('sem DSN nenhum span é criado e a Home renderiza sem falhar', async () => {
+    jest.replaceProperty(ambiente, 'sentryDsn', undefined)
+    iniciarSpanAbertura()
+
+    await renderHook(() => useMarcarHomePronta(true))
+    expect(startInactiveSpan).not.toHaveBeenCalled()
   })
 })
 

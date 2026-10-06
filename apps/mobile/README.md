@@ -14,6 +14,56 @@ Copie `.env.example` para `.env`. Variáveis `EXPO_PUBLIC_*` são embutidas no b
 
 Novas variáveis entram em `env.d.ts` (tipagem) e em `src/config/ambiente.ts`. Feature flags versionadas ficam em `src/config/features.ts` (convenções §10.7).
 
+O `app.config.ts` valida as variáveis com Zod e recusa resolver a configuração (mensagem no `expo start`/`eas build`) se `EXPO_PUBLIC_AMBIENTE` não for `development | homologacao | producao` ou se `EXPO_PUBLIC_API_URL` não for URL (`https://` obrigatório fora de `development`). `pnpm --filter mobile config:verificar` resolve os três ambientes com `expo config --type public` (roda na CI).
+
+## Release — EAS Build e EAS Update (#82)
+
+### Ambientes e perfis (`eas.json`)
+
+| Perfil           | Saída           | Distribuição | Canal OTA     | `EXPO_PUBLIC_AMBIENTE` | Nome / pacote                                                   |
+| ---------------- | --------------- | ------------ | ------------- | ---------------------- | --------------------------------------------------------------- |
+| `development`    | APK, dev client | internal     | `development` | `development`          | `Atlética Lorde` / `br.com.atleticalorde.app`                   |
+| `preview`        | APK             | internal     | `homologacao` | `homologacao`          | `Atlética Lorde (Homolog)` / `br.com.atleticalorde.app.homolog` |
+| `production`     | AAB             | store        | `producao`    | `producao`             | `Atlética Lorde` / `br.com.atleticalorde.app`                   |
+| `production-apk` | APK             | internal     | `producao`    | `producao`             | `Atlética Lorde` / `br.com.atleticalorde.app`                   |
+
+- Homologação tem pacote, nome e ícone (`assets/*-homolog.png`) próprios: as duas versões ficam instaladas lado a lado.
+- Nome, pacote base e id do projeto EAS ficam no topo do `app.config.ts` (decisões da #97). O id do projeto (`ID_PROJETO_EAS`) é um placeholder até o `eas init` da #95.
+- URLs da API de homologação e produção no `eas.json` são placeholders (`*.preencher.invalid`), trocados na #92/#95; o DSN do Sentry fica vazio (desligado) até a #93/#95.
+- Android 8.0 (API 26) mínimo via `expo-build-properties`; `targetSdk`/`compileSdk` são os do SDK Expo. `RECORD_AUDIO` e `SYSTEM_ALERT_WINDOW` bloqueadas.
+
+### Versionamento
+
+- `version` (semver) no `app.config.ts`, alterada à mão a cada release com mudança visível.
+- `versionCode` remoto (`cli.appVersionSource: "remote"`), incrementado pelo EAS nos perfis `production` e `production-apk`.
+- Cada build de produção recebe a tag Git `app-vX.Y.Z` (ex.: `git tag app-v1.0.0 && git push origin app-v1.0.0`).
+- `runtimeVersion` pela política `fingerprint`: muda sozinho quando o código nativo muda, e um OTA só chega a binários com o mesmo runtime.
+- A tela Sobre mostra versão (build), runtime, id do OTA ativo (8 caracteres, ou "embutido") e, fora de produção, o canal.
+
+### Comandos
+
+```sh
+cd apps/mobile
+eas build -p android --profile preview          # development | preview | production | production-apk
+eas update --channel homologacao --message "Corrige texto da agenda"
+```
+
+- **OTA** (`checkAutomatically: ON_LOAD`, `fallbackToCacheTimeout: 0`): o app abre com o bundle em cache e aplica a atualização na abertura seguinte. Só JS e assets; dependência nativa, permissão ou SDK novos exigem build novo (RNF17).
+- **Promoção `homologacao → producao`**: validado em homologação, republicar o mesmo grupo em produção com `eas update:republish --group <id-do-grupo> --destination-channel producao -m "..."`.
+- **Rollback**: `eas update:list --branch producao` para achar o grupo anterior e `eas update:republish --group <id-anterior> -m "Rollback"`.
+- **Conferir o `minSdkVersion` do APK**: `aapt dump badging app.apk | grep sdkVersion` deve mostrar `sdkVersion:'26'`.
+
+### Variáveis e segredos (configurados na #95)
+
+| Nome                           | Onde                               | Uso                                              |
+| ------------------------------ | ---------------------------------- | ------------------------------------------------ |
+| `EXPO_PUBLIC_*`                | `env` de cada perfil no `eas.json` | públicas, embutidas no bundle                    |
+| `SENTRY_AUTH_TOKEN`            | segredo do EAS (`eas env:create`)  | upload de source maps no build e no `eas update` |
+| `SENTRY_ORG`, `SENTRY_PROJECT` | variável do EAS (opcional)         | sobrescrevem `atletica-lorde` / `atletica-app`   |
+| `EXPO_TOKEN`                   | secret do GitHub                   | builds pela CI, se automatizados                 |
+
+Nenhum segredo vai no `eas.json` nem em `EXPO_PUBLIC_*` (`__tests__/eas-json.test.ts` falha se aparecer).
+
 ## Rotas
 
 Grupos oficiais `(publico)` e `(app)/(abas)` (convenções §3 e §11.1).
@@ -211,6 +261,7 @@ const { online, mutate, isPending } = useAcaoOnline({
 - Resposta 5xx da API (só do domínio da API) vira breadcrumb `http` com `requestId`, método, rota (sem query) e status, para correlacionar com os logs da API.
 - `LimiteErro` (ErrorBoundary) envolve a navegação, dentro do `ProvedorTema` (a tela de erro usa o tema): erro de renderização vai ao Sentry e mostra `TelaErroFatal` ("Recarregar" → `Updates.reloadAsync()`). O layout raiz é exportado com `Sentry.wrap` e registra a navegação (rotas do Expo Router como nome de transação).
 - Source maps: plugin `@sentry/react-native/expo` no `app.config.ts` e `getSentryExpoConfig` no `metro.config.js`; o `SENTRY_AUTH_TOKEN` fica só no EAS (#93).
+- Abertura (RNF03): `iniciarSpanAbertura()` no layout raiz abre o span `inicio_home_pronta` (sem DSN, nada); a Home (#79) chama `useMarcarHomePronta(comDados)`, que o fecha uma única vez no primeiro render com dados (cache ou rede).
 
 ## Imagens e uploads — `src/components/imagem`, `src/features/uploads`
 

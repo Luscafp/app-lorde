@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { termosDeUso, TERMOS_VERSAO, type AtleticaPublica, type Perfil } from '@atletica/shared'
 import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react-native'
+import { fireEvent, render, screen, within } from '@testing-library/react-native'
 import * as Application from 'expo-application'
 import * as Updates from 'expo-updates'
 import type { ReactElement } from 'react'
@@ -36,7 +36,12 @@ jest.mock('expo-application', () => {
   }
 })
 jest.mock('expo-updates', () => {
-  const estado = { id: null as string | null, canal: null as string | null }
+  const estado = {
+    id: null as string | null,
+    canal: null as string | null,
+    runtime: null as string | null,
+    embutido: true,
+  }
   return {
     __estado: estado,
     get updateId() {
@@ -44,6 +49,12 @@ jest.mock('expo-updates', () => {
     },
     get channel() {
       return estado.canal
+    },
+    get runtimeVersion() {
+      return estado.runtime
+    },
+    get isEmbeddedLaunch() {
+      return estado.embutido
     },
   }
 })
@@ -58,8 +69,13 @@ type Mutavel<T> = { __estado: T }
 const aplicativo = (
   Application as unknown as Mutavel<{ versao: string | null; build: string | null }>
 ).__estado
-const atualizacoes = (Updates as unknown as Mutavel<{ id: string | null; canal: string | null }>)
-  .__estado
+type EstadoUpdates = {
+  id: string | null
+  canal: string | null
+  runtime: string | null
+  embutido: boolean
+}
+const atualizacoes = (Updates as unknown as Mutavel<EstadoUpdates>).__estado
 const buscarAtletica = jest.mocked(apiAtletica.buscarAtletica)
 const buscarPerfil = jest.mocked(apiPerfil.buscarPerfil)
 
@@ -96,6 +112,12 @@ function perfil(termosAceitos: Perfil['termosAceitos']): Perfil {
 
 let cliente: QueryClient
 
+function linha(rotulo: string) {
+  const linha = screen.getByText(rotulo).parent
+  if (!linha) throw new Error(`Linha "${rotulo}" sem contêiner`)
+  return linha
+}
+
 function renderizar(elemento: ReactElement) {
   return render(<QueryClientProvider client={cliente}>{elemento}</QueryClientProvider>)
 }
@@ -109,6 +131,8 @@ beforeEach(() => {
   aplicativo.build = '12'
   atualizacoes.id = null
   atualizacoes.canal = null
+  atualizacoes.runtime = 'a1b2c3d4e5f6'
+  atualizacoes.embutido = true
   useSessao.setState({
     status: 'autenticado',
     usuario: {
@@ -246,22 +270,36 @@ describe('Tela Sobre', () => {
     expect(screen.queryByText(/lorde/i)).toBeNull()
   })
 
-  it('identificador curto do OTA e canal fora de produção', async () => {
+  it('runtime e id curto do OTA ativo; canal fora de produção (épico #30, critério 5)', async () => {
     atualizacoes.id = '0123456789abcdef'
+    atualizacoes.embutido = false
     atualizacoes.canal = 'homologacao'
     buscarAtletica.mockResolvedValue(atletica())
     await renderizar(<TelaSobre />)
 
-    expect(screen.getByText('Atualização 01234567 · homologacao')).toBeOnTheScreen()
+    expect(within(linha('Runtime')).getByText('a1b2c3d4e5f6')).toBeOnTheScreen()
+    expect(within(linha('Atualização')).getByText('01234567')).toBeOnTheScreen()
+    expect(within(linha('Canal')).getByText('homologacao')).toBeOnTheScreen()
   })
 
   it('não mostra o canal de produção', async () => {
     atualizacoes.id = '0123456789abcdef'
+    atualizacoes.embutido = false
     atualizacoes.canal = 'producao'
     buscarAtletica.mockResolvedValue(atletica())
     await renderizar(<TelaSobre />)
 
-    expect(screen.getByText('Atualização 01234567')).toBeOnTheScreen()
+    expect(within(linha('Atualização')).getByText('01234567')).toBeOnTheScreen()
+    expect(screen.queryByText('Canal')).toBeNull()
+    expect(screen.queryByText('producao')).toBeNull()
+  })
+
+  it('sem OTA aplicado: "embutido"', async () => {
+    atualizacoes.id = '0123456789abcdef'
+    buscarAtletica.mockResolvedValue(atletica())
+    await renderizar(<TelaSobre />)
+
+    expect(within(linha('Atualização')).getByText('embutido')).toBeOnTheScreen()
   })
 
   it('tocar no e-mail abre o app de e-mail (critério 7)', async () => {

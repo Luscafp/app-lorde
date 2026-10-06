@@ -3,5 +3,7 @@ declare namespace NodeJS {
     EXPO_PUBLIC_API_URL?: string
     EXPO_PUBLIC_AMBIENTE?: string
     EXPO_PUBLIC_SENTRY_DSN?: string
+    SENTRY_ORG?: string
+    SENTRY_PROJECT?: string
   }
 }

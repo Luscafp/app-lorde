@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/react-native'
-import type { Breadcrumb, ErrorEvent, ReactNativeOptions } from '@sentry/react-native'
+import type { Breadcrumb, ErrorEvent, ReactNativeOptions, Span } from '@sentry/react-native'
 import * as Application from 'expo-application'
+import { useEffect } from 'react'
 import { ambiente } from '@/config/ambiente'
 import { useSessao, type EstadoSessao } from '@/infra/sessao/store'
 
@@ -83,6 +84,30 @@ export function acompanharUsuario(): () => void {
       aplicar(estado)
     }
   })
+}
+
+let spanAbertura: Span | undefined
+
+/** Abertura a frio até a Home com dados (RNF03); sem DSN não cria span. */
+export function iniciarSpanAbertura(): void {
+  if (!ambiente.sentryDsn) return
+  spanAbertura = Sentry.startInactiveSpan({
+    name: 'inicio_home_pronta',
+    op: 'app.inicio',
+    forceTransaction: true,
+  })
+}
+
+export function marcarHomePronta(): void {
+  spanAbertura?.end()
+  spanAbertura = undefined
+}
+
+/** Chamado pela Home: fecha o span de abertura no primeiro render com dados. */
+export function useMarcarHomePronta(comDados: boolean): void {
+  useEffect(() => {
+    if (comDados) marcarHomePronta()
+  }, [comDados])
 }
 
 /** Sem `EXPO_PUBLIC_SENTRY_DSN` o Sentry fica desligado. */

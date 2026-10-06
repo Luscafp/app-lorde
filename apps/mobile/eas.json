@@ -7,11 +7,52 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "channel": "development",
       "android": {
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_AMBIENTE": "development"
+        "EXPO_PUBLIC_AMBIENTE": "development",
+        "EXPO_PUBLIC_API_URL": "http://localhost:3000/api/v1",
+        "EXPO_PUBLIC_SENTRY_DSN": ""
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "channel": "homologacao",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_AMBIENTE": "homologacao",
+        "EXPO_PUBLIC_API_URL": "https://api-homologacao.preencher.invalid/api/v1",
+        "EXPO_PUBLIC_SENTRY_DSN": ""
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "channel": "producao",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_AMBIENTE": "producao",
+        "EXPO_PUBLIC_API_URL": "https://api.preencher.invalid/api/v1",
+        "EXPO_PUBLIC_SENTRY_DSN": ""
+      }
+    },
+    "production-apk": {
+      "distribution": "internal",
+      "channel": "producao",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_AMBIENTE": "producao",
+        "EXPO_PUBLIC_API_URL": "https://api.preencher.invalid/api/v1",
+        "EXPO_PUBLIC_SENTRY_DSN": ""
       }
     }
   }
