@@ -1,6 +1,6 @@
 import { formatarData, type MembroElencoDto } from '@atletica/shared'
 import { Alert, FlatList, View } from 'react-native'
-import { EstadoVazio, TelaDados } from '@/components/estado'
+import { TelaDados } from '@/components/estado'
 import { Imagem } from '@/components/imagem'
 import { BotaoIcone, CartaoLinha, Selo, Texto, toast } from '@/components/ui'
 import { useAtletica } from '@/features/atletica'
@@ -12,10 +12,12 @@ const MENSAGEM_VAZIO =
 const capitaoPrimeiro = (membros: readonly MembroElencoDto[]) =>
   [...membros].sort((a, b) => Number(b.capitao) - Number(a.capitao))
 
-function confirmar(titulo: string, mensagem: string, acao: string, aoConfirmar: () => void) {
+type Confirmacao = { titulo: string; mensagem: string; acao: string; destrutiva: boolean }
+
+function confirmar({ titulo, mensagem, acao, destrutiva }: Confirmacao, aoConfirmar: () => void) {
   Alert.alert(titulo, mensagem, [
     { text: 'Cancelar', style: 'cancel' },
-    { text: acao, style: 'destructive', onPress: aoConfirmar },
+    { text: acao, style: destrutiva ? 'destructive' : 'default', onPress: aoConfirmar },
   ])
 }
 
@@ -52,43 +54,53 @@ function ItemMembro({ membro, acoesHabilitadas, aoAbrirMenu }: PropsItem) {
 export function ElencoPainel({ timeId }: { timeId: string }) {
   const consulta = useElenco(timeId)
   const { data: time } = useTime(timeId)
-  const capitania = useDefinirCapitao(timeId)
+  const definicaoCapitao = useDefinirCapitao(timeId)
   const remocao = useRemoverMembro(timeId)
-  const acoesHabilitadas = capitania.online && !capitania.isPending && !remocao.isPending
+  const acoesHabilitadas =
+    definicaoCapitao.online && !definicaoCapitao.isPending && !remocao.isPending
   const nomeDoTime = time?.nome ?? 'time'
+  const capitaoAtual = consulta.data?.items.find(({ capitao }) => capitao)
 
-  function definirCapitao(membro: MembroElencoDto, atual: MembroElencoDto | undefined) {
+  function definirCapitao(membro: MembroElencoDto) {
     const enviar = () =>
-      capitania.mutate(membro.usuarioId, { onSuccess: () => toast.sucesso('Capitão definido') })
-    if (!atual) return enviar()
+      definicaoCapitao.mutate(membro.usuarioId, {
+        onSuccess: () => toast.sucesso('Capitão definido'),
+      })
+    if (!capitaoAtual) return enviar()
     confirmar(
-      'Trocar capitão',
-      `${membro.nome} será o capitão no lugar de ${atual.nome}.`,
-      'Confirmar',
+      {
+        titulo: 'Trocar capitão',
+        mensagem: `${membro.nome} será o capitão no lugar de ${capitaoAtual.nome}.`,
+        acao: 'Confirmar',
+        destrutiva: false,
+      },
       enviar,
     )
   }
 
   function removerCapitania() {
-    capitania.mutate(null, { onSuccess: () => toast.sucesso('Capitania removida') })
+    definicaoCapitao.mutate(null, { onSuccess: () => toast.sucesso('Capitania removida') })
   }
 
   function removerDoElenco(membro: MembroElencoDto) {
     const aviso = membro.capitao ? ' O time ficará sem capitão.' : ''
     confirmar(
-      'Remover do elenco',
-      `Remover ${membro.nome} do ${nomeDoTime}? Para voltar, será preciso uma nova solicitação.${aviso}`,
-      'Remover',
+      {
+        titulo: 'Remover do elenco',
+        mensagem: `Remover ${membro.nome} do ${nomeDoTime}? Para voltar, será preciso uma nova solicitação.${aviso}`,
+        acao: 'Remover',
+        destrutiva: true,
+      },
       () => remocao.mutate(membro.usuarioId, { onSuccess: () => toast.sucesso('Membro removido') }),
     )
   }
 
-  function abrirMenu(membro: MembroElencoDto, atual: MembroElencoDto | undefined) {
-    const capitaniaDoMembro = membro.capitao
+  function abrirMenu(membro: MembroElencoDto) {
+    const botaoCapitania = membro.capitao
       ? { text: 'Remover capitania', onPress: removerCapitania }
-      : { text: 'Definir como capitão', onPress: () => definirCapitao(membro, atual) }
+      : { text: 'Definir como capitão', onPress: () => definirCapitao(membro) }
     Alert.alert(membro.nome, undefined, [
-      capitaniaDoMembro,
+      botaoCapitania,
       { text: 'Remover do elenco', style: 'destructive', onPress: () => removerDoElenco(membro) },
       { text: 'Cancelar', style: 'cancel' },
     ])
@@ -96,27 +108,27 @@ export function ElencoPainel({ timeId }: { timeId: string }) {
 
   return (
     <View className="flex-1 bg-fundo">
-      <TelaDados consulta={consulta} esqueleto="lista">
-        {({ items }) => {
-          if (items.length === 0) return <EstadoVazio mensagem={MENSAGEM_VAZIO} />
-          const membros = capitaoPrimeiro(items)
-          const atual = membros.find(({ capitao }) => capitao)
-          return (
-            <FlatList
-              data={membros}
-              keyExtractor={({ usuarioId }) => usuarioId}
-              contentContainerClassName="gap-2 p-4"
-              extraData={acoesHabilitadas}
-              renderItem={({ item }) => (
-                <ItemMembro
-                  membro={item}
-                  acoesHabilitadas={acoesHabilitadas}
-                  aoAbrirMenu={(membro) => abrirMenu(membro, atual)}
-                />
-              )}
-            />
-          )
-        }}
+      <TelaDados
+        consulta={consulta}
+        esqueleto="lista"
+        vazio={({ items }) => items.length === 0}
+        mensagemVazio={MENSAGEM_VAZIO}
+      >
+        {({ items }) => (
+          <FlatList
+            data={capitaoPrimeiro(items)}
+            keyExtractor={({ usuarioId }) => usuarioId}
+            contentContainerClassName="gap-2 p-4"
+            extraData={acoesHabilitadas}
+            renderItem={({ item }) => (
+              <ItemMembro
+                membro={item}
+                acoesHabilitadas={acoesHabilitadas}
+                aoAbrirMenu={abrirMenu}
+              />
+            )}
+          />
+        )}
       </TelaDados>
     </View>
   )

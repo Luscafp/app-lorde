@@ -122,6 +122,7 @@ describe('ElencoPainel', () => {
     await abrirMenu(BRUNO.nome)
     await tocarNoAlerta('Definir como capitão')
     expect(ultimoAlerta()?.[1]).toBe('Bruno Lima será o capitão no lugar de Ana Souza.')
+    expect(ultimoAlerta()?.[2]?.find(({ text }) => text === 'Confirmar')?.style).toBe('default')
     expect(api.definirCapitao).not.toHaveBeenCalled()
 
     api.buscarElenco.mockResolvedValue(
