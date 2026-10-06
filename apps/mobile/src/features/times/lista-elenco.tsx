@@ -6,11 +6,12 @@ import { Imagem } from '@/components/imagem'
 import { CartaoLinha, Selo, Texto } from '@/components/ui'
 import { useAtletica } from '@/features/atletica'
 import { useSessao } from '@/infra/sessao/store'
+import { porNome } from './formatacao'
 
 export const MENSAGEM_ELENCO_VAZIO = 'Elenco ainda vazio'
 
 const capitaoPrimeiro = (a: MembroElencoDto, b: MembroElencoDto) =>
-  Number(b.capitao) - Number(a.capitao) || a.nome.localeCompare(b.nome, 'pt-BR')
+  Number(b.capitao) - Number(a.capitao) || porNome(a, b)
 
 function ItemElenco({ membro, ehVoce }: { membro: MembroElencoDto; ehVoce: boolean }) {
   const { corPrimaria } = useAtletica()

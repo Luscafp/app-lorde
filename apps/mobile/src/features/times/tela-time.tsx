@@ -12,7 +12,7 @@ import { ListaElenco } from './lista-elenco'
 
 export const MENSAGEM_TIME_NAO_ENCONTRADO = 'Time não encontrado'
 
-export function CabecalhoTime({ time }: { time: TimeDto }) {
+function CabecalhoTime({ time }: { time: TimeDto }) {
   const { corPrimaria } = useAtletica()
   const { modalidade, atletica } = time
 

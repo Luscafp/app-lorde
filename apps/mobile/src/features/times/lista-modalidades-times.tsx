@@ -7,14 +7,12 @@ import { Texto } from '@/components/ui'
 import { paleta, useAtletica } from '@/features/atletica'
 import { ModalidadeIcone, useModalidades } from '@/features/modalidades'
 import { CartaoTime } from './cartao-time'
-import { contar } from './formatacao'
+import { contar, porNome } from './formatacao'
 import { useTimesProprios } from './hooks'
 
 export const MENSAGEM_SEM_TIMES = 'Nenhum time cadastrado'
 
 type Grupo = { modalidade: Modalidade; times: TimeDto[] }
-
-const porNome = (a: { nome: string }, b: { nome: string }) => a.nome.localeCompare(b.nome, 'pt-BR')
 
 function agruparPorModalidade(modalidades: Modalidade[], times: TimeDto[]): Grupo[] {
   return [...modalidades].sort(porNome).map((modalidade) => ({
