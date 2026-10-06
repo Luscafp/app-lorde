@@ -6,25 +6,24 @@ import { z } from 'zod'
 import { TelaDados } from '@/components/estado'
 import { Imagem } from '@/components/imagem'
 import { Texto } from '@/components/ui'
+import { AMBIENTE_PRODUCAO } from '@/config/ambiente'
 import { useConsultaAtletica } from '@/features/atletica'
 import { SecaoConfiguracoes, type PropsItemConfiguracao } from './secao-configuracoes'
 
 export const MENSAGEM_SEM_CONTATO = 'Contato não informado'
 
-const CANAL_PRODUCAO = 'production'
-
-export function versaoInstalada(): string {
+function versaoInstalada(): string {
   const { nativeApplicationVersion: versao, nativeBuildVersion: build } = Application
   if (!versao) return 'Desconhecida'
   return build ? `${versao} (build ${build})` : versao
 }
 
 /** Identifica o OTA para o suporte; o canal só aparece fora de produção. */
-export function atualizacaoInstalada(): string | null {
+function atualizacaoInstalada(): string | null {
   const id = Updates.updateId?.slice(0, 8)
   if (!id) return null
   const canal = Updates.channel
-  return canal && canal !== CANAL_PRODUCAO ? `Atualização ${id} · ${canal}` : `Atualização ${id}`
+  return canal && canal !== AMBIENTE_PRODUCAO ? `Atualização ${id} · ${canal}` : `Atualização ${id}`
 }
 
 /** Só monta `mailto:` com e-mail válido: um cadastro errado não abre esquemas arbitrários. */
@@ -39,14 +38,16 @@ function itemEmail(email: string | null): PropsItemConfiguracao {
   }
 }
 
+function contatosDaAtletica(atletica: AtleticaPublica): PropsItemConfiguracao[] {
+  const opcionais: PropsItemConfiguracao[] = [
+    { icone: 'logo-whatsapp', rotulo: atletica.contatoWhatsapp ?? '' },
+    { icone: 'logo-instagram', rotulo: atletica.contatoInstagram ?? '' },
+  ]
+  return [itemEmail(atletica.contatoEmail), ...opcionais.filter((item) => item.rotulo)]
+}
+
 function DadosAtletica({ atletica }: { atletica: AtleticaPublica }) {
-  const contatos: PropsItemConfiguracao[] = [itemEmail(atletica.contatoEmail)]
-  if (atletica.contatoWhatsapp) {
-    contatos.push({ icone: 'logo-whatsapp', rotulo: atletica.contatoWhatsapp })
-  }
-  if (atletica.contatoInstagram) {
-    contatos.push({ icone: 'logo-instagram', rotulo: atletica.contatoInstagram })
-  }
+  const contatos = contatosDaAtletica(atletica)
 
   return (
     <View className="gap-6">

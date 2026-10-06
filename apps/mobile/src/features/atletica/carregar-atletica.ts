@@ -2,11 +2,16 @@ import type { AtleticaPublica } from '@atletica/shared'
 import { queryOptions } from '@tanstack/react-query'
 import { chaves } from '@/infra/query/chaves'
 import { queryClient } from '@/infra/query/query-client'
-import { buscarAtletica, gravarAtleticaNoCache, lerAtleticaDoCache } from './api'
+import {
+  buscarAtletica,
+  gravarAtleticaNoCache,
+  lerAtleticaDoCache,
+  type AtleticaEmCache,
+} from './api'
 
 export const ESPERA_MAXIMA_ATLETICA_MS = 3000
 
-let atleticaLidaNaSplash: AtleticaPublica | undefined
+let atleticaLidaNaSplash: AtleticaEmCache | undefined
 
 export const consultaAtletica = queryOptions({
   queryKey: chaves.atletica(),
@@ -18,7 +23,11 @@ export const consultaAtletica = queryOptions({
 })
 
 export function atleticaLidaPorCarregarAtletica(): AtleticaPublica | undefined {
-  return atleticaLidaNaSplash
+  return atleticaLidaNaSplash?.atletica
+}
+
+export function atleticaLidaSalvaEm(): number {
+  return atleticaLidaNaSplash?.salvaEm ?? 0
 }
 
 /** Com cache, libera a splash na hora; sem cache, espera a rede por até 3 s, sem repetir. */

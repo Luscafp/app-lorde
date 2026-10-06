@@ -1,7 +1,4 @@
-/** Feature flags versionadas no código (convenções §10.7). */
+/** Convenções §10.7: a #88 liga `notificacoes`. */
 export const features = {
-  /** Ligada pela #88: bloco de permissão e registro de push nas preferências (#37). */
   notificacoes: false,
-  /** Ligada pela #38. */
-  avisosHabilitados: false,
 } as const

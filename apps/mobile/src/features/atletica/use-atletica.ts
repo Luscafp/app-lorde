@@ -1,7 +1,11 @@
 import type { AtleticaPublica } from '@atletica/shared'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
-import { consultaAtletica, atleticaLidaPorCarregarAtletica } from './carregar-atletica'
+import {
+  atleticaLidaPorCarregarAtletica,
+  atleticaLidaSalvaEm,
+  consultaAtletica,
+} from './carregar-atletica'
 
 export const COR_NEUTRA = '#6B7280'
 export const NOME_GENERICO = 'Atlética'
@@ -27,12 +31,12 @@ function resolverAtletica(dados: AtleticaPublica | null): Atletica {
   }
 }
 
-/** O cache local entra como dado vencido. */
+/** O cache local entra com a data em que foi salvo, que a faixa offline exibe. */
 export function useConsultaAtletica() {
   return useQuery({
     ...consultaAtletica,
     initialData: atleticaLidaPorCarregarAtletica,
-    initialDataUpdatedAt: 0,
+    initialDataUpdatedAt: atleticaLidaSalvaEm,
   })
 }
 

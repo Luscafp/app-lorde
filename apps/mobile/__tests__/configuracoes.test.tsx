@@ -7,7 +7,9 @@ import * as Application from 'expo-application'
 import * as Updates from 'expo-updates'
 import type { ReactElement } from 'react'
 import { Alert, Linking } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as apiAtletica from '@/features/atletica/api'
+import { carregarAtletica } from '@/features/atletica/carregar-atletica'
 import {
   MENSAGEM_SEM_CONTATO,
   ROTAS_CONFIGURACOES,
@@ -162,6 +164,14 @@ describe('Tela Configurações', () => {
     }
   })
 
+  it('offline mostra a faixa offline (critério 10)', async () => {
+    onlineManager.setOnline(false)
+    await renderizar(<TelaConfiguracoes aoAbrir={jest.fn()} />)
+
+    expect(screen.getByText('Modo offline')).toBeOnTheScreen()
+    expect(screen.getByRole('header', { name: 'Conta' })).toBeOnTheScreen()
+  })
+
   it('"Sair da conta" pede a confirmação da #60 (critério 8)', async () => {
     const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined)
     await renderizar(<TelaConfiguracoes aoAbrir={jest.fn()} />)
@@ -213,6 +223,15 @@ describe('Termos com versão aceita', () => {
     expect(screen.getByText('Texto provisório')).toBeOnTheScreen()
     expect(buscarPerfil).not.toHaveBeenCalled()
   })
+
+  it('offline abre o texto do bundle com a faixa offline (critério 10)', async () => {
+    useSessao.setState({ status: 'anonimo', usuario: null })
+    onlineManager.setOnline(false)
+    await renderizar(<TelaDocumentoLegal documento={termosDeUso} />)
+
+    expect(screen.getByText('Modo offline')).toBeOnTheScreen()
+    expect(screen.getByText(termosDeUso.titulo)).toBeOnTheScreen()
+  })
 })
 
 describe('Tela Sobre', () => {
@@ -238,7 +257,7 @@ describe('Tela Sobre', () => {
 
   it('não mostra o canal de produção', async () => {
     atualizacoes.id = '0123456789abcdef'
-    atualizacoes.canal = 'production'
+    atualizacoes.canal = 'producao'
     buscarAtletica.mockResolvedValue(atletica())
     await renderizar(<TelaSobre />)
 
@@ -283,6 +302,27 @@ describe('Tela Sobre', () => {
 
     expect(screen.getByText('Atlética Teste')).toBeOnTheScreen()
     expect(screen.getByText('Modo offline · dados de 02/10/2026 12:00')).toBeOnTheScreen()
+  })
+
+  it('abertura offline com o cache em disco: faixa com a data em que foi salvo (critério 10)', async () => {
+    const salvaEm = Date.parse('2026-10-02T15:00:00.000Z')
+    await AsyncStorage.multiSet([
+      [apiAtletica.CHAVE_CACHE_ATLETICA, JSON.stringify(atletica())],
+      [apiAtletica.CHAVE_CACHE_ATLETICA_SALVA_EM, String(salvaEm)],
+    ])
+    await carregarAtletica()
+    onlineManager.setOnline(false)
+
+    try {
+      await renderizar(<TelaSobre />)
+
+      expect(screen.getByText('Atlética Teste')).toBeOnTheScreen()
+      expect(screen.getByText('Modo offline · dados de 02/10/2026 12:00')).toBeOnTheScreen()
+    } finally {
+      await AsyncStorage.clear()
+      buscarAtletica.mockRejectedValue(new TypeError('Network request failed'))
+      await carregarAtletica()
+    }
   })
 
   it('offline sem cache: versão aparece e o bloco da atlética mostra o erro (critério 11)', async () => {
