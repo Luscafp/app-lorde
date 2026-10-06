@@ -30,6 +30,11 @@ const detalhe = (resposta: { body: unknown }) => noticiaPainelDetalheSchema.pars
 type Metodo = 'get' | 'post' | 'patch' | 'delete'
 
 /** Todas as rotas do Painel para um id, com um corpo válido. */
+const rotasSemId: [Metodo, string, object?][] = [
+  ['get', ROTA],
+  ['post', ROTA, { titulo: 'Seletiva' }],
+]
+
 const rotasComId = (id: string): [Metodo, string, object?][] => [
   ['get', `${ROTA}/${id}`],
   ['patch', `${ROTA}/${id}`, { titulo: 'Título novo' }],
@@ -97,7 +102,7 @@ describe('/painel/noticias (#80)', () => {
   const consultasAoR2 = () => comandosEnviados(armazenamento.s3.send, HeadObjectCommand)
 
   describe('autenticação, papel e escopo (critério 12)', () => {
-    it.each([['get', ROTA, undefined] as [Metodo, string, object?], ...rotasComId(ID_INEXISTENTE)])(
+    it.each([...rotasSemId, ...rotasComId(ID_INEXISTENTE)])(
       'sem token: %s %s → 401',
       async (metodo, rota) => {
         const resposta = await request(contexto.http)[metodo](rota)
@@ -109,12 +114,7 @@ describe('/painel/noticias (#80)', () => {
     it('Atleta → 403 em todas as rotas, sem alterar nada', async () => {
       const existente = await rascunhoCompleto()
       const api = await como(await usuario('ATLETA'))
-      const rotas: [Metodo, string, object?][] = [
-        ['get', ROTA],
-        ['post', ROTA, { titulo: 'Seletiva' }],
-        ...rotasComId(existente.id),
-      ]
-      for (const [metodo, rota, corpo] of rotas) {
+      for (const [metodo, rota, corpo] of [...rotasSemId, ...rotasComId(existente.id)]) {
         const resposta = await api.enviar(metodo, rota, corpo)
         expect([rota, resposta.status, erro(resposta).code]).toEqual([rota, 403, 'FORBIDDEN'])
       }
@@ -183,9 +183,9 @@ describe('/painel/noticias (#80)', () => {
       const criada = detalhe(resposta)
       expect(criada).toMatchObject({ status: 'PUBLICADA', imagemCapaUrl: `${BASE_PUBLICA}/${key}` })
       expect(criada.publicadaEm).not.toBeNull()
-      expect((await auditoria(criada.id)).map(({ acao }) => acao)).toEqual([
-        'NOTICIA_CRIADA',
-        'NOTICIA_PUBLICADA',
+      expect((await auditoria(criada.id)).map(({ acao, dados }) => [acao, dados])).toEqual([
+        ['NOTICIA_CRIADA', { antes: null, depois: { titulo: 'Seletiva', status: 'PUBLICADA' } }],
+        ['NOTICIA_PUBLICADA', expect.objectContaining({ contexto: { primeiraPublicacao: true } })],
       ])
       expect((await publicadas()).map(({ payload }) => payload)).toEqual([
         { atleticaId, noticiaId: criada.id, autorId: diretor.id },

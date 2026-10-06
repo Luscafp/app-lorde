@@ -82,7 +82,18 @@ function criarServico(atual: Linha | null = linha()) {
   const dadosAuditados = () => entradas()[0]?.[1].dados
   const dadosDoUpdateMany = () =>
     (tx.noticia.updateMany.mock.calls as [{ data: Partial<Linha> }][])[0]?.[0].data ?? {}
-  return { servico, tx, db, auditoria, eventos, uploads, acoes, dadosAuditados, dadosDoUpdateMany }
+  return {
+    servico,
+    tx,
+    db,
+    transacao,
+    auditoria,
+    eventos,
+    uploads,
+    acoes,
+    dadosAuditados,
+    dadosDoUpdateMany,
+  }
 }
 
 beforeEach(() => {
@@ -172,7 +183,7 @@ describe('NoticiasPainelService', () => {
     })
 
     it('já publicada: valida a capa, audita criação e publicação e emite o evento', async () => {
-      const { servico, tx, acoes, eventos, uploads } = criarServico()
+      const { servico, tx, acoes, eventos, uploads, dadosAuditados } = criarServico()
 
       const criada = await servico.criar(DIRETOR, {
         titulo: 'Seletiva',
@@ -193,6 +204,10 @@ describe('NoticiasPainelService', () => {
       })
       expect(criada.status).toBe('PUBLICADA')
       expect(acoes()).toEqual(['NOTICIA_CRIADA', 'NOTICIA_PUBLICADA'])
+      expect(dadosAuditados()).toEqual({
+        antes: null,
+        depois: { titulo: 'Seletiva', status: 'PUBLICADA' },
+      })
       expect(eventos.emitirAposCommit).toHaveBeenCalledWith('noticia.publicada', {
         atleticaId: ATLETICA_ID,
         noticiaId: ID,
@@ -213,7 +228,7 @@ describe('NoticiasPainelService', () => {
       expect(tx.noticia.create).not.toHaveBeenCalled()
     })
 
-    it('capa inválida interrompe antes de gravar', async () => {
+    it('capa inválida interrompe antes de abrir a transação', async () => {
       const { servico, tx, uploads } = criarServico()
       uploads.validarKey.mockRejectedValue(new Error('UPLOAD_INVALIDO'))
       await expect(
@@ -260,13 +275,17 @@ describe('NoticiasPainelService', () => {
       })
     })
 
-    it('troca a capa: valida a nova e remove a antiga depois do commit', async () => {
-      const { servico, uploads, dadosAuditados } = criarServico()
+    it('troca a capa: valida a nova fora da transação e remove a antiga depois do commit', async () => {
+      const { servico, transacao, uploads, dadosAuditados } = criarServico()
 
       await servico.atualizar(ID, DIRETOR, { imagemCapaKey: CAPA_NOVA })
 
+      expect(uploads.validarKey).toHaveBeenCalledTimes(1)
       expect(uploads.validarKey).toHaveBeenCalledWith(
         expect.objectContaining({ key: CAPA_NOVA, finalidade: 'NOTICIA' }),
+      )
+      expect(uploads.validarKey.mock.invocationCallOrder[0]).toBeLessThan(
+        transacao.executar.mock.invocationCallOrder[0] ?? 0,
       )
       expect(dadosAuditados()).toEqual({
         antes: {},
@@ -324,6 +343,23 @@ describe('NoticiasPainelService', () => {
       })
       expect(tx.noticia.findUniqueOrThrow).not.toHaveBeenCalled()
     })
+
+    it('troca de capa em notícia inexistente → 404 sem validar', async () => {
+      const { servico, uploads } = criarServico(null)
+      await expect(
+        servico.atualizar(ID, DIRETOR, { imagemCapaKey: CAPA_NOVA }),
+      ).rejects.toMatchObject({ statusCode: 404 })
+      expect(uploads.validarKey).not.toHaveBeenCalled()
+    })
+
+    it('capa trocada por outro diretor entre a leitura e o lock: valida dentro da transação', async () => {
+      const { servico, db, uploads } = criarServico()
+      db.noticia.findFirst.mockResolvedValue({ imagemCapaKey: CAPA_NOVA })
+
+      await servico.atualizar(ID, DIRETOR, { imagemCapaKey: CAPA_NOVA })
+
+      expect(uploads.validarKey).toHaveBeenCalledWith(expect.objectContaining({ key: CAPA_NOVA }))
+    })
   })
 
   describe('publicar', () => {
@@ -364,9 +400,9 @@ describe('NoticiasPainelService', () => {
         imagemCapaKey: null,
       })
       const { servico, tx, auditoria, eventos } = criarServico(publicada)
-      tx.noticia.updateMany.mockResolvedValue({ count: 0 })
 
       await expect(servico.publicar(ID, DIRETOR)).resolves.toMatchObject({ status: 'PUBLICADA' })
+      expect(tx.noticia.updateMany).not.toHaveBeenCalled()
       expect(auditoria.registrar).not.toHaveBeenCalled()
       expect(eventos.emitirAposCommit).not.toHaveBeenCalled()
     })
@@ -403,8 +439,8 @@ describe('NoticiasPainelService', () => {
 
     it('rascunho: idempotente, sem auditoria', async () => {
       const { servico, tx, auditoria } = criarServico()
-      tx.noticia.updateMany.mockResolvedValue({ count: 0 })
       await expect(servico.despublicar(ID, DIRETOR)).resolves.toMatchObject({ status: 'RASCUNHO' })
+      expect(tx.noticia.updateMany).not.toHaveBeenCalled()
       expect(auditoria.registrar).not.toHaveBeenCalled()
     })
   })

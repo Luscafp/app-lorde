@@ -17,11 +17,9 @@ import { naoExcluido } from '../../infra/prisma/nao-excluido'
 import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import { AuditoriaService, type DadosAuditoria } from '../auditoria/auditoria.service'
 import { diferenca, type DiferencaAuditoria } from '../auditoria/diferenca'
-import type { UsuarioAutenticado } from '../auth/tipos'
+import type { UsuarioNaAtletica } from '../auth/tipos'
 import { UploadsService } from '../uploads/uploads.service'
 import { erroCapaObrigatoria, erroConteudoObrigatorio, erroNoticiaNaoEncontrada } from './erros'
-
-export type Solicitante = Pick<UsuarioAutenticado, 'id' | 'atleticaId'>
 
 const CAMPOS = {
   id: true,
@@ -44,6 +42,18 @@ interface Editaveis {
 }
 
 const EDITAVEIS = ['titulo', 'conteudo', 'imagemCapaKey'] as const
+
+interface Transicao {
+  de: StatusNoticia
+  dados: (antes: LinhaNoticia) => Prisma.NoticiaUpdateManyMutationInput
+  registrar: (tx: TransacaoComEscopo, antes: LinhaNoticia, depois: LinhaNoticia) => Promise<unknown>
+}
+
+interface Publicacao {
+  noticia: LinhaNoticia
+  primeira: boolean
+  solicitante: UsuarioNaAtletica
+}
 
 /** Requisitos de publicação (convenções §11.4 e §11.9). */
 function garantirPublicavel({ conteudo, imagemCapaKey }: Editaveis): void {
@@ -111,7 +121,10 @@ export class NoticiasPainelService {
     return this.paraDto(noticia)
   }
 
-  async criar(solicitante: Solicitante, entrada: NoticiaCriacao): Promise<NoticiaPainelDetalheDto> {
+  async criar(
+    solicitante: UsuarioNaAtletica,
+    entrada: NoticiaCriacao,
+  ): Promise<NoticiaPainelDetalheDto> {
     const { publicar = false, titulo, conteudo = '', imagemCapaKey = null } = entrada
     if (publicar) garantirPublicavel({ titulo, conteudo, imagemCapaKey })
     if (imagemCapaKey) await this.validarCapa(imagemCapaKey, solicitante)
@@ -133,21 +146,24 @@ export class NoticiasPainelService {
         entidade: 'Noticia',
         acao: 'NOTICIA_CRIADA',
         entidadeId: criada.id,
-        dados: { antes: null, depois: { titulo, status: StatusNoticia.RASCUNHO } },
+        dados: { antes: null, depois: { titulo, status: criada.status } },
       })
-      if (publicadaEm) await this.registrarPublicacao(tx, criada.id, publicadaEm, true, solicitante)
+      if (publicadaEm) {
+        await this.registrarPublicacao(tx, { noticia: criada, primeira: true, solicitante })
+      }
       return this.paraDto(criada)
     })
   }
 
   /** Publicada continua atendendo aos requisitos; `publicadaEm` e o status não mudam (A1). */
-  atualizar(
+  async atualizar(
     id: string,
-    solicitante: Solicitante,
+    solicitante: UsuarioNaAtletica,
     entrada: NoticiaAtualizacao,
   ): Promise<NoticiaPainelDetalheDto> {
+    const capaValidada = await this.validarCapaNova(id, entrada.imagemCapaKey, solicitante)
     return this.transacao.executar(async (tx) => {
-      const antes = await this.bloquear(tx, id, solicitante.atleticaId)
+      const antes = await this.bloquear(tx, id, solicitante)
       const depois: Editaveis = {
         titulo: entrada.titulo ?? antes.titulo,
         conteudo: entrada.conteudo ?? antes.conteudo,
@@ -160,7 +176,7 @@ export class NoticiasPainelService {
       if (antes.status === StatusNoticia.PUBLICADA) garantirPublicavel(depois)
       const capaAnterior = antes.imagemCapaKey
       const trocouCapa = depois.imagemCapaKey !== capaAnterior
-      if (trocouCapa && depois.imagemCapaKey) {
+      if (trocouCapa && depois.imagemCapaKey && depois.imagemCapaKey !== capaValidada) {
         await this.validarCapa(depois.imagemCapaKey, solicitante)
       }
 
@@ -177,51 +193,44 @@ export class NoticiasPainelService {
   }
 
   /** Idempotente; a republicação mantém `publicadaEm` e não emite `noticia.publicada`. */
-  publicar(id: string, solicitante: Solicitante): Promise<NoticiaPainelDetalheDto> {
-    return this.transacao.executar(async (tx) => {
-      const antes = await this.bloquear(tx, id, solicitante.atleticaId)
-      if (antes.status === StatusNoticia.RASCUNHO) garantirPublicavel(antes)
-
-      const publicadaEm = antes.publicadaEm ?? new Date()
-      const { count } = await tx.noticia.updateMany({
-        where: { id, status: StatusNoticia.RASCUNHO },
-        data: { status: StatusNoticia.PUBLICADA, publicadaEm },
-      })
-      if (count === 0) return this.paraDto(antes)
-
-      const primeira = antes.publicadaEm === null
-      await this.registrarPublicacao(tx, id, publicadaEm, primeira, solicitante)
-      return this.paraDto(await this.ler(tx, id))
+  publicar(id: string, solicitante: UsuarioNaAtletica): Promise<NoticiaPainelDetalheDto> {
+    return this.transicionar(id, solicitante, {
+      de: StatusNoticia.RASCUNHO,
+      dados: (antes) => {
+        garantirPublicavel(antes)
+        return { status: StatusNoticia.PUBLICADA, publicadaEm: antes.publicadaEm ?? new Date() }
+      },
+      registrar: (tx, antes, noticia) =>
+        this.registrarPublicacao(tx, {
+          noticia,
+          primeira: antes.publicadaEm === null,
+          solicitante,
+        }),
     })
   }
 
   /** Idempotente em rascunho (A2). */
-  despublicar(id: string, solicitante: Solicitante): Promise<NoticiaPainelDetalheDto> {
-    return this.transacao.executar(async (tx) => {
-      const antes = await this.bloquear(tx, id, solicitante.atleticaId)
-      const { count } = await tx.noticia.updateMany({
-        where: { id, status: StatusNoticia.PUBLICADA },
-        data: { status: StatusNoticia.RASCUNHO },
-      })
-      if (count === 0) return this.paraDto(antes)
-
-      await this.auditoria.registrar(tx, {
-        entidade: 'Noticia',
-        acao: 'NOTICIA_DESPUBLICADA',
-        entidadeId: id,
-        dados: {
-          antes: { status: StatusNoticia.PUBLICADA },
-          depois: { status: StatusNoticia.RASCUNHO },
-        },
-      })
-      return this.paraDto(await this.ler(tx, id))
+  despublicar(id: string, solicitante: UsuarioNaAtletica): Promise<NoticiaPainelDetalheDto> {
+    return this.transicionar(id, solicitante, {
+      de: StatusNoticia.PUBLICADA,
+      dados: () => ({ status: StatusNoticia.RASCUNHO }),
+      registrar: (tx) =>
+        this.auditoria.registrar(tx, {
+          entidade: 'Noticia',
+          acao: 'NOTICIA_DESPUBLICADA',
+          entidadeId: id,
+          dados: {
+            antes: { status: StatusNoticia.PUBLICADA },
+            depois: { status: StatusNoticia.RASCUNHO },
+          },
+        }),
     })
   }
 
   /** Exclusão lógica em qualquer status (A3); a capa fica no R2. */
-  async excluir(id: string, solicitante: Solicitante): Promise<void> {
+  async excluir(id: string, solicitante: UsuarioNaAtletica): Promise<void> {
     await this.transacao.executar(async (tx) => {
-      const { titulo, status } = await this.bloquear(tx, id, solicitante.atleticaId)
+      const { titulo, status } = await this.bloquear(tx, id, solicitante)
       await tx.noticia.update({ where: { id }, data: { excluidoEm: new Date() } })
       await this.auditoria.registrar(tx, {
         entidade: 'Noticia',
@@ -232,25 +241,46 @@ export class NoticiasPainelService {
     })
   }
 
+  /** Lock, `updateMany` condicionado ao status de origem e auditoria só quando muda. */
+  private transicionar(
+    id: string,
+    solicitante: UsuarioNaAtletica,
+    { de, dados, registrar }: Transicao,
+  ): Promise<NoticiaPainelDetalheDto> {
+    return this.transacao.executar(async (tx) => {
+      const antes = await this.bloquear(tx, id, solicitante)
+      if (antes.status !== de) return this.paraDto(antes)
+
+      await tx.noticia.updateMany({ where: { id, status: de }, data: dados(antes) })
+      const depois = await this.ler(tx, id)
+      await registrar(tx, antes, depois)
+      return this.paraDto(depois)
+    })
+  }
+
   private async registrarPublicacao(
     tx: TransacaoComEscopo,
-    id: string,
-    publicadaEm: Date,
-    primeira: boolean,
-    { id: autorId, atleticaId }: Solicitante,
+    { noticia, primeira, solicitante }: Publicacao,
   ): Promise<void> {
     await this.auditoria.registrar(tx, {
       entidade: 'Noticia',
       acao: 'NOTICIA_PUBLICADA',
-      entidadeId: id,
+      entidadeId: noticia.id,
       dados: {
         antes: { status: StatusNoticia.RASCUNHO },
-        depois: { status: StatusNoticia.PUBLICADA, publicadaEm: publicadaEm.toISOString() },
+        depois: {
+          status: StatusNoticia.PUBLICADA,
+          publicadaEm: noticia.publicadaEm?.toISOString() ?? null,
+        },
         contexto: { primeiraPublicacao: primeira },
       },
     })
     if (primeira) {
-      this.eventos.emitirAposCommit('noticia.publicada', { atleticaId, noticiaId: id, autorId })
+      this.eventos.emitirAposCommit('noticia.publicada', {
+        atleticaId: solicitante.atleticaId,
+        noticiaId: noticia.id,
+        autorId: solicitante.id,
+      })
     }
   }
 
@@ -258,7 +288,7 @@ export class NoticiasPainelService {
   private async bloquear(
     tx: TransacaoComEscopo,
     id: string,
-    atleticaId: string,
+    { atleticaId }: UsuarioNaAtletica,
   ): Promise<LinhaNoticia> {
     const [linha] = await tx.$queryRaw<{ id: string }[]>`
       SELECT "id" FROM "Noticia"
@@ -272,8 +302,24 @@ export class NoticiasPainelService {
     return tx.noticia.findUniqueOrThrow({ where: { id }, select: CAMPOS })
   }
 
+  /** Fora da transação, para o `HeadObject` no R2 não segurar o lock da notícia. */
+  private async validarCapaNova(
+    id: string,
+    key: string | null | undefined,
+    solicitante: UsuarioNaAtletica,
+  ): Promise<string | null> {
+    if (!key) return null
+    const atual = await this.prisma.db.noticia.findFirst({
+      where: { id, ...naoExcluido },
+      select: { imagemCapaKey: true },
+    })
+    if (!atual || atual.imagemCapaKey === key) return null
+    await this.validarCapa(key, solicitante)
+    return key
+  }
+
   /** Só quando a chave muda (convenções §11.5). */
-  private validarCapa(key: string, { id, atleticaId }: Solicitante): Promise<void> {
+  private validarCapa(key: string, { id, atleticaId }: UsuarioNaAtletica): Promise<void> {
     return this.uploads.validarKey({
       key,
       finalidade: FinalidadeUpload.NOTICIA,
