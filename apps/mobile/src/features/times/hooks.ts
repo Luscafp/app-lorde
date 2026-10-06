@@ -15,13 +15,16 @@ import { useValorAtrasado } from '@/infra/use-valor-atrasado'
 import {
   atualizarAtleticaAdversaria,
   atualizarTime,
+  buscarElenco,
   buscarTime,
   criarAtleticaAdversaria,
   criarTime,
+  definirCapitao,
   excluirTime,
   LIMITE_PAGINA,
   listarAtleticasAdversarias,
   listarTimes,
+  removerMembro,
   type FiltrosTimes,
 } from './api'
 
@@ -79,6 +82,37 @@ function useInvalidar() {
       cliente.invalidateQueries({ queryKey: chaves.times.todos() }),
       cliente.invalidateQueries({ queryKey: chaves.painel.adversarias.todos() }),
     ])
+}
+
+export function useElenco(timeId: string) {
+  return useQuery({
+    queryKey: chaves.times.elenco(timeId),
+    queryFn: ({ signal }) => buscarElenco(timeId, signal),
+  })
+}
+
+/** O membro pode ter saído por outro diretor: o toast global avisa e o elenco é recarregado. */
+const ERROS_DE_ELENCO_DESATUALIZADO = ['CAPITAO_FORA_DO_ELENCO', 'MEMBRO_NAO_ENCONTRADO']
+
+function useAcaoDeElenco<TVariables>(mutationFn: (variaveis: TVariables) => Promise<unknown>) {
+  const cliente = useQueryClient()
+  const invalidar = () => cliente.invalidateQueries({ queryKey: chaves.times.todos() })
+  return useAcaoOnline<unknown, ApiErro, TVariables>({
+    mutationFn,
+    onSuccess: invalidar,
+    onError: (erro) => {
+      if (ERROS_DE_ELENCO_DESATUALIZADO.includes(erro.code)) void invalidar()
+    },
+  })
+}
+
+/** `null` remove a capitania. */
+export function useDefinirCapitao(timeId: string) {
+  return useAcaoDeElenco((usuarioId: string | null) => definirCapitao(timeId, usuarioId))
+}
+
+export function useRemoverMembro(timeId: string) {
+  return useAcaoDeElenco((usuarioId: string) => removerMembro(timeId, usuarioId))
 }
 
 /** Os erros de campo ficam com o formulário. */

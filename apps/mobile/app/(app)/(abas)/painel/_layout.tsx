@@ -21,6 +21,7 @@ export default function LayoutPainel() {
       <Stack.Screen name="times/index" options={{ title: 'Times' }} />
       <Stack.Screen name="times/novo" options={{ title: 'Novo time' }} />
       <Stack.Screen name="times/[id]/editar" options={{ title: 'Editar time' }} />
+      <Stack.Screen name="times/[id]/elenco" options={{ title: 'Elenco' }} />
       <Stack.Screen name="times/adversarias" options={{ title: 'Atléticas adversárias' }} />
       <Stack.Screen name="usuarios/index" options={{ title: 'Usuários' }} />
       <Stack.Screen name="usuarios/[id]" options={{ title: 'Usuário' }} />
