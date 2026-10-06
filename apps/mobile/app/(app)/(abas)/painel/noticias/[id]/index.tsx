@@ -10,13 +10,7 @@ export default function EditarNoticia() {
   return (
     <View className="flex-1 bg-fundo">
       <TelaDados consulta={consulta} esqueleto="detalhe">
-        {(noticia) => (
-          <FormNoticia
-            noticia={noticia}
-            aoConcluir={() => router.back()}
-            aoAbrirPrevia={() => router.push(`/painel/noticias/${id}/previa`)}
-          />
-        )}
+        {(noticia) => <FormNoticia noticia={noticia} aoConcluir={() => router.back()} />}
       </TelaDados>
     </View>
   )

@@ -28,13 +28,6 @@ export const MENSAGEM_PERMISSAO_CAMERA_NEGADA =
 export const ACAO_ABRIR_CONFIGURACOES = 'Abrir configurações'
 export const MENSAGEM_FALHA_ENVIO = 'Não foi possível enviar a imagem. Tente novamente.'
 export const MENSAGEM_FALHA_SELECAO = 'Não foi possível abrir a imagem. Tente novamente.'
-/** UC21 A4: a capa de notícia tem mensagem única para formato e tamanho. */
-export const MENSAGEM_CAPA_INVALIDA = 'Imagem inválida ou maior que 5 MB'
-
-const MENSAGEM_IMAGEM_INVALIDA: Partial<Record<FinalidadeUpload, string>> = {
-  NOTICIA: MENSAGEM_CAPA_INVALIDA,
-}
-
 /** Convenções §11.5. */
 export const PROPORCAO_RECORTE: Record<FinalidadeUpload, [number, number]> = {
   PERFIL: [1, 1],
@@ -103,8 +96,11 @@ function mensagemDoErro(erro: unknown, padrao: string): string {
   return erro instanceof ErroImagem || erro instanceof ApiErro ? erro.message : padrao
 }
 
-/** Escolhe, recorta, comprime e envia a imagem direto ao R2. */
-export function useUploadImagem(finalidade: FinalidadeUpload) {
+/**
+ * Escolhe, recorta, comprime e envia a imagem direto ao R2.
+ * `mensagemImagemInvalida` substitui as mensagens de formato e tamanho.
+ */
+export function useUploadImagem(finalidade: FinalidadeUpload, mensagemImagemInvalida?: string) {
   const [situacao, setSituacao] = useState<Situacao>(INICIAL)
   const situacaoAtual = useRef(situacao)
   const comprimida = useRef<ImagemComprimida | null>(null)
@@ -210,14 +206,14 @@ export function useUploadImagem(finalidade: FinalidadeUpload) {
         comprimida.current = imagem
         await enviar(geracao, imagem)
       } catch (erro) {
-        const especifica = erro instanceof ErroImagem ? MENSAGEM_IMAGEM_INVALIDA[finalidade] : null
+        const especifica = erro instanceof ErroImagem ? mensagemImagemInvalida : undefined
         atualizar(geracao, {
           estado: 'erro',
           erro: especifica ?? mensagemDoErro(erro, MENSAGEM_FALHA_SELECAO),
         })
       }
     },
-    [atualizar, descartarEnvio, enviar, finalidade, obsoleta],
+    [atualizar, descartarEnvio, enviar, finalidade, mensagemImagemInvalida, obsoleta],
   )
 
   /** Reenvia a mesma imagem comprimida com um presign **novo**. */

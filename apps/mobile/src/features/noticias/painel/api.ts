@@ -8,8 +8,7 @@ import {
   type NoticiaPainelDetalheDto,
 } from '@atletica/shared'
 import { api } from '@/infra/api/cliente'
-
-export const LIMITE_PAGINA = 20
+import { LIMITE_PAGINA } from '../api'
 
 export async function listarNoticiasPainel(
   filtros: FiltrosNoticiasPainel,

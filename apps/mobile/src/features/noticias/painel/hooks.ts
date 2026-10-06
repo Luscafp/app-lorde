@@ -7,6 +7,7 @@ import type {
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
+import { proximaPagina } from '@/infra/query/proxima-pagina'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import {
   atualizarNoticia,
@@ -14,25 +15,17 @@ import {
   criarNoticia,
   despublicarNoticia,
   excluirNoticia,
-  LIMITE_PAGINA,
   listarNoticiasPainel,
   publicarNoticia,
 } from './api'
-
-export const ERROS_DE_UPLOAD = ['UPLOAD_INVALIDO', 'UPLOAD_NAO_ENCONTRADO']
-export const ERROS_DO_FORMULARIO = [
-  'VALIDATION_ERROR',
-  'CAPA_OBRIGATORIA',
-  'CONTEUDO_OBRIGATORIO',
-  ...ERROS_DE_UPLOAD,
-]
+import { ERROS_DO_FORMULARIO } from './erros'
 
 export function useNoticiasPainel(filtros: FiltrosNoticiasPainel) {
   return useInfiniteQuery({
     queryKey: chaves.painel.noticias.lista(filtros),
     queryFn: ({ pageParam, signal }) => listarNoticiasPainel(filtros, pageParam, signal),
     initialPageParam: 1,
-    getNextPageParam: ({ page, total }) => (page * LIMITE_PAGINA < total ? page + 1 : undefined),
+    getNextPageParam: proximaPagina,
   })
 }
 

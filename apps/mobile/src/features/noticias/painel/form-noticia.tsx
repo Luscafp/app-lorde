@@ -2,32 +2,33 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import {
   CONTEUDO_NOTICIA_MAX,
   FinalidadeUpload,
-  noticiaPublicacaoSchema,
   noticiaRascunhoSchema,
   Papel,
   StatusNoticia,
   TITULO_NOTICIA_MAX,
-  type NoticiaAtualizacao,
-  type NoticiaCriacao,
   type NoticiaForm,
   type NoticiaPainelDetalheDto,
 } from '@atletica/shared'
 import { useRef, useState } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { ScrollView, View } from 'react-native'
-import type { z } from 'zod'
 import { FaixaOffline } from '@/components/estado'
 import { SeletorImagem } from '@/components/imagem'
-import { Botao, Campo, Texto, toast } from '@/components/ui'
-import { confirmar } from '@/features/usuarios/confirmar'
+import { Botao, Campo, confirmar, Texto, toast } from '@/components/ui'
 import { ApiErro } from '@/infra/api/api-erro'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
 import { useOnline } from '@/infra/rede/online'
 import { useTemNivelMinimo } from '@/infra/sessao/use-tem-nivel-minimo'
 import { BarraMarkdown } from './barra-markdown'
 import {
-  ERROS_DE_UPLOAD,
-  ERROS_DO_FORMULARIO,
+  alteracoes,
+  paraCriacao,
+  problemasDePublicacao,
+  type DadosNoticia,
+  type NomeCampo,
+} from './dados-noticia'
+import { CAMPO_DO_ERRO, MENSAGEM_CAPA_INVALIDA } from './erros'
+import {
   useAtualizarNoticia,
   useCriarNoticia,
   useDespublicarNoticia,
@@ -35,10 +36,9 @@ import {
   usePublicarNoticia,
 } from './hooks'
 import { aplicarMarcacao, type Marcacao, type Selecao } from './marcacao'
+import { PreviaNoticia } from './previa-noticia'
 import { useAvisoAlteracoes } from './use-aviso-alteracoes'
 
-type DadosNoticia = z.output<typeof noticiaRascunhoSchema>
-type NomeCampo = keyof DadosNoticia
 type Acao = 'rascunho' | 'salvar' | 'publicar' | 'despublicar' | 'excluir'
 
 const SUCESSO: Record<Acao, string> = {
@@ -48,9 +48,6 @@ const SUCESSO: Record<Acao, string> = {
   despublicar: 'Notícia despublicada',
   excluir: 'Notícia excluída',
 }
-
-/** A API não expõe a chave da capa atual; para validar a publicação basta saber que ela existe. */
-const CAPA_ATUAL = 'capa-atual'
 
 const formatarTotal = (total: number) => String(total).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 
@@ -66,10 +63,9 @@ type Props = {
   /** Sem ela, cadastra uma nova. */
   noticia?: NoticiaPainelDetalheDto
   aoConcluir: () => void
-  aoAbrirPrevia?: () => void
 }
 
-export function FormNoticia({ noticia, aoConcluir, aoAbrirPrevia }: Props) {
+export function FormNoticia({ noticia, aoConcluir }: Props) {
   const online = useOnline()
   const podeExcluir = useTemNivelMinimo(Papel.PRESIDENTE)
   const criar = useCriarNoticia()
@@ -79,6 +75,8 @@ export function FormNoticia({ noticia, aoConcluir, aoAbrirPrevia }: Props) {
   const excluir = useExcluirNoticia()
   const [emCurso, setEmCurso] = useState<Acao>()
   const [enviandoCapa, setEnviandoCapa] = useState(false)
+  const [capaExibida, setCapaExibida] = useState(noticia?.imagemCapaUrl ?? null)
+  const [vendoPrevia, setVendoPrevia] = useState(false)
   const selecao = useRef<Selecao>({ start: 0, end: 0 })
   const form = useForm<NoticiaForm, unknown, DadosNoticia>({
     resolver: zodResolver(noticiaRascunhoSchema),
@@ -100,12 +98,10 @@ export function FormNoticia({ noticia, aoConcluir, aoAbrirPrevia }: Props) {
   const semAlteracoes = !!noticia && !isDirty
 
   function tratarErro(erro: unknown) {
-    if (!(erro instanceof ApiErro)) return
-    if (ERROS_DE_UPLOAD.includes(erro.code)) {
-      form.setError('imagemCapaKey', { type: 'api', message: erro.message })
-    } else if (!aplicarErrosDaApi(form, erro) && ERROS_DO_FORMULARIO.includes(erro.code)) {
-      toast.erro(erro.message)
-    }
+    if (!(erro instanceof ApiErro) || aplicarErrosDaApi(form, erro)) return
+    const campo = CAMPO_DO_ERRO[erro.code]
+    if (campo) form.setError(campo, { type: 'api', message: erro.message })
+    else if (erro.code === 'VALIDATION_ERROR') toast.erro(erro.message)
   }
 
   async function executar(acao: Acao, enviar: () => Promise<unknown>) {
@@ -124,38 +120,21 @@ export function FormNoticia({ noticia, aoConcluir, aoAbrirPrevia }: Props) {
 
   const alterado = (campo: NomeCampo) => form.getFieldState(campo).isDirty
 
-  function alteracoes({ titulo, conteudo = '', imagemCapaKey }: DadosNoticia): NoticiaAtualizacao {
-    return {
-      ...(alterado('titulo') ? { titulo } : {}),
-      ...(alterado('conteudo') ? { conteudo } : {}),
-      ...(alterado('imagemCapaKey') ? { imagemCapaKey: imagemCapaKey ?? null } : {}),
-    }
-  }
-
-  function paraCriacao(dados: DadosNoticia, publicarAgora: boolean): NoticiaCriacao {
-    const { titulo, conteudo = '', imagemCapaKey } = dados
-    return {
-      titulo,
-      conteudo,
-      ...(imagemCapaKey ? { imagemCapaKey } : {}),
-      publicar: publicarAgora,
-    }
-  }
-
-  function atendePublicacao({ titulo, conteudo = '', imagemCapaKey }: DadosNoticia): boolean {
-    const capa = imagemCapaKey === undefined && noticia?.imagemCapaUrl ? CAPA_ATUAL : imagemCapaKey
-    const resultado = noticiaPublicacaoSchema.safeParse({ titulo, conteudo, imagemCapaKey: capa })
-    resultado.error?.issues.forEach(({ path: [campo], message }) =>
-      form.setError(campo as NomeCampo, { type: 'publicacao', message }),
+  function atendePublicacao(dados: DadosNoticia): boolean {
+    const problemas = problemasDePublicacao(dados, !!noticia?.imagemCapaUrl)
+    problemas.forEach(({ campo, mensagem }) =>
+      form.setError(campo, { type: 'publicacao', message: mensagem }),
     )
-    return resultado.success
+    return problemas.length === 0
   }
 
+  /** Se a publicação falhar, as alterações já salvas não ficam pendentes no formulário. */
   async function enviarPublicacao(dados: DadosNoticia) {
     if (!noticia) return criar.mutateAsync(paraCriacao(dados, true))
-    const mudancas = alteracoes(dados)
+    const mudancas = alteracoes(dados, alterado)
     if (Object.keys(mudancas).length > 0) {
       await atualizar.mutateAsync({ id: noticia.id, dados: mudancas })
+      form.reset(form.getValues())
     }
     return publicar.mutateAsync(noticia.id)
   }
@@ -163,7 +142,7 @@ export function FormNoticia({ noticia, aoConcluir, aoAbrirPrevia }: Props) {
   const salvarRascunho = form.handleSubmit((dados) =>
     executar('rascunho', () =>
       noticia
-        ? atualizar.mutateAsync({ id: noticia.id, dados: alteracoes(dados) })
+        ? atualizar.mutateAsync({ id: noticia.id, dados: alteracoes(dados, alterado) })
         : criar.mutateAsync(paraCriacao(dados, false)),
     ),
   )
@@ -171,7 +150,7 @@ export function FormNoticia({ noticia, aoConcluir, aoAbrirPrevia }: Props) {
   const salvarPublicada = form.handleSubmit(async (dados) => {
     if (!noticia || !atendePublicacao(dados)) return
     await executar('salvar', () =>
-      atualizar.mutateAsync({ id: noticia.id, dados: alteracoes(dados) }),
+      atualizar.mutateAsync({ id: noticia.id, dados: alteracoes(dados, alterado) }),
     )
   })
 
@@ -213,19 +192,7 @@ export function FormNoticia({ noticia, aoConcluir, aoAbrirPrevia }: Props) {
       {/* Na edição, a faixa vem do `TelaDados` da rota. */}
       {!noticia && !online && <FaixaOffline />}
       <ScrollView contentContainerClassName="gap-4 p-4" keyboardShouldPersistTaps="handled">
-        {aoAbrirPrevia && (
-          <View className="gap-1">
-            <Botao
-              titulo="Prévia"
-              variante="secundaria"
-              disabled={isDirty}
-              onPress={aoAbrirPrevia}
-            />
-            {isDirty && (
-              <Texto variante="legenda">Salve as alterações para vê-las na prévia.</Texto>
-            )}
-          </View>
-        )}
+        <Botao titulo="Prévia" variante="secundaria" onPress={() => setVendoPrevia(true)} />
         <Controller
           control={form.control}
           name="imagemCapaKey"
@@ -237,8 +204,10 @@ export function FormNoticia({ noticia, aoConcluir, aoAbrirPrevia }: Props) {
                 rotulo="Imagem de capa"
                 valorAtualUrl={noticia?.imagemCapaUrl}
                 desabilitado={!!emCurso}
+                mensagemImagemInvalida={MENSAGEM_CAPA_INVALIDA}
                 onChange={field.onChange}
                 onMudarEnviando={setEnviandoCapa}
+                onMudarImagem={setCapaExibida}
               />
               {fieldState.error?.message && (
                 <Texto variante="erro" accessibilityLiveRegion="polite">
@@ -310,6 +279,17 @@ export function FormNoticia({ noticia, aoConcluir, aoAbrirPrevia }: Props) {
           />
         )}
       </ScrollView>
+      {vendoPrevia && (
+        <PreviaNoticia
+          noticia={{
+            titulo,
+            conteudo,
+            imagemCapaUrl: capaExibida,
+            publicadaEm: noticia?.publicadaEm ?? null,
+          }}
+          aoFechar={() => setVendoPrevia(false)}
+        />
+      )}
     </View>
   )
 }

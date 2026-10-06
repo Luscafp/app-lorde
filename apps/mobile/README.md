@@ -122,7 +122,9 @@ Fábrica **única** de chaves (convenções §10.4). **Nunca escreva arrays lite
 | `chaves.usuarios.lista(f)` / `.detalhe(id)`                   | `['usuarios', 'lista', f]` / `['usuarios', 'detalhe', id]`                          |
 | `chaves.auditoria(f)`                                         | `['auditoria', f]`                                                                  |
 
-Prefixos: `chaves.times.todos()`, `chaves.eventos.todos()`, `chaves.noticias.todos()`, `chaves.painel.todos()`, `chaves.usuarios.todos()`.
+Prefixos: `chaves.times.todos()`, `chaves.eventos.todos()`, `chaves.noticias.todos()`, `chaves.painel.todos()`, `chaves.painel.noticias.todos()`, `chaves.usuarios.todos()`.
+
+Listas infinitas usam `getNextPageParam: proximaPagina` (`proxima-pagina.ts`), que lê `page`, `limit` e `total` da resposta.
 
 ### Mutações — `useAcaoOnline`
 
@@ -225,16 +227,18 @@ const { online, mutate, isPending } = useAcaoOnline({
 
 ### `SeletorImagem` — escolher e enviar num formulário
 
-| Prop               | Descrição                                                                 |
-| ------------------ | ------------------------------------------------------------------------- |
-| `finalidade`       | `PERFIL` (recorte 1:1), `NOTICIA` ou `BANNER` (16:9)                      |
-| `valorAtualUrl?`   | URL da imagem já gravada (`fotoUrl`, `imagemCapaUrl`...)                  |
-| `onChange`         | recebe a `key` do upload concluído, ou `null` ao tocar em "Remover"       |
-| `formato`          | `circulo` ou `retangulo`                                                  |
-| `desabilitado?`    | bloqueia a seleção                                                        |
-| `podeRemover?`     | mostra "Remover" quando há imagem (padrão `true`)                         |
-| `rotulo?`, `nome?` | rótulo acessível e iniciais do fallback                                   |
-| `onMudarEnviando?` | `true` enquanto comprime/envia: o formulário mantém o salvar desabilitado |
+| Prop                      | Descrição                                                                 |
+| ------------------------- | ------------------------------------------------------------------------- |
+| `finalidade`              | `PERFIL` (recorte 1:1), `NOTICIA` ou `BANNER` (16:9)                      |
+| `valorAtualUrl?`          | URL da imagem já gravada (`fotoUrl`, `imagemCapaUrl`...)                  |
+| `onChange`                | recebe a `key` do upload concluído, ou `null` ao tocar em "Remover"       |
+| `formato`                 | `circulo` ou `retangulo`                                                  |
+| `desabilitado?`           | bloqueia a seleção                                                        |
+| `podeRemover?`            | mostra "Remover" quando há imagem (padrão `true`)                         |
+| `rotulo?`, `nome?`        | rótulo acessível e iniciais do fallback                                   |
+| `onMudarEnviando?`        | `true` enquanto comprime/envia: o formulário mantém o salvar desabilitado |
+| `onMudarImagem?`          | URI exibida (local ou atual), ou `null`: alimenta prévias                 |
+| `mensagemImagemInvalida?` | substitui as mensagens de formato e tamanho (ex.: capa de notícia)        |
 
 O valor do campo no React Hook Form é a **`key`**; o formulário a envia no `PATCH`/`POST` do recurso (ex.: `PUT /me/foto { fotoKey }`).
 
@@ -260,7 +264,7 @@ const [enviandoFoto, setEnviandoFoto] = useState(false)
 
 Estados: "Preparando imagem…" (comprimindo), barra de progresso (enviando), pré-visualização local desde a escolha, erro com "Tentar novamente" (pede **novo** presign e reenvia a mesma imagem comprimida). Offline fica desabilitado com "Disponível apenas online". Permissão negada mostra o toast "Permita o acesso às fotos nas configurações do Android." (ou "…à câmera…") — tocar nele abre as configurações.
 
-### `useUploadImagem(finalidade)` — o fluxo
+### `useUploadImagem(finalidade, mensagemImagemInvalida?)` — o fluxo
 
 `{ selecionar('galeria' | 'camera'), estado, progresso, key, uriLocal, erro, podeTentarNovamente, tentarNovamente, limpar }`, `estado` ∈ `ocioso | selecionando | comprimindo | enviando | concluido | erro`.
 

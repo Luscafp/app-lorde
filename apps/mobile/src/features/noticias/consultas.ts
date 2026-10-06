@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query'
 import { ApiErro } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
+import { proximaPagina } from '@/infra/query/proxima-pagina'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
 import { buscarNoticia, LIMITE_PAGINA, listarNoticias } from './api'
 
@@ -49,7 +50,7 @@ export function useNoticias() {
     queryFn: ({ pageParam, signal }) =>
       listarNoticias({ page: pageParam, limit: LIMITE_PAGINA }, signal),
     initialPageParam: 1,
-    getNextPageParam: ({ page, limit, total }) => (page * limit < total ? page + 1 : undefined),
+    getNextPageParam: proximaPagina,
     select: ({ pages }) => juntarPaginas(pages),
   })
 }

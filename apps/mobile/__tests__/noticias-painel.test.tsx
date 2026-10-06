@@ -5,7 +5,6 @@ import { useNavigation } from 'expo-router'
 import type { ReactElement } from 'react'
 import { Alert } from 'react-native'
 import EditarNoticia from '../app/(app)/(abas)/painel/noticias/[id]/index'
-import PreviaNoticia from '../app/(app)/(abas)/painel/noticias/[id]/previa'
 import NoticiasPainel from '../app/(app)/(abas)/painel/noticias/index'
 import NovaNoticia from '../app/(app)/(abas)/painel/noticias/nova'
 import { toast } from '@/components/ui/toast'
@@ -18,6 +17,7 @@ import { useSessao } from '@/infra/sessao/store'
 
 const ID = 'b2a1c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
 const CHAVE_NOVA = 'atleticas/a1/noticias/u1/nova.jpg'
+const URI_LOCAL = 'file:///cache/nova.jpg'
 
 jest.mock('@/components/ui/toast', () => ({
   toast: { sucesso: jest.fn(), erro: jest.fn(), info: jest.fn() },
@@ -49,34 +49,59 @@ jest.mock('@/components/imagem', () => {
     jest.requireActual<typeof import('react-native')>('react-native')
   return {
     ...jest.requireActual<object>('@/components/imagem'),
-    SeletorImagem: ({
+    SeletorImagem: function SeletorFalso({
       valorAtualUrl,
       onChange,
       onMudarEnviando,
+      onMudarImagem,
+      mensagemImagemInvalida,
     }: {
       valorAtualUrl?: string | null
       onChange: (key: string | null) => void
       onMudarEnviando?: (enviando: boolean) => void
-    }) => (
-      <View>
-        <Text>{valorAtualUrl ?? 'sem capa'}</Text>
-        <Pressable accessibilityRole="button" onPress={() => onMudarEnviando?.(true)}>
-          <Text>Iniciar envio</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            onChange('atleticas/a1/noticias/u1/nova.jpg')
-            onMudarEnviando?.(false)
-          }}
-        >
-          <Text>Concluir envio</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => onChange(null)}>
-          <Text>Remover capa</Text>
-        </Pressable>
-      </View>
-    ),
+      onMudarImagem?: (uri: string | null) => void
+      mensagemImagemInvalida?: string
+    }) {
+      const { useState } = jest.requireActual<typeof import('react')>('react')
+      const [erro, setErro] = useState<string>()
+      return (
+        <View>
+          <Text>{valorAtualUrl ?? 'sem capa'}</Text>
+          {erro && <Text>{erro}</Text>}
+          <Pressable accessibilityRole="button" onPress={() => onMudarEnviando?.(true)}>
+            <Text>Iniciar envio</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              onChange('atleticas/a1/noticias/u1/nova.jpg')
+              onMudarImagem?.('file:///cache/nova.jpg')
+              onMudarEnviando?.(false)
+            }}
+          >
+            <Text>Concluir envio</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setErro(mensagemImagemInvalida)
+              onMudarEnviando?.(false)
+            }}
+          >
+            <Text>Falhar envio</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              onChange(null)
+              onMudarImagem?.(null)
+            }}
+          >
+            <Text>Remover capa</Text>
+          </Pressable>
+        </View>
+      )
+    },
   }
 })
 
@@ -223,6 +248,19 @@ describe('Nova notícia', () => {
     await fireEvent.press(botao('Concluir envio'))
     expect(botao('Salvar rascunho')).toBeEnabled()
     expect(botao('Publicar')).toBeEnabled()
+  })
+
+  it('imagem inválida no seletor mostra a mensagem da capa e mantém o formulário', async () => {
+    await renderizar(<NovaNoticia />)
+    await preencher('Seletiva de futsal', 'Inscrições abertas')
+    await fireEvent.press(botao('Iniciar envio'))
+    await fireEvent.press(botao('Falhar envio'))
+
+    expect(screen.getByText('Imagem inválida ou maior que 5 MB')).toBeOnTheScreen()
+    expect(screen.getByLabelText('Título')).toHaveDisplayValue('Seletiva de futsal')
+    expect(screen.getByLabelText('Conteúdo')).toHaveDisplayValue('Inscrições abertas')
+    expect(botao('Salvar rascunho')).toBeEnabled()
+    expect(api.criarNoticia).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -396,6 +434,39 @@ describe('Editar notícia', () => {
     expect(toast.erro).not.toHaveBeenCalled()
   })
 
+  it('422 sem details ainda aparece no campo pelo code', async () => {
+    const mensagem = 'Escreva o conteúdo para publicar.'
+    api.publicarNoticia.mockRejectedValue(
+      new ApiErro({ status: 422, code: 'CONTEUDO_OBRIGATORIO', message: mensagem }),
+    )
+    await renderizar(<EditarNoticia />)
+    await fireEvent.press(await screen.findByRole('button', { name: 'Publicar' }))
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalled())
+    await confirmarAlerta('Publicar')
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Conteúdo')).toHaveProp('accessibilityHint', mensagem),
+    )
+    expect(toast.erro).not.toHaveBeenCalled()
+  })
+
+  it('publicação que falha após salvar não deixa alterações pendentes', async () => {
+    api.atualizarNoticia.mockResolvedValue({ ...RASCUNHO, conteudo: 'Novo texto' })
+    api.publicarNoticia.mockRejectedValue(
+      new ApiErro({ status: 422, code: 'CAPA_OBRIGATORIA', message: 'Sem capa.' }),
+    )
+    await renderizar(<EditarNoticia />)
+    await fireEvent.changeText(await screen.findByLabelText('Conteúdo'), 'Novo texto')
+    await fireEvent.press(botao('Publicar'))
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalled())
+    await confirmarAlerta('Publicar')
+
+    expect(await screen.findByText('Sem capa.')).toBeOnTheScreen()
+    expect(api.atualizarNoticia).toHaveBeenCalledTimes(1)
+    expect(botao('Salvar rascunho')).toBeDisabled()
+    expect(screen.getByLabelText('Conteúdo')).toHaveDisplayValue('Novo texto')
+  })
+
   it('publicada sem capa não salva', async () => {
     api.buscarNoticiaPainel.mockResolvedValue(PUBLICADA)
     await renderizar(<EditarNoticia />)
@@ -450,17 +521,22 @@ describe('Editar notícia', () => {
     expect(api.buscarNoticiaPainel).toHaveBeenCalledTimes(1)
   })
 
-  it('offline: todas as ações desabilitadas', async () => {
+  it('offline: todas as ações desabilitadas e nenhuma requisição', async () => {
     comPapel('PRESIDENTE')
     api.buscarNoticiaPainel.mockResolvedValue(PUBLICADA)
     await renderizar(<EditarNoticia />)
-    await screen.findByRole('button', { name: 'Salvar' })
+    await fireEvent.changeText(await screen.findByLabelText('Título'), 'Seletiva de vôlei')
     await act(() => onlineManager.setOnline(false))
 
-    expect(botao('Salvar')).toBeDisabled()
-    expect(botao('Despublicar')).toBeDisabled()
-    expect(botao('Excluir')).toBeDisabled()
     expect(screen.getByText(/Modo offline/)).toBeOnTheScreen()
+    for (const nome of ['Salvar', 'Despublicar', 'Excluir']) {
+      expect(botao(nome)).toBeDisabled()
+      await fireEvent.press(botao(nome))
+    }
+    expect(Alert.alert).not.toHaveBeenCalled()
+    expect(api.atualizarNoticia).not.toHaveBeenCalled()
+    expect(api.despublicarNoticia).not.toHaveBeenCalled()
+    expect(api.excluirNoticia).not.toHaveBeenCalled()
   })
 
   it('pede confirmação ao sair com alterações não salvas', async () => {
@@ -482,23 +558,38 @@ describe('Editar notícia', () => {
     await confirmarAlerta('Descartar')
     expect(navegacao.dispatch).toHaveBeenCalledWith(action)
   })
-
-  it('Prévia abre a tela de prévia', async () => {
-    const { router } = jest.requireMock<typeof import('expo-router')>('expo-router')
-    await renderizar(<EditarNoticia />)
-    await fireEvent.press(await screen.findByRole('button', { name: 'Prévia' }))
-    expect(router.push).toHaveBeenCalledWith(`/painel/noticias/${ID}/previa`)
-  })
 })
 
 describe('Prévia', () => {
-  it('usa o NoticiaDetalhe da leitura pública (#78)', async () => {
-    await renderizar(<PreviaNoticia />)
-    await waitFor(() => expect(NoticiaDetalhe).toHaveBeenCalled())
-    expect(jest.mocked(NoticiaDetalhe).mock.lastCall?.[0].noticia).toMatchObject({
+  const noticiaDaPrevia = () => jest.mocked(NoticiaDetalhe).mock.lastCall?.[0].noticia
+
+  it('mostra o rascunho editado, sem salvar, com o NoticiaDetalhe da leitura pública (#78)', async () => {
+    await renderizar(<EditarNoticia />)
+    await fireEvent.changeText(await screen.findByLabelText('Conteúdo'), 'Texto **novo**')
+    await fireEvent.press(botao('Prévia'))
+
+    expect(noticiaDaPrevia()).toEqual({
       titulo: RASCUNHO.titulo,
-      conteudo: RASCUNHO.conteudo,
+      conteudo: 'Texto **novo**',
       imagemCapaUrl: RASCUNHO.imagemCapaUrl,
+      publicadaEm: null,
+    })
+    expect(api.atualizarNoticia).not.toHaveBeenCalled()
+
+    await fireEvent.press(botao('Fechar prévia'))
+    expect(screen.queryByRole('button', { name: 'Fechar prévia' })).toBeNull()
+  })
+
+  it('nova notícia: prévia com a capa recém-enviada', async () => {
+    await renderizar(<NovaNoticia />)
+    await preencher('Seletiva de futsal', 'Inscrições abertas')
+    await fireEvent.press(botao('Concluir envio'))
+    await fireEvent.press(botao('Prévia'))
+
+    expect(noticiaDaPrevia()).toEqual({
+      titulo: 'Seletiva de futsal',
+      conteudo: 'Inscrições abertas',
+      imagemCapaUrl: URI_LOCAL,
       publicadaEm: null,
     })
   })

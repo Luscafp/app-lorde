@@ -12,7 +12,6 @@ import {
 } from '@/features/uploads/comprimir'
 import {
   ACAO_ABRIR_CONFIGURACOES,
-  MENSAGEM_CAPA_INVALIDA,
   MENSAGEM_FALHA_ENVIO,
   MENSAGEM_PERMISSAO_CAMERA_NEGADA,
   MENSAGEM_PERMISSAO_NEGADA,
@@ -59,6 +58,7 @@ jest.mock('@/components/ui/toast', () => ({
 }))
 
 const presign = jest.mocked(api.post)
+const MENSAGEM_PROPRIA = 'Imagem inválida ou maior que 5 MB'
 
 afterEach(() => onlineManager.setOnline(true))
 
@@ -242,15 +242,15 @@ describe('useUploadImagem', () => {
   })
 
   it.each([MENSAGEM_IMAGEM_GRANDE, MENSAGEM_FORMATO_INVALIDO])(
-    'capa de notícia: "%s" vira a mensagem do UC21 A4',
+    '"%s" vira a mensagem própria da finalidade',
     async (mensagem) => {
       comprimirFalso.mockRejectedValue(new ErroImagem(mensagem))
-      const { result } = await renderHook(() => useUploadImagem('NOTICIA'), {
+      const { result } = await renderHook(() => useUploadImagem('NOTICIA', MENSAGEM_PROPRIA), {
         wrapper: comQuery(),
       })
       await act(() => result.current.selecionar('galeria'))
 
-      expect(result.current).toMatchObject({ estado: 'erro', erro: MENSAGEM_CAPA_INVALIDA })
+      expect(result.current).toMatchObject({ estado: 'erro', erro: MENSAGEM_PROPRIA })
       expect(presign).not.toHaveBeenCalled()
     },
   )
