@@ -10,4 +10,4 @@ import { EventosDominioService } from './eventos-dominio.service'
   providers: [TransacaoService, EventosDominioService],
   exports: [TransacaoService, EventosDominioService],
 })
-export class EventosModule {}
+export class EventosDominioModule {}

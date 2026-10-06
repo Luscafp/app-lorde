@@ -39,10 +39,11 @@ export class EventosValidator {
   /** Adversário de outra atlética, ativo, diferente do time e da mesma modalidade (RN11). */
   async validarAdversario(
     tx: TransacaoComEscopo,
-    timeAdversarioId: string,
+    timeAdversarioId: string | null,
     time: TimeDoEvento,
     atleticaId: string,
   ): Promise<void> {
+    if (timeAdversarioId === null) return
     if (timeAdversarioId === time.id) throw erroAdversarioInvalido()
     const adversario = await tx.time.findUnique({
       where: { id: timeAdversarioId },

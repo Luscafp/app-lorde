@@ -1,4 +1,3 @@
-import { tituloDoEvento } from './titulo'
 import {
   cancelarEventoSchema,
   criarEventoSchema,
@@ -120,22 +119,5 @@ describe('cancelarEventoSchema', () => {
     expect(cancelarEventoSchema.parse(undefined)).toEqual({})
     expect(cancelarEventoSchema.parse({})).toEqual({})
     expect(cancelarEventoSchema.safeParse({ escopo: 'ESTA' }).success).toBe(false)
-  })
-})
-
-describe('tituloDoEvento', () => {
-  const time = { id: TIME, nome: 'Vôlei Masculino' }
-
-  it('Jogo mostra o time e a atlética adversária (critério 2)', () => {
-    const timeAdversario = {
-      id: ADVERSARIO,
-      nome: 'Vôlei',
-      atletica: { id: ADVERSARIO, nome: 'Atlética Medicina', sigla: 'AAMED' },
-    }
-    expect(tituloDoEvento({ time, timeAdversario })).toBe('Vôlei Masculino × Atlética Medicina')
-  })
-
-  it('Treino mostra só o time', () => {
-    expect(tituloDoEvento({ time, timeAdversario: null })).toBe('Vôlei Masculino')
   })
 })

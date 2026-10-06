@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { Resultado, StatusEvento, TipoEvento } from '../enums/evento'
 
-/** Corpo de `POST /eventos` e `PATCH /eventos/:id` (épico #19 §7); a #75 estende. */
+/** Resposta de `POST /eventos` e `PATCH /eventos/:id`; a #75 estende. */
 export const eventoDtoSchema = z
   .object({
     id: z.uuid(),

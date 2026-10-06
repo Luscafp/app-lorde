@@ -1,4 +1,4 @@
-import type { ErroNegocio } from '../../common/erros/erro-negocio'
+import { codigoDaRejeicao } from '../../../test/suporte/codigo-do-erro'
 import type { TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import { EventosValidator } from './eventos.validator'
 
@@ -24,16 +24,6 @@ function transacao(time: ReturnType<typeof linhaTime> | null) {
   return { tx: { time: { findUnique } } as unknown as TransacaoComEscopo, findUnique }
 }
 
-async function codigoDe(promessa: Promise<unknown>): Promise<string> {
-  const erro = (await promessa.then(
-    () => {
-      throw new Error('esperava erro')
-    },
-    (e: unknown) => e,
-  )) as ErroNegocio
-  return erro.code
-}
-
 describe('EventosValidator', () => {
   const validator = new EventosValidator()
 
@@ -53,7 +43,7 @@ describe('EventosValidator', () => {
       ['de modalidade inativa', linhaTime({ modalidade: { ativa: false } }), 'MODALIDADE_INATIVA'],
     ])('%s → %s', async (_caso, time, codigo) => {
       const { tx } = transacao(time)
-      await expect(codigoDe(validator.validarTime(tx, TIME, ATUAL))).resolves.toBe(codigo)
+      await expect(codigoDaRejeicao(validator.validarTime(tx, TIME, ATUAL))).resolves.toBe(codigo)
     })
   })
 
@@ -67,18 +57,24 @@ describe('EventosValidator', () => {
       )
     })
 
+    it('sem adversário (treino) → ok sem consultar', async () => {
+      const { tx, findUnique } = transacao(linhaTime())
+      await expect(validator.validarAdversario(tx, null, time, ATUAL)).resolves.toBe(undefined)
+      expect(findUnique).not.toHaveBeenCalled()
+    })
+
     it('modalidades diferentes → MODALIDADES_DIFERENTES', async () => {
       const { tx } = transacao(linhaTime({ atleticaId: ADVERSARIA, modalidadeId: FUTSAL }))
       await expect(
-        codigoDe(validator.validarAdversario(tx, ADVERSARIO, time, ATUAL)),
+        codigoDaRejeicao(validator.validarAdversario(tx, ADVERSARIO, time, ATUAL)),
       ).resolves.toBe('MODALIDADES_DIFERENTES')
     })
 
     it('igual ao timeId → ADVERSARIO_INVALIDO sem consultar', async () => {
       const { tx, findUnique } = transacao(linhaTime())
-      await expect(codigoDe(validator.validarAdversario(tx, TIME, time, ATUAL))).resolves.toBe(
-        'ADVERSARIO_INVALIDO',
-      )
+      await expect(
+        codigoDaRejeicao(validator.validarAdversario(tx, TIME, time, ATUAL)),
+      ).resolves.toBe('ADVERSARIO_INVALIDO')
       expect(findUnique).not.toHaveBeenCalled()
     })
 
@@ -89,7 +85,7 @@ describe('EventosValidator', () => {
     ])('%s → ADVERSARIO_INVALIDO', async (_caso, adversario) => {
       const { tx } = transacao(adversario)
       await expect(
-        codigoDe(validator.validarAdversario(tx, ADVERSARIO, time, ATUAL)),
+        codigoDaRejeicao(validator.validarAdversario(tx, ADVERSARIO, time, ATUAL)),
       ).resolves.toBe('ADVERSARIO_INVALIDO')
     })
   })

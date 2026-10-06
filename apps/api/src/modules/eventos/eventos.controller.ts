@@ -174,7 +174,7 @@ export class EventosController {
     @Body() _corpo: CancelarEventoDto,
     @UsuarioAtual() usuario: UsuarioAutenticado,
   ): Promise<EventoCanceladoDto> {
-    return this.eventos.cancelarEvento(id, usuario)
+    return this.eventos.cancelarPorId(id, usuario)
   }
 
   @Delete(':id')

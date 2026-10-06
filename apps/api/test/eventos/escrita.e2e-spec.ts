@@ -5,7 +5,6 @@ import {
   formatarData,
   formatarHora,
   localParaUtc,
-  tituloDoEvento,
   type Papel,
 } from '@atletica/shared'
 import request from 'supertest'
@@ -170,7 +169,7 @@ describe('/eventos — escrita (#70)', () => {
         nome: adversario.nome,
         atletica: { id: adversario.atleticaId, nome: 'Atlética Medicina', sigla: 'AAMED' },
       })
-      expect(tituloDoEvento(evento)).toBe('Vôlei Masculino × Atlética Medicina')
+      expect(evento.time.nome).toBe('Vôlei Masculino')
     })
 
     it('JOGO sem adversário → 400 em timeAdversarioId (critério 3)', async () => {

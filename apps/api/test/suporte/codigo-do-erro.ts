@@ -10,3 +10,14 @@ export function codigoDoErro(acao: () => unknown): string | undefined {
   }
   return undefined
 }
+
+/** `code` do erro com que `promessa` rejeita; falha se ela resolver. */
+export async function codigoDaRejeicao(promessa: Promise<unknown>): Promise<string> {
+  const erro = (await promessa.then(
+    () => {
+      throw new Error('esperava erro')
+    },
+    (e: unknown) => e,
+  )) as ErroNegocio
+  return erro.code
+}

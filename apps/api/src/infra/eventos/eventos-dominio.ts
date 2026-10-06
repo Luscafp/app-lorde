@@ -33,7 +33,7 @@ export interface EventosDominio {
     papelNovo: Papel
     autorId: string
   }
-  /** #70 (avulso) e #20 (série: `eventoId` = 1ª ocorrência); ouvido pela #89. */
+  /** Em série, `eventoId` é a 1ª ocorrência. */
   'evento.criado': PayloadBase & {
     atleticaId: string
     eventoId: string
@@ -41,7 +41,7 @@ export interface EventosDominio {
     serieId?: string
     autorId: string
   }
-  /** #70, #20 e #73 (`["status"]`); a #89 só notifica se `campos` tiver `inicio` ou `local`. */
+  /** Só notifica o elenco se `campos` tiver `inicio` ou `local`. */
   'evento.alterado': PayloadBase & {
     atleticaId: string
     eventoIds: string[]
@@ -49,7 +49,7 @@ export interface EventosDominio {
     campos: CampoAlteradoEvento[]
     autorId: string
   }
-  /** #70, #20 e #73; um por operação, com todos os ids cancelados. Ouvido pela #89. */
+  /** Um por operação, com todos os ids cancelados. */
   'evento.cancelado': PayloadBase & {
     atleticaId: string
     eventoIds: string[]

@@ -56,6 +56,8 @@ export type AutorEvento = Pick<UsuarioAutenticado, 'id' | 'atleticaId'>
 
 const CAMPOS_EDITAVEIS = ['inicio', 'local', 'observacoes', 'timeId', 'timeAdversarioId'] as const
 
+type CampoEditavel = (typeof CAMPOS_EDITAVEIS)[number]
+
 /** Só estes geram `evento.alterado` (épico #19 §7). */
 const CAMPOS_NOTIFICADOS = ['inicio', 'local'] as const satisfies CampoAlteradoEvento[]
 
@@ -118,9 +120,7 @@ export class EventosService {
     return this.transacao.executar(async (tx) => {
       const time = await this.validator.validarTime(tx, entrada.timeId, autor.atleticaId)
       const timeAdversarioId = entrada.tipo === 'JOGO' ? entrada.timeAdversarioId : null
-      if (timeAdversarioId) {
-        await this.validator.validarAdversario(tx, timeAdversarioId, time, autor.atleticaId)
-      }
+      await this.validator.validarAdversario(tx, timeAdversarioId, time, autor.atleticaId)
 
       const criado = await tx.evento.create({
         data: {
@@ -155,17 +155,17 @@ export class EventosService {
   atualizar(id: string, entrada: EditarEvento, autor: AutorEvento): Promise<EventoDto> {
     return this.transacao.executar(async (tx) => {
       const antes = await this.buscar(tx, id)
-      if (antes.status === 'CANCELADO') throw erroEventoCancelado()
       if (antes.tipo === 'TREINO' && entrada.timeAdversarioId !== undefined) {
         throw erroAdversarioEmTreino()
       }
+      if (antes.status === 'CANCELADO') throw erroEventoCancelado()
 
       const inicio = entrada.inicio === undefined ? antes.inicio : new Date(entrada.inicio)
       const alvo: LinhaEvento = { ...antes, ...entrada, inicio }
       const diff = diferenca(antes, alvo, CAMPOS_EDITAVEIS)
       if (!diff) return paraDto(antes)
 
-      const alterados = Object.keys(diff.depois)
+      const alterados = Object.keys(diff.depois) as CampoEditavel[]
       if (antes.status === 'FINALIZADO' && alterados.some((campo) => campo !== 'observacoes')) {
         throw erroEventoFinalizado('Evento finalizado só permite editar as observações.')
       }
@@ -197,7 +197,7 @@ export class EventosService {
     })
   }
 
-  cancelarEvento(id: string, autor: AutorEvento): Promise<EventoCanceladoDto> {
+  cancelarPorId(id: string, autor: AutorEvento): Promise<EventoCanceladoDto> {
     return this.transacao.executar(async (tx) => {
       const evento = await this.buscar(tx, id)
       const eventoIds = await this.cancelar(tx, [id], autor)
@@ -213,11 +213,7 @@ export class EventosService {
     })
   }
 
-  /**
-   * Cancela, na transação de quem chama, os eventos ainda `AGENDADO` ou `EM_ANDAMENTO` (não
-   * excluídos), com uma auditoria `EVENTO_CANCELADO` por evento. Devolve os ids afetados; quem
-   * chama emite `evento.cancelado` uma vez com todos eles. Usado também pela #20 e pela #73.
-   */
+  /** Cancela os canceláveis na transação de quem chama e devolve os ids; quem chama emite o evento. */
   async cancelar(
     tx: TransacaoComEscopo,
     eventoIds: string[],
@@ -273,7 +269,7 @@ export class EventosService {
     tx: TransacaoComEscopo,
     antes: LinhaEvento,
     alvo: LinhaEvento,
-    alterados: string[],
+    alterados: CampoEditavel[],
     atleticaId: string,
   ): Promise<void> {
     const trocaTime = alterados.includes('timeId')
@@ -285,9 +281,7 @@ export class EventosService {
     const time: TimeDoEvento = trocaTime
       ? await this.validator.validarTime(tx, alvo.timeId, atleticaId)
       : { id: antes.timeId, modalidadeId: antes.time.modalidade.id }
-    if (alvo.timeAdversarioId) {
-      await this.validator.validarAdversario(tx, alvo.timeAdversarioId, time, atleticaId)
-    }
+    await this.validator.validarAdversario(tx, alvo.timeAdversarioId, time, atleticaId)
   }
 
   /** Qualquer linha de `Participacao` conta: "Vou", "Não vou" ou presença (épico #19 §4). */

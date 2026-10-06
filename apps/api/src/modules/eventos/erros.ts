@@ -1,10 +1,6 @@
 import { HttpStatus } from '@nestjs/common'
 import type { StatusEvento } from '@atletica/shared'
-import { ErroNegocio, type DetalheErro } from '../../common/erros/erro-negocio'
-
-function erroDeCampo(status: number, code: string, field: string, message: string): ErroNegocio {
-  return new ErroNegocio(status, code, message, [{ field, message }])
-}
+import { ErroNegocio, erroDeCampo, type DetalheErro } from '../../common/erros/erro-negocio'
 
 export function erroEventoNaoEncontrado(): ErroNegocio {
   return new ErroNegocio(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Evento não encontrado.')

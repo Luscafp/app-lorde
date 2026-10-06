@@ -1,4 +1,4 @@
-import type { Evento, Prisma, SerieRecorrencia } from '../../src/generated/prisma/client'
+import type { Evento, Prisma } from '../../src/generated/prisma/client'
 import { prismaTeste } from '../setup/prisma-teste'
 import { proximaSequencia } from './sequencia'
 import { criarTime, criarTimeAdversario } from './times'
@@ -82,29 +82,5 @@ export async function criarParticipacoes(
       presente,
       presencaRegistradaEm: presente === null ? null : agora,
     })),
-  })
-}
-
-export type DadosSerie = Pick<
-  Prisma.SerieRecorrenciaUncheckedCreateInput,
-  'atleticaId' | 'timeId'
-> &
-  Partial<Prisma.SerieRecorrenciaUncheckedCreateInput>
-
-/** Série de treinos às segundas e quartas, 19:30, nos próximos 3 meses (para `serieId`). */
-export async function criarSerie(dados: DadosSerie): Promise<SerieRecorrencia> {
-  const hoje = new Date(new Date().toISOString().slice(0, 10))
-  const criadoPorId =
-    dados.criadoPorId ?? (await criarUsuario({ papel: 'DIRETOR', atleticaId: dados.atleticaId })).id
-  return prismaTeste.serieRecorrencia.create({
-    data: {
-      diasSemana: [1, 3],
-      horario: '19:30',
-      dataInicio: hoje,
-      dataFim: new Date(hoje.getTime() + 90 * DIA_MS),
-      local: `Quadra ${proximaSequencia()}`,
-      ...dados,
-      criadoPorId,
-    },
   })
 }

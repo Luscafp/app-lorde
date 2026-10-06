@@ -539,7 +539,7 @@ Jogos e treinos avulsos (épico #19; escrita da #70). Schemas (`criarEventoSchem
 
 As regras que dependem do banco ficam no `EventosValidator`, chamado dentro da transação. `EventosService.cancelar(tx, eventoIds, usuario)` cancela, na transação de quem chama, os eventos `AGENDADO`/`EM_ANDAMENTO`, audita um `EVENTO_CANCELADO` por evento e devolve os ids afetados; quem chama emite `evento.cancelado` uma vez (reutilizado pela #20 e pela #73). Auditoria: `EVENTO_CRIADO`, `EVENTO_ALTERADO` (só campos alterados), `EVENTO_CANCELADO`, `EVENTO_EXCLUIDO`. Eventos de domínio após o commit: `evento.criado`, `evento.alterado` (só se `inicio` ou `local` mudaram) e `evento.cancelado`; a exclusão não emite.
 
-Fábricas (`test/fabricas/eventos.ts`): `criarEvento({ atleticaId, ...campos, participantes? })` (TREINO por padrão, `AGENDADO` amanhã; cria time, adversário da mesma modalidade e autor quando faltam; valores informados, inclusive `null`, vão direto ao banco), `criarJogo`, `criarTreino`, `criarParticipacoes(evento, [{ usuarioId, confirmado?, presente? }])` e `criarSerie({ atleticaId, timeId })`.
+Fábricas (`test/fabricas/eventos.ts`): `criarEvento({ atleticaId, ...campos, participantes? })` (TREINO por padrão, `AGENDADO` amanhã; cria time, adversário da mesma modalidade e autor quando faltam; valores informados, inclusive `null`, vão direto ao banco), `criarJogo`, `criarTreino` e `criarParticipacoes(evento, [{ usuarioId, confirmado?, presente? }])`.
 
 ## Senhas (`src/infra/senha`)
 

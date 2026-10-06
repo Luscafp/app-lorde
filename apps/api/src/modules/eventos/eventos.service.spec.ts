@@ -1,4 +1,5 @@
 import type { CriarEvento, EditarEvento } from '@atletica/shared'
+import { codigoDaRejeicao } from '../../../test/suporte/codigo-do-erro'
 import { ErroNegocio } from '../../common/erros/erro-negocio'
 import type { TransacaoService } from '../../infra/eventos/apos-commit'
 import type { EventosDominioService } from '../../infra/eventos/eventos-dominio.service'
@@ -95,16 +96,6 @@ function criarServico(cenario: Cenario = {}) {
   return { servico, tx, auditoria, eventos, validator }
 }
 
-async function codigoDe(promessa: Promise<unknown>): Promise<string> {
-  const erro = (await promessa.then(
-    () => {
-      throw new Error('esperava erro')
-    },
-    (e: unknown) => e,
-  )) as ErroNegocio
-  return erro.code
-}
-
 describe('EventosService', () => {
   describe('criar', () => {
     const treino: CriarEvento = {
@@ -118,7 +109,7 @@ describe('EventosService', () => {
       const { servico, tx, auditoria, eventos, validator } = criarServico()
       const dto = await servico.criar(treino, AUTOR)
 
-      expect(validator.validarAdversario).not.toHaveBeenCalled()
+      expect(validator.validarAdversario).toHaveBeenCalledWith(tx, null, expect.anything(), ATUAL)
       expect(tx.evento.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -168,7 +159,9 @@ describe('EventosService', () => {
       const { servico, tx, eventos, validator } = criarServico()
       validator.validarAdversario.mockRejectedValue(erroModalidadesDiferentes())
       await expect(
-        codigoDe(servico.criar({ ...treino, tipo: 'JOGO', timeAdversarioId: ADVERSARIO }, AUTOR)),
+        codigoDaRejeicao(
+          servico.criar({ ...treino, tipo: 'JOGO', timeAdversarioId: ADVERSARIO }, AUTOR),
+        ),
       ).resolves.toBe('MODALIDADES_DIFERENTES')
       expect(tx.evento.create).not.toHaveBeenCalled()
       expect(eventos.emitirAposCommit).not.toHaveBeenCalled()
@@ -233,25 +226,31 @@ describe('EventosService', () => {
       ],
       ['CANCELADO', { status: 'CANCELADO' }, { observacoes: 'Ok' }, 'EVENTO_CANCELADO'],
       ['TREINO com adversário', {}, { timeAdversarioId: ADVERSARIO }, 'VALIDATION_ERROR'],
+      [
+        'TREINO cancelado com adversário',
+        { status: 'CANCELADO' },
+        { timeAdversarioId: ADVERSARIO },
+        'VALIDATION_ERROR',
+      ],
     ])('regras por status: %s', async (_caso, dados, entrada, codigo) => {
       const { servico } = criarServico({ atual: linha(dados) })
       const promessa = servico.atualizar(ID, entrada, AUTOR)
-      if (codigo) await expect(codigoDe(promessa)).resolves.toBe(codigo)
+      if (codigo) await expect(codigoDaRejeicao(promessa)).resolves.toBe(codigo)
       else await expect(promessa).resolves.toBeDefined()
     })
 
     it('inexistente ou excluído → NOT_FOUND', async () => {
       const { servico } = criarServico({ atual: null })
-      await expect(codigoDe(servico.atualizar(ID, { local: 'Quadra' }, AUTOR))).resolves.toBe(
-        'NOT_FOUND',
-      )
+      await expect(
+        codigoDaRejeicao(servico.atualizar(ID, { local: 'Quadra' }, AUTOR)),
+      ).resolves.toBe('NOT_FOUND')
     })
 
     it('troca de timeId com participação → EVENTO_COM_PARTICIPACOES', async () => {
       const { servico, tx } = criarServico({ participacoes: 1 })
-      await expect(codigoDe(servico.atualizar(ID, { timeId: OUTRO_TIME }, AUTOR))).resolves.toBe(
-        'EVENTO_COM_PARTICIPACOES',
-      )
+      await expect(
+        codigoDaRejeicao(servico.atualizar(ID, { timeId: OUTRO_TIME }, AUTOR)),
+      ).resolves.toBe('EVENTO_COM_PARTICIPACOES')
       expect(tx.evento.update).not.toHaveBeenCalled()
     })
 
@@ -317,9 +316,9 @@ describe('EventosService', () => {
       ])
     })
 
-    it('cancelarEvento emite evento.cancelado com os ids', async () => {
+    it('cancelarPorId emite evento.cancelado com os ids', async () => {
       const { servico, eventos } = criarServico()
-      await expect(servico.cancelarEvento(ID, AUTOR)).resolves.toEqual({
+      await expect(servico.cancelarPorId(ID, AUTOR)).resolves.toEqual({
         eventoIds: [ID],
         status: 'CANCELADO',
       })
@@ -336,7 +335,7 @@ describe('EventosService', () => {
       ['CANCELADO', 'EVENTO_JA_CANCELADO'],
     ])('%s → %s sem emitir', async (status, codigo) => {
       const { servico, eventos } = criarServico({ atual: linha({ status }), cancelaveis: [] })
-      await expect(codigoDe(servico.cancelarEvento(ID, AUTOR))).resolves.toBe(codigo)
+      await expect(codigoDaRejeicao(servico.cancelarPorId(ID, AUTOR))).resolves.toBe(codigo)
       expect(eventos.emitirAposCommit).not.toHaveBeenCalled()
     })
   })
