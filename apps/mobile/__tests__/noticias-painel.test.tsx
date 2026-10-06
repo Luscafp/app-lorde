@@ -376,6 +376,26 @@ describe('Editar notícia', () => {
     expect(toast.erro).not.toHaveBeenCalled()
   })
 
+  it('422 CONTEUDO_OBRIGATORIO ao publicar aparece no campo Conteúdo', async () => {
+    const mensagem = 'Escreva o conteúdo para publicar.'
+    api.publicarNoticia.mockRejectedValue(
+      new ApiErro({
+        status: 422,
+        code: 'CONTEUDO_OBRIGATORIO',
+        message: mensagem,
+        details: [{ field: 'conteudo', message: mensagem }],
+      }),
+    )
+    await renderizar(<EditarNoticia />)
+    await fireEvent.press(await screen.findByRole('button', { name: 'Publicar' }))
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalled())
+    await confirmarAlerta('Publicar')
+
+    expect(await screen.findByText(mensagem)).toBeOnTheScreen()
+    expect(screen.getByLabelText('Conteúdo')).toHaveProp('accessibilityHint', mensagem)
+    expect(toast.erro).not.toHaveBeenCalled()
+  })
+
   it('publicada sem capa não salva', async () => {
     api.buscarNoticiaPainel.mockResolvedValue(PUBLICADA)
     await renderizar(<EditarNoticia />)
@@ -427,6 +447,7 @@ describe('Editar notícia', () => {
     await confirmarAlerta('Excluir')
     await waitFor(() => expect(toast.sucesso).toHaveBeenCalledWith('Notícia excluída'))
     expect(api.excluirNoticia).toHaveBeenCalledWith(ID)
+    expect(api.buscarNoticiaPainel).toHaveBeenCalledTimes(1)
   })
 
   it('offline: todas as ações desabilitadas', async () => {

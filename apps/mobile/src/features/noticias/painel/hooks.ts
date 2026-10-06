@@ -91,10 +91,15 @@ export function useDespublicarNoticia() {
   })
 }
 
+/** O detalhe sai do cache antes de invalidar: relê-lo daria 404 na tela que está saindo. */
 export function useExcluirNoticia() {
+  const cliente = useQueryClient()
   const invalidar = useInvalidar()
   return useAcaoOnline<void, ApiErro, string>({
     mutationFn: (id) => excluirNoticia(id),
-    onSuccess: invalidar,
+    onSuccess: (_resultado, id) => {
+      cliente.removeQueries({ queryKey: chaves.painel.noticias.detalhe(id), exact: true })
+      return invalidar()
+    },
   })
 }

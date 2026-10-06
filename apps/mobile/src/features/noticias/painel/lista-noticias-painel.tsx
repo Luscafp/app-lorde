@@ -24,9 +24,9 @@ export type NavegacaoNoticias = {
 export function ListaNoticiasPainel({ ir }: { ir: NavegacaoNoticias }) {
   const [status, setStatus] = useState<StatusNoticia>()
   const [termo, setTermo] = useState('')
-  const q = useValorAtrasado(termo.trim(), ATRASO_BUSCA_MS) || undefined
-  const consulta = useNoticiasPainel({ status, q })
-  const comFiltro = !!status || !!q
+  const busca = useValorAtrasado(termo.trim(), ATRASO_BUSCA_MS) || undefined
+  const consulta = useNoticiasPainel({ status, q: busca })
+  const comFiltro = !!status || !!busca
 
   const limparFiltros = () => {
     setStatus(undefined)

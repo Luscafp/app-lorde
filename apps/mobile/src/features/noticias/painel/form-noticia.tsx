@@ -14,11 +14,12 @@ import {
 } from '@atletica/shared'
 import { useRef, useState } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
-import { Alert, ScrollView, View } from 'react-native'
+import { ScrollView, View } from 'react-native'
 import type { z } from 'zod'
 import { FaixaOffline } from '@/components/estado'
 import { SeletorImagem } from '@/components/imagem'
 import { Botao, Campo, Texto, toast } from '@/components/ui'
+import { confirmar } from '@/features/usuarios/confirmar'
 import { ApiErro } from '@/infra/api/api-erro'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
 import { useOnline } from '@/infra/rede/online'
@@ -176,33 +177,30 @@ export function FormNoticia({ noticia, aoConcluir, aoAbrirPrevia }: Props) {
 
   const pedirPublicacao = form.handleSubmit((dados) => {
     if (!atendePublicacao(dados)) return
-    Alert.alert('Publicar agora?', 'A notícia aparecerá na Home para todos os usuários.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Publicar', onPress: () => void executar('publicar', () => enviarPublicacao(dados)) },
-    ])
+    confirmar({
+      titulo: 'Publicar agora?',
+      mensagem: 'A notícia aparecerá na Home para todos os usuários.',
+      acao: 'Publicar',
+      destrutiva: false,
+      aoConfirmar: () => void executar('publicar', () => enviarPublicacao(dados)),
+    })
   })
 
-  function pedirDespublicacao(id: string) {
-    Alert.alert('Despublicar notícia?', 'A notícia deixará de ser exibida.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Despublicar',
-        style: 'destructive',
-        onPress: () => void executar('despublicar', () => despublicar.mutateAsync(id)),
-      },
-    ])
-  }
+  const pedirDespublicacao = (id: string) =>
+    confirmar({
+      titulo: 'Despublicar notícia?',
+      mensagem: 'A notícia deixará de ser exibida.',
+      acao: 'Despublicar',
+      aoConfirmar: () => void executar('despublicar', () => despublicar.mutateAsync(id)),
+    })
 
-  function pedirExclusao({ id, titulo: tituloSalvo }: NoticiaPainelDetalheDto) {
-    Alert.alert(`Excluir ${tituloSalvo}?`, 'Esta ação não pode ser desfeita.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Excluir',
-        style: 'destructive',
-        onPress: () => void executar('excluir', () => excluir.mutateAsync(id)),
-      },
-    ])
-  }
+  const pedirExclusao = ({ id, titulo: tituloSalvo }: NoticiaPainelDetalheDto) =>
+    confirmar({
+      titulo: `Excluir ${tituloSalvo}?`,
+      mensagem: 'Esta ação não pode ser desfeita.',
+      acao: 'Excluir',
+      aoConfirmar: () => void executar('excluir', () => excluir.mutateAsync(id)),
+    })
 
   function marcar(marcacao: Marcacao) {
     const resultado = aplicarMarcacao(form.getValues('conteudo') ?? '', selecao.current, marcacao)
