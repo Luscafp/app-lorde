@@ -6,16 +6,12 @@ import {
   type InfiniteData,
   type QueryClient,
 } from '@tanstack/react-query'
-import { ApiErro } from '@/infra/api/api-erro'
+import { ehNaoEncontrado } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
 import { buscarNoticia, LIMITE_PAGINA, listarNoticias } from './api'
 
 type ListaEmCache = ListaNoticias | InfiniteData<ListaNoticias>
-
-export function ehNaoEncontrada(erro: unknown): boolean {
-  return erro instanceof ApiErro && erro.status === 404
-}
 
 /** O `total` fica como veio do servidor: a paginação não pode parar antes da hora. */
 function semNoticia(pagina: ListaNoticias, id: string): ListaNoticias {
@@ -63,7 +59,7 @@ export function useNoticia(id: string) {
       try {
         return await buscarNoticia(id, signal)
       } catch (erro) {
-        if (ehNaoEncontrada(erro)) {
+        if (ehNaoEncontrado(erro)) {
           removerDasListas(cliente, id)
           esquecerDetalhe(cliente, id)
         }

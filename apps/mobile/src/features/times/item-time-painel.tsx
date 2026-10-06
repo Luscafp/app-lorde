@@ -3,7 +3,7 @@ import { Switch, View } from 'react-native'
 import { BotaoIcone, CartaoLinha, Selo, Texto } from '@/components/ui'
 import { paleta, useAtletica } from '@/features/atletica'
 import { ModalidadeIcone } from '@/features/modalidades'
-import { contar } from './formatacao'
+import { resumoElenco } from './formatacao'
 
 type Props = {
   time: TimeDto
@@ -14,11 +14,6 @@ type Props = {
   aoAbrirElenco: (time: TimeDto) => void
   aoAlternar: (time: TimeDto, ativo: boolean) => void
   aoExcluir: (time: TimeDto) => void
-}
-
-function resumoElenco({ totalMembros, capitao }: TimeDto): string {
-  const membros = contar(totalMembros, 'membro', 'membros')
-  return capitao ? `${membros} · Capitão: ${capitao.nome}` : `${membros} · Sem capitão`
 }
 
 export function ItemTimePainel({

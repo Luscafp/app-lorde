@@ -1,11 +1,13 @@
 import {
   atleticaAdversariaDtoSchema,
+  elencoDtoSchema,
   listaAtleticasAdversariasSchema,
   listaTimesSchema,
   timeDtoSchema,
   type AtleticaAdversaria,
   type AtleticaAdversariaAtualizacao,
   type AtleticaAdversariaCriacao,
+  type ElencoDto,
   type ListaAtleticasAdversarias,
   type ListaTimes,
   type TimeAtualizacao,
@@ -33,6 +35,10 @@ export async function listarTimes(
 
 export async function buscarTime(id: string, sinal?: AbortSignal): Promise<TimeDto> {
   return timeDtoSchema.parse(await api.get(`/times/${id}`, { sinal }))
+}
+
+export async function buscarElenco(id: string, sinal?: AbortSignal): Promise<ElencoDto> {
+  return elencoDtoSchema.parse(await api.get(`/times/${id}/elenco`, { sinal }))
 }
 
 export async function criarTime(dados: TimeCriacao): Promise<TimeDto> {

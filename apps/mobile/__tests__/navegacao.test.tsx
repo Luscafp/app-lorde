@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { Papel } from '@atletica/shared'
-import { act, fireEvent } from '@testing-library/react-native'
+import { act, fireEvent, waitFor } from '@testing-library/react-native'
 import * as SecureStore from 'expo-secure-store'
 import { renderRouter, screen } from 'expo-router/testing-library'
 import * as rotaApp from '../app/(app)/_layout'
@@ -11,7 +11,9 @@ import LayoutPainel from '../app/(app)/(abas)/painel/_layout'
 import Painel from '../app/(app)/(abas)/painel/index'
 import LayoutPerfil from '../app/(app)/(abas)/perfil/_layout'
 import Perfil from '../app/(app)/(abas)/perfil/index'
-import Times from '../app/(app)/(abas)/times'
+import Time from '../app/(app)/(abas)/times/[timeId]'
+import * as rotaTimes from '../app/(app)/(abas)/times/_layout'
+import Times from '../app/(app)/(abas)/times/index'
 import * as rotaPublica from '../app/(publico)/_layout'
 import Cadastro from '../app/(publico)/cadastro'
 import Login from '../app/(publico)/login'
@@ -36,7 +38,9 @@ const rotas = {
   '(app)/(abas)/_layout': LayoutAbas,
   '(app)/(abas)/index': Inicio,
   '(app)/(abas)/agenda': Agenda,
-  '(app)/(abas)/times': Times,
+  '(app)/(abas)/times/_layout': rotaTimes,
+  '(app)/(abas)/times/index': Times,
+  '(app)/(abas)/times/[timeId]': Time,
   '(app)/(abas)/perfil/_layout': LayoutPerfil,
   '(app)/(abas)/perfil/index': Perfil,
   '(app)/(abas)/painel/_layout': LayoutPainel,
@@ -112,6 +116,14 @@ describe('navegação', () => {
       expect(screen.getByLabelText('Painel')).toBeOnTheScreen()
     },
   )
+
+  it('deep link /times/:id abre o detalhe do time (#17)', async () => {
+    await comSessaoSalva('ATLETA')
+    const rota = renderRouter(rotas, { initialUrl: '/times/b2a1c3d4' })
+    await rota
+    await waitFor(() => expect(rota.getPathname()).toBe('/times/b2a1c3d4'))
+    expect(screen.queryByText('Página não encontrada')).toBeNull()
+  })
 
   it('deep link /painel de ATLETA redireciona ao Início', async () => {
     await comSessaoSalva('ATLETA')

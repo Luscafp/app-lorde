@@ -70,6 +70,10 @@ export function ehErroTransitorio(erro: unknown): boolean {
   )
 }
 
+export function ehNaoEncontrado(erro: unknown): erro is ApiErro {
+  return erro instanceof ApiErro && erro.status === 404
+}
+
 export function ehNaoAutenticado(erro: unknown): erro is ApiErro {
   return erro instanceof ApiErro && erro.status === 401
 }

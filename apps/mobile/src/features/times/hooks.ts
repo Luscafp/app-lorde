@@ -1,20 +1,24 @@
-import type {
-  AtleticaAdversaria,
-  AtleticaAdversariaAtualizacao,
-  AtleticaAdversariaCriacao,
-  TimeAtualizacao,
-  TimeCriacao,
-  TimeDto,
+import {
+  EscopoTimes,
+  type AtleticaAdversaria,
+  type AtleticaAdversariaAtualizacao,
+  type AtleticaAdversariaCriacao,
+  type ListaTimes,
+  type TimeAtualizacao,
+  type TimeCriacao,
+  type TimeDto,
 } from '@atletica/shared'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
+import { juntarPaginas } from '@/infra/query/juntar-paginas'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import { useValorAtrasado } from '@/infra/use-valor-atrasado'
 import {
   atualizarAtleticaAdversaria,
   atualizarTime,
+  buscarElenco,
   buscarTime,
   criarAtleticaAdversaria,
   criarTime,
@@ -51,6 +55,33 @@ export function useTime(id: string) {
   return useQuery({
     queryKey: chaves.times.detalhe(id),
     queryFn: ({ signal }) => buscarTime(id, signal),
+  })
+}
+
+const FILTRO_PROPRIOS: FiltrosTimes = { escopo: EscopoTimes.PROPRIOS }
+
+async function listarTodosProprios(sinal: AbortSignal): Promise<TimeDto[]> {
+  const paginas: ListaTimes[] = []
+  for (let page: number | undefined = 1; page;) {
+    const pagina = await listarTimes(FILTRO_PROPRIOS, page, sinal)
+    paginas.push(pagina)
+    page = pagina.items.length > 0 ? proximaPagina(pagina) : undefined
+  }
+  return juntarPaginas(paginas)
+}
+
+/** Todas as páginas numa consulta: o acordeão abre sem nova espera e funciona offline. */
+export function useTimesProprios() {
+  return useQuery({
+    queryKey: chaves.times.lista(FILTRO_PROPRIOS),
+    queryFn: ({ signal }) => listarTodosProprios(signal),
+  })
+}
+
+export function useElenco(timeId: string) {
+  return useQuery({
+    queryKey: chaves.times.elenco(timeId),
+    queryFn: ({ signal }) => buscarElenco(timeId, signal),
   })
 }
 
