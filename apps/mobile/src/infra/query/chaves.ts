@@ -40,6 +40,7 @@ export const chaves = {
       detalhe: (id: string) => ['painel', 'banners', 'detalhe', id] as const,
     },
     adversarias: {
+      todos: () => ['painel', 'atleticas-adversarias'] as const,
       lista: (f: Filtros) => ['painel', 'atleticas-adversarias', 'lista', f] as const,
       detalhe: (id: string) => ['painel', 'atleticas-adversarias', 'detalhe', id] as const,
     },
