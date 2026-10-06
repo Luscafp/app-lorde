@@ -34,3 +34,13 @@ export class ErroLimiteExcedido extends ErroNegocio {
     super(429, 'RATE_LIMITED', message)
   }
 }
+
+/** Erro com um único `details` apontando o campo, com a mesma mensagem. */
+export function erroDeCampo(
+  statusCode: number,
+  code: string,
+  field: string,
+  message: string,
+): ErroNegocio {
+  return new ErroNegocio(statusCode, code, message, [{ field, message }])
+}

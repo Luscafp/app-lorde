@@ -2,6 +2,7 @@ import { mapearExcecao } from '../../src/common/filtros/excecao-global.filter'
 import { Prisma } from '../../src/generated/prisma/client'
 import * as enumsPrisma from '../../src/generated/prisma/enums'
 import { criarAtletica } from '../fabricas/atletica'
+import { criarEvento as criarEventoDaFabrica } from '../fabricas/eventos'
 import { criarModalidade } from '../fabricas/modalidades'
 import { criarAtleticaAdversaria, criarTime } from '../fabricas/times'
 import { criarUsuario } from '../fabricas/usuario'
@@ -61,8 +62,6 @@ async function esperarViolacao(operacao: Promise<unknown>, nome: string): Promis
   }
 }
 
-// TODO: trocar `dadosEvento` pela fábrica de eventos (#70).
-
 /** Atlética com app, adversária, um time de cada (mesma modalidade) e um diretor. */
 async function montarCenario() {
   const atletica = await criarAtletica()
@@ -75,25 +74,15 @@ async function montarCenario() {
 }
 type Cenario = Awaited<ReturnType<typeof montarCenario>>
 
-function dadosEvento(
-  cenario: Cenario,
-  dados: Partial<Prisma.EventoUncheckedCreateInput> = {},
-): Prisma.EventoUncheckedCreateInput {
-  const jogo = (dados.tipo ?? 'JOGO') === 'JOGO'
-  return {
+/** JOGO por padrão; os valores informados vão direto para o banco. */
+function criarEvento(cenario: Cenario, dados: Partial<Prisma.EventoUncheckedCreateInput> = {}) {
+  return criarEventoDaFabrica({
     atleticaId: cenario.atletica.id,
     tipo: 'JOGO',
     timeId: cenario.time.id,
-    timeAdversarioId: jogo ? cenario.timeAdversario.id : null,
-    inicio: new Date('2026-11-10T19:00:00Z'),
-    local: 'Ginásio',
     criadoPorId: cenario.diretor.id,
     ...dados,
-  }
-}
-
-function criarEvento(cenario: Cenario, dados: Partial<Prisma.EventoUncheckedCreateInput> = {}) {
-  return prismaTeste.evento.create({ data: dadosEvento(cenario, dados) })
+  })
 }
 
 function dadosSerie(

@@ -35,6 +35,31 @@ export interface EventosDominio {
   }
   /** #80, só na primeira publicação; `autorId` = quem publicou. Ouvido pela #89 (push de notícia). */
   'noticia.publicada': PayloadBase & { atleticaId: string; noticiaId: string; autorId: string }
+  /** Em série, `eventoId` é a 1ª ocorrência. */
+  'evento.criado': PayloadBase & {
+    atleticaId: string
+    eventoId: string
+    timeId: string
+    serieId?: string
+    autorId: string
+  }
+  /** Só notifica o elenco se `campos` tiver `inicio` ou `local`. */
+  'evento.alterado': PayloadBase & {
+    atleticaId: string
+    eventoIds: string[]
+    timeId: string
+    campos: CampoAlteradoEvento[]
+    autorId: string
+  }
+  /** Um por operação, com todos os ids cancelados. */
+  'evento.cancelado': PayloadBase & {
+    atleticaId: string
+    eventoIds: string[]
+    timeId: string
+    autorId: string
+  }
 }
+
+export type CampoAlteradoEvento = 'inicio' | 'local' | 'status'
 
 export type NomeEventoDominio = keyof EventosDominio

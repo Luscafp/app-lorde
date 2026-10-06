@@ -1,5 +1,5 @@
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client'
-import type { ErroNegocio } from '../../common/erros/erro-negocio'
+import { codigoDaRejeicao } from '../../../test/suporte/codigo-do-erro'
 import { Prisma } from '../../generated/prisma/client'
 import type { PrismaService } from '../../infra/prisma/prisma.service'
 import type { AuditoriaService } from '../auditoria/auditoria.service'
@@ -75,16 +75,6 @@ function criarServico(cenario: Cenario = {}) {
     auditoria as unknown as AuditoriaService,
   )
   return { servico, tx, db, auditoria }
-}
-
-async function codigoDe(promessa: Promise<unknown>): Promise<string> {
-  const erro = (await promessa.then(
-    () => {
-      throw new Error('esperava erro')
-    },
-    (e: unknown) => e,
-  )) as ErroNegocio
-  return erro.code
 }
 
 const PAGINA = { page: 1, limit: 20, escopo: 'PROPRIOS', incluirInativos: false } as const
@@ -167,7 +157,7 @@ describe('TimesService', () => {
 
     it('inexistente → NOT_FOUND', async () => {
       const { servico } = criarServico({ atual: null })
-      await expect(codigoDe(servico.detalhar(ID, ATUAL, true))).resolves.toBe('NOT_FOUND')
+      await expect(codigoDaRejeicao(servico.detalhar(ID, ATUAL, true))).resolves.toBe('NOT_FOUND')
     })
   })
 
@@ -219,7 +209,7 @@ describe('TimesService', () => {
         modalidadeId: FUTSAL,
         atleticaAdversariaId: ATUAL,
       })
-      await expect(codigoDe(criacao)).resolves.toBe('NOT_FOUND')
+      await expect(codigoDaRejeicao(criacao)).resolves.toBe('NOT_FOUND')
       expect(tx.time.create).not.toHaveBeenCalled()
       expect(auditoria.registrar).not.toHaveBeenCalled()
     })
@@ -230,7 +220,7 @@ describe('TimesService', () => {
     ])('modalidade %s → %s', async (_caso, modalidade, codigo) => {
       const { servico, tx } = criarServico({ modalidade })
       const criacao = servico.criar(ATUAL, { nome: 'Futsal', modalidadeId: FUTSAL })
-      await expect(codigoDe(criacao)).resolves.toBe(codigo)
+      await expect(codigoDaRejeicao(criacao)).resolves.toBe(codigo)
       expect(tx.time.create).not.toHaveBeenCalled()
     })
 
@@ -238,7 +228,7 @@ describe('TimesService', () => {
       const { servico, tx } = criarServico()
       tx.time.create.mockRejectedValue(erroPrisma('P2002'))
       const criacao = servico.criar(ATUAL, { nome: 'Futsal', modalidadeId: FUTSAL })
-      await expect(codigoDe(criacao)).resolves.toBe('TIME_DUPLICADO')
+      await expect(codigoDaRejeicao(criacao)).resolves.toBe('TIME_DUPLICADO')
     })
   })
 
@@ -303,7 +293,7 @@ describe('TimesService', () => {
           Promise.resolve(where.OR?.some((condicao) => condicao[campo] === ID) ? 1 : 0),
         )
         const troca = servico.atualizar(ID, ATUAL, { modalidadeId: VOLEI })
-        await expect(codigoDe(troca)).resolves.toBe('TIME_COM_EVENTOS')
+        await expect(codigoDaRejeicao(troca)).resolves.toBe('TIME_COM_EVENTOS')
         expect(tx.time.update).not.toHaveBeenCalled()
       },
     )
@@ -311,12 +301,12 @@ describe('TimesService', () => {
     it('troca para modalidade inativa → MODALIDADE_INATIVA', async () => {
       const { servico } = criarServico({ modalidade: { ativa: false } })
       const troca = servico.atualizar(ID, ATUAL, { modalidadeId: VOLEI })
-      await expect(codigoDe(troca)).resolves.toBe('MODALIDADE_INATIVA')
+      await expect(codigoDaRejeicao(troca)).resolves.toBe('MODALIDADE_INATIVA')
     })
 
     it('inexistente ou de outra atlética com app → NOT_FOUND', async () => {
       const { servico } = criarServico({ atual: null })
-      await expect(codigoDe(servico.atualizar(ID, ATUAL, { ativo: false }))).resolves.toBe(
+      await expect(codigoDaRejeicao(servico.atualizar(ID, ATUAL, { ativo: false }))).resolves.toBe(
         'NOT_FOUND',
       )
     })
@@ -324,7 +314,7 @@ describe('TimesService', () => {
     it('P2002 ao renomear → TIME_DUPLICADO', async () => {
       const { servico, tx } = criarServico()
       tx.time.update.mockRejectedValue(erroPrisma('P2002'))
-      await expect(codigoDe(servico.atualizar(ID, ATUAL, { nome: 'Outro' }))).resolves.toBe(
+      await expect(codigoDaRejeicao(servico.atualizar(ID, ATUAL, { nome: 'Outro' }))).resolves.toBe(
         'TIME_DUPLICADO',
       )
     })
@@ -358,7 +348,7 @@ describe('TimesService', () => {
       ['solicitação (inclusive rejeitada)', { solicitacoes: 1 }],
     ])('com %s → TIME_COM_DEPENDENCIAS', async (_caso, cenario) => {
       const { servico, tx, auditoria } = criarServico(cenario)
-      await expect(codigoDe(servico.excluir(ID))).resolves.toBe('TIME_COM_DEPENDENCIAS')
+      await expect(codigoDaRejeicao(servico.excluir(ID))).resolves.toBe('TIME_COM_DEPENDENCIAS')
       expect(tx.time.delete).not.toHaveBeenCalled()
       expect(auditoria.registrar).not.toHaveBeenCalled()
     })
@@ -373,12 +363,12 @@ describe('TimesService', () => {
     it('P2003 (dependência fora do escopo) → TIME_COM_DEPENDENCIAS', async () => {
       const { servico, tx } = criarServico()
       tx.time.delete.mockRejectedValue(erroPrisma('P2003'))
-      await expect(codigoDe(servico.excluir(ID))).resolves.toBe('TIME_COM_DEPENDENCIAS')
+      await expect(codigoDaRejeicao(servico.excluir(ID))).resolves.toBe('TIME_COM_DEPENDENCIAS')
     })
 
     it('inexistente → NOT_FOUND', async () => {
       const { servico } = criarServico({ atual: null })
-      await expect(codigoDe(servico.excluir(ID))).resolves.toBe('NOT_FOUND')
+      await expect(codigoDaRejeicao(servico.excluir(ID))).resolves.toBe('NOT_FOUND')
     })
   })
 })
