@@ -27,7 +27,8 @@ const ERROS_DO_FORMULARIO = [
   CodigoEvento.EVENTO_COM_PARTICIPACOES,
 ]
 
-export function useEvento(id: string) {
+/** Sem o placeholder do card: o formulário precisa do detalhe completo. */
+export function useEventoPainel(id: string) {
   return useQuery({
     queryKey: chaves.eventos.detalhe(id),
     queryFn: ({ signal }) => buscarEvento(id, signal),

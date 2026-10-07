@@ -226,7 +226,7 @@ describe('ListaModalidadesTimes', () => {
 
 describe('TelaTime', () => {
   beforeEach(() => {
-    api.buscarTime.mockResolvedValue(MASCULINO)
+    api.buscarTime.mockResolvedValue({ ...MASCULINO, minhaSituacao: null })
     api.buscarElenco.mockResolvedValue(
       elenco([
         membro('u-bruno', 'Bruno Lima'),

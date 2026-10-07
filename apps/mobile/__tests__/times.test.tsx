@@ -171,7 +171,7 @@ describe('FormTime', () => {
   })
 
   it('na edição o seletor de atlética fica desabilitado', async () => {
-    api.buscarTime.mockResolvedValue(ADVERSARIO)
+    api.buscarTime.mockResolvedValue({ ...ADVERSARIO, minhaSituacao: null })
     await renderizar(<EditarTime />)
 
     const adversaria = await screen.findByRole('radio', { name: 'Adversária' })
@@ -270,7 +270,7 @@ describe('FormTime', () => {
   })
 
   it('offline na edição: Salvar desabilitado e faixa offline', async () => {
-    api.buscarTime.mockResolvedValue(PROPRIO)
+    api.buscarTime.mockResolvedValue({ ...PROPRIO, minhaSituacao: null })
     await renderizar(<EditarTime />)
     await screen.findByRole('radio', { name: 'Futsal' })
     await act(() => onlineManager.setOnline(false))

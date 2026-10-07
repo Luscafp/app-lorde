@@ -1,11 +1,11 @@
 import { router, useLocalSearchParams } from 'expo-router'
 import { View } from 'react-native'
 import { TelaDados } from '@/components/estado'
-import { DetalheEventoPainel, useEvento } from '@/features/eventos'
+import { DetalheEventoPainel, useEventoPainel } from '@/features/eventos'
 
 export default function EventoPainel() {
   const { id } = useLocalSearchParams<{ id: string }>()
-  const consulta = useEvento(id)
+  const consulta = useEventoPainel(id)
 
   return (
     <View className="flex-1 bg-fundo">

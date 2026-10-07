@@ -1,20 +1,32 @@
-import { StatusEvento, TipoEvento, type EventoDto } from '@atletica/shared'
+import {
+  chaveDiaLocal,
+  formatarData,
+  localParaUtc,
+  TipoEvento,
+  type EventoResumoDto,
+  type Instante,
+} from '@atletica/shared'
+import { siglaOuNome, type AtleticaAdversaria } from './rotulos'
 
-export const ROTULO_STATUS: Record<StatusEvento, string> = {
-  AGENDADO: 'Agendado',
-  EM_ANDAMENTO: 'Em andamento',
-  FINALIZADO: 'Finalizado',
-  CANCELADO: 'Cancelado',
+const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'] as const
+const UM_DIA_MS = 86_400_000
+
+export function tituloEvento({
+  tipo,
+  time,
+  timeAdversario,
+}: Pick<EventoResumoDto, 'tipo' | 'time' | 'timeAdversario'>): string {
+  if (tipo === TipoEvento.TREINO) return `Treino — ${time.nome}`
+  return `${time.nome} × ${timeAdversario?.atletica.nome ?? '—'}`
 }
 
-export const ROTULO_TIPO: Record<TipoEvento, string> = { JOGO: 'Jogo', TREINO: 'Treino' }
-
-/** Jogo: `"<time> × <atlética adversária>"`. */
-export function tituloEvento({ tipo, time, timeAdversario }: EventoDto): string {
-  if (tipo === TipoEvento.JOGO && timeAdversario) {
-    return `${time.nome} × ${timeAdversario.atletica.nome}`
-  }
-  return `${ROTULO_TIPO[tipo]} · ${time.nome}`
+/** `dia` no formato de `chaveDiaLocal`: "Hoje", "Amanhã" ou "qua, 14/10". */
+export function rotuloDia(dia: string, agora: Instante = Date.now()): string {
+  const hoje = chaveDiaLocal(agora)
+  if (dia === hoje) return 'Hoje'
+  if (dia === chaveDiaLocal(localParaUtc(hoje, '12:00').getTime() + UM_DIA_MS)) return 'Amanhã'
+  const meioDia = localParaUtc(dia, '12:00')
+  return `${DIAS_SEMANA[meioDia.getUTCDay()]}, ${formatarData(meioDia).slice(0, 5)}`
 }
 
 export const rotuloAdversario = ({
@@ -22,5 +34,5 @@ export const rotuloAdversario = ({
   atletica,
 }: {
   nome: string
-  atletica: { nome: string; sigla: string | null }
-}) => `${nome} · ${atletica.sigla ?? atletica.nome}`
+  atletica: AtleticaAdversaria
+}) => `${nome} · ${siglaOuNome(atletica)}`

@@ -2,11 +2,11 @@ import { StatusEvento } from '@atletica/shared'
 import { router, useLocalSearchParams } from 'expo-router'
 import { View } from 'react-native'
 import { EstadoVazio, TelaDados } from '@/components/estado'
-import { EventoForm, useEvento } from '@/features/eventos'
+import { EventoForm, useEventoPainel } from '@/features/eventos'
 
 export default function EditarEvento() {
   const { id } = useLocalSearchParams<{ id: string }>()
-  const consulta = useEvento(id)
+  const consulta = useEventoPainel(id)
 
   return (
     <View className="flex-1 bg-fundo">

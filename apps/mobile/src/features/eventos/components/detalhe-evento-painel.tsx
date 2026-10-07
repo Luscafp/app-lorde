@@ -5,8 +5,9 @@ import type { ApiErro } from '@/infra/api/cliente'
 import { mostrarErroDaMutacao } from '@/infra/query/query-client'
 import { useOnline } from '@/infra/rede/online'
 import { useTemNivelMinimo } from '@/infra/sessao/use-tem-nivel-minimo'
-import { ROTULO_STATUS, ROTULO_TIPO, rotuloAdversario, tituloEvento } from '../formatacao'
+import { rotuloAdversario, tituloEvento } from '../formatacao'
 import { CodigoEvento, useCancelarEvento, useExcluirEvento } from '../hooks'
+import { ROTULO_TIPO, STATUS } from '../rotulos'
 
 const MENSAGEM_COM_DEPENDENCIAS =
   'Este evento tem respostas, presenças ou resultado. Cancele-o em vez de excluir.'
@@ -71,7 +72,7 @@ export function DetalheEventoPainel({ evento, aoEditar, aoExcluir }: Props) {
         <Texto variante="titulo">{tituloEvento(evento)}</Texto>
         <View className="flex-row gap-2">
           <Selo texto={ROTULO_TIPO[evento.tipo]} />
-          <Selo texto={ROTULO_STATUS[evento.status]} />
+          <Selo texto={STATUS[evento.status].rotulo} />
         </View>
       </View>
       <Cartao className="gap-3">

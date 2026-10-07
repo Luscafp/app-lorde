@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { SolicitacoesModule } from '../solicitacoes/solicitacoes.module'
 import { UploadsModule } from '../uploads/uploads.module'
 import { ElencoController } from './elenco.controller'
 import { ElencoService } from './elenco.service'
@@ -6,7 +7,7 @@ import { TimesController } from './times.controller'
 import { TimesService } from './times.service'
 
 @Module({
-  imports: [UploadsModule],
+  imports: [UploadsModule, SolicitacoesModule],
   controllers: [TimesController, ElencoController],
   providers: [TimesService, ElencoService],
   exports: [TimesService, ElencoService],

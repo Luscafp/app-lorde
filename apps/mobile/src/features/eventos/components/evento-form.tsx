@@ -18,7 +18,6 @@ import { OpcaoRadio } from '@/features/times'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
 import type { ApiErro } from '@/infra/api/cliente'
 import { mostrarErroDaMutacao } from '@/infra/query/query-client'
-import { ROTULO_TIPO } from '../formatacao'
 import { useAtualizarEvento, useCriarEvento } from '../hooks'
 import {
   CAMPO_DO_FORM,
@@ -32,7 +31,7 @@ import {
 import { SeletorAdversario } from './seletor-adversario'
 import { SeletorTimeEvento, type TimeEscolhido } from './seletor-time-evento'
 
-const TIPOS = [TipoEvento.JOGO, TipoEvento.TREINO]
+const TIPOS: Record<TipoEvento, string> = { JOGO: 'Jogo', TREINO: 'Treino' }
 
 type Props = {
   /** Sem ele, cadastra um novo. */
@@ -112,10 +111,10 @@ export function EventoForm({ evento, aoSalvar, aposDataHora }: Props) {
             <View className="gap-2">
               <Texto variante="rotulo">Tipo</Texto>
               <View accessibilityRole="radiogroup" className="flex-row gap-2">
-                {TIPOS.map((opcao) => (
+                {Object.values(TipoEvento).map((opcao) => (
                   <View key={opcao} className="flex-1">
                     <OpcaoRadio
-                      rotulo={ROTULO_TIPO[opcao]}
+                      rotulo={TIPOS[opcao]}
                       marcada={field.value === opcao}
                       desabilitada={!!evento}
                       aoEscolher={() => {

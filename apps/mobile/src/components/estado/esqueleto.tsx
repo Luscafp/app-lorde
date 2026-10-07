@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Animated, View } from 'react-native'
 
-export type VarianteEsqueleto = 'lista' | 'cartao' | 'detalhe'
+export type VarianteEsqueleto = 'lista' | 'cartao' | 'detalhe' | 'cartoes'
 
 function Bloco({ brilho, className }: { brilho: Animated.Value; className: string }) {
   return (
@@ -43,6 +43,10 @@ export function Esqueleto({ variante = 'lista' }: { variante?: VarianteEsqueleto
               <Bloco brilho={brilho} className="h-3 w-1/2" />
             </View>
           </View>
+        ))}
+      {variante === 'cartoes' &&
+        [0, 1, 2, 3].map((item) => (
+          <Bloco key={item} brilho={brilho} className="h-20 w-full rounded-2xl" />
         ))}
       {variante === 'cartao' && <Bloco brilho={brilho} className="h-40 w-full rounded-2xl" />}
       {variante === 'detalhe' && (
