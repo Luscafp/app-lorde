@@ -1,7 +1,7 @@
 import { onlineManager, type UseQueryResult } from '@tanstack/react-query'
 import { useSyncExternalStore, type ReactNode } from 'react'
 import { View } from 'react-native'
-import { Esqueleto, type VarianteEsqueleto } from './esqueleto'
+import { Esqueleto, type PropsEsqueleto, type VarianteEsqueleto } from './esqueleto'
 import { EstadoErro } from './estado-erro'
 import { EstadoVazio } from './estado-vazio'
 import { FaixaOffline } from './faixa-offline'
@@ -18,7 +18,7 @@ type Props<T> = {
   mensagemVazio?: string
   acaoVazio?: { titulo: string; onPress: () => void }
   mensagemErro?: string
-  esqueleto?: VarianteEsqueleto
+  esqueleto?: VarianteEsqueleto | PropsEsqueleto
   /** Desligada nas seções de uma tela que já mostra a faixa. */
   faixaOffline?: boolean
   children: (dados: T) => ReactNode
@@ -58,7 +58,7 @@ export function TelaDados<T>({
     if (consulta.isError) {
       return <EstadoErro mensagem={mensagemErro} onTentarNovamente={tentarNovamente} />
     }
-    return <Esqueleto variante={esqueleto} />
+    return <Esqueleto {...(typeof esqueleto === 'object' ? esqueleto : { variante: esqueleto })} />
   }
 
   return (

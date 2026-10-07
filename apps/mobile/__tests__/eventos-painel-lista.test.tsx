@@ -57,7 +57,8 @@ function Provedor({ children }: { children: ReactNode }) {
 
 const renderizar = () => render(<EventosPainel />, { wrapper: Provedor })
 
-const consultasFeitas = () => listarEventos.mock.calls.map(([filtros, page]) => ({ filtros, page }))
+const consultasFeitas = () =>
+  listarEventos.mock.calls.map(([filtros, { page }]) => ({ filtros, page }))
 /** A `FlatList` só monta as primeiras linhas; os dados mostram a lista inteira. */
 const idsNaLista = () =>
   (screen.getByTestId('lista-eventos-painel').props.data as { evento?: { id: string } }[]).flatMap(

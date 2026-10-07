@@ -53,7 +53,7 @@ export function useEvento(id: string) {
 export function useEventos(filtros: FiltrosEventos) {
   return useInfiniteQuery({
     queryKey: chaves.eventos.lista({ ...filtros, limit: LIMITE_PAGINA }),
-    queryFn: ({ pageParam, signal }) => listarEventos(filtros, pageParam, signal),
+    queryFn: ({ pageParam, signal }) => listarEventos(filtros, { page: pageParam }, signal),
     initialPageParam: 1,
     getNextPageParam: proximaPagina,
     select: ({ pages }) => juntarPaginas(pages),
@@ -64,7 +64,7 @@ export function useEventos(filtros: FiltrosEventos) {
 export function useProximosEventos(filtros: FiltrosEventos, limit: number) {
   return useQuery({
     queryKey: chaves.eventos.lista({ ...filtros, limit }),
-    queryFn: ({ signal }) => listarEventos(filtros, 1, signal, limit),
+    queryFn: ({ signal }) => listarEventos(filtros, { page: 1, limit }, signal),
     select: (lista) => ({ ...lista, items: lista.items.slice(0, limit) }),
   })
 }

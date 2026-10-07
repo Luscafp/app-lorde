@@ -1,5 +1,6 @@
 export { NoticiaCard, NoticiaDetalhe } from './components'
-export { ListaNoticias } from './lista-noticias'
+export { useUltimasNoticias } from './consultas'
+export { ListaNoticias, MENSAGEM_SEM_NOTICIAS } from './lista-noticias'
 export {
   FormNoticia,
   ListaNoticiasPainel,

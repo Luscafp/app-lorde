@@ -371,9 +371,8 @@ describe('ProximosTreinos (#67)', () => {
     await screen.findByText('Qua · 02/10/2030 · 19:00 · Ginásio UFMA')
     expect(listarEventos).toHaveBeenCalledWith(
       { timeId: 't-masc', tipo: 'TREINO' },
-      1,
+      { page: 1, limit: 5 },
       expect.anything(),
-      5,
     )
     expect(
       cliente.getQueryData(chaves.eventos.lista({ timeId: 't-masc', tipo: 'TREINO', limit: 5 })),
