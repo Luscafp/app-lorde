@@ -5,7 +5,7 @@ import {
   type InfiniteData,
   type QueryClient,
 } from '@tanstack/react-query'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native'
 import { useState, type ReactElement, type ReactNode } from 'react'
 import { StyleSheet, type StyleProp, type TextStyle } from 'react-native'
 import { paleta } from '@/features/atletica'
@@ -14,11 +14,12 @@ import {
   EventoCard,
   lerParametros,
   MinhaRespostaChip,
-  PlacarCard,
+  ResultadoCard,
   TelaAgenda,
   tituloEvento,
   type AbaAgenda,
   type FiltrosSelecionados,
+  useResultadoLabel,
 } from '@/features/eventos'
 import { agruparPorDia } from '@/features/eventos/agenda'
 import * as apiEventos from '@/features/eventos/api'
@@ -35,6 +36,7 @@ jest.mock('@/features/atletica/api')
 const listarEventos = jest.mocked(apiEventos.listarEventos)
 const buscarModalidades = jest.mocked(apiModalidades.buscarModalidades)
 const buscarAtletica = jest.mocked(apiAtletica.buscarAtletica)
+const gravarAtleticaNoCache = jest.mocked(apiAtletica.gravarAtleticaNoCache)
 
 const LORDE: AtleticaPublica = {
   id: '7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f',
@@ -132,7 +134,7 @@ beforeEach(() => {
   listarEventos.mockReset()
   buscarModalidades.mockResolvedValue([VOLEI])
   buscarAtletica.mockResolvedValue(LORDE)
-  jest.mocked(apiAtletica.gravarAtleticaNoCache).mockResolvedValue()
+  gravarAtleticaNoCache.mockResolvedValue()
 })
 
 afterEach(() => {
@@ -450,26 +452,31 @@ describe('Placar', () => {
     )
     await renderizar(<Agenda aba="placar" inicial={{ tipo: 'TREINO' }} />)
 
-    const legendas = await screen.findAllByText(/^Vitória da LORDE · /)
-    expect(legendas.map((texto) => (texto.props as { children: string }).children)).toEqual([
-      'Vitória da LORDE · 20/09/2026 19:00',
-      'Vitória da LORDE · 15/09/2026 19:00',
-      'Vitória da LORDE · 01/09/2026 19:00',
-    ])
+    const cards = await screen.findAllByRole('button', { name: /^Vitória da LORDE por/ })
+    expect(
+      cards.map((card) =>
+        (card.props as { accessibilityLabel: string }).accessibilityLabel.slice(-10),
+      ),
+    ).toEqual(['20/09/2026', '15/09/2026', '01/09/2026'])
     expect(consultasFeitas()).toEqual([{ filtros: CONSULTA_PLACAR, page: 1 }])
+    expect(
+      cliente.getQueryData(chaves.eventos.lista({ ...CONSULTA_PLACAR, limit: 20 })),
+    ).toBeDefined()
     expect(screen.getByRole('tab', { name: 'Placar' })).toBeSelected()
     expect(screen.queryByRole('radio', { name: 'Jogos' })).toBeNull()
   })
 
   it('3 × 1: "3 : 1", chip VITÓRIA verde, time à esquerda e adversária à direita (critérios 2 e 4)', async () => {
     const jogo = finalizado('a')
-    await renderizar(<PlacarCard evento={jogo} aoAbrir={aoAbrirEvento} />)
+    await renderizar(<ResultadoCard evento={jogo} aoAbrir={aoAbrirEvento} />)
 
-    expect(await screen.findByText('Vitória da LORDE · 09/10/2030 19:00')).toBeOnTheScreen()
-    expect(screen.getByText('3 : 1')).toBeOnTheScreen()
+    expect(await screen.findByText('3 : 1')).toBeOnTheScreen()
     expect(estiloDe('VITÓRIA').color).toBe(paleta.sucesso)
+    expect(estiloDe('3').color).toBe(paleta.sucesso)
+    expect(screen.getByText('09/10/2030')).toBeOnTheScreen()
     expect(screen.getByText('Lorde Vôlei')).toBeOnTheScreen()
     expect(screen.getByText('Atlética Medicina')).toBeOnTheScreen()
+    expect(screen.getByText('Vôlei Masculino')).toBeOnTheScreen()
 
     const card = screen.getByRole('button', {
       name: /^Vitória da LORDE por 3 a 1 contra Atlética Medicina, Vôlei, /,
@@ -480,7 +487,7 @@ describe('Placar', () => {
 
   it('a sigla vem do cadastro da atlética (RNF20)', async () => {
     buscarAtletica.mockResolvedValue({ ...LORDE, sigla: 'AACC' })
-    await renderizar(<PlacarCard evento={finalizado('a')} aoAbrir={jest.fn()} />)
+    await renderizar(<ResultadoCard evento={finalizado('a')} aoAbrir={jest.fn()} />)
     expect(
       await screen.findByRole('button', { name: /^Vitória da AACC por 3 a 1 contra/ }),
     ).toBeOnTheScreen()
@@ -491,7 +498,7 @@ describe('Placar', () => {
     ['DERROTA', 0, 2, 'DERROTA' as const, paleta.erro, /^Derrota da LORDE por 0 a 2 contra/],
   ])('%s (critério 3)', async (chip, placarTime, placarAdversario, resultado, cor, rotulo) => {
     await renderizar(
-      <PlacarCard
+      <ResultadoCard
         evento={finalizado('a', { placarTime, placarAdversario, resultado })}
         aoAbrir={jest.fn()}
       />,
@@ -502,13 +509,13 @@ describe('Placar', () => {
 
   it('finalizado sem placar: "– : –" e "RESULTADO PENDENTE" (critério 5)', async () => {
     await renderizar(
-      <PlacarCard
+      <ResultadoCard
         evento={finalizado('a', { placarTime: null, placarAdversario: null, resultado: null })}
         aoAbrir={jest.fn()}
       />,
     )
     expect(screen.getByText('– : –')).toBeOnTheScreen()
-    expect(screen.getByText('RESULTADO PENDENTE')).toBeOnTheScreen()
+    expect(estiloDe('RESULTADO PENDENTE').color).toBe(`${paleta.alerta}B3`)
     expect(
       screen.getByRole('button', { name: /^Resultado pendente contra Atlética Medicina/ }),
     ).toBeOnTheScreen()
@@ -601,5 +608,35 @@ describe('Placar', () => {
       screen.getByText(/^Modo offline · dados de \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/),
     ).toBeOnTheScreen()
     expect(screen.getByText('3 : 1')).toBeOnTheScreen()
+  })
+})
+
+describe('useResultadoLabel', () => {
+  const label = async (resultado: Parameters<typeof useResultadoLabel>[0]) => {
+    const { result } = await renderHook(() => useResultadoLabel(resultado), { wrapper: Provedor })
+    await waitFor(() => expect(result.current.frase).not.toContain('Atlética'))
+    return result.current
+  }
+
+  it.each([
+    [
+      'VITORIA' as const,
+      'VITÓRIA',
+      'Vitória da LORDE',
+      paleta.sucesso,
+      'Vitória da LORDE por 3 a 1',
+    ],
+    ['EMPATE' as const, 'EMPATE', 'Empate', paleta.alerta, 'Empate em 3 a 1'],
+    ['DERROTA' as const, 'DERROTA', 'Derrota da LORDE', paleta.erro, 'Derrota da LORDE por 3 a 1'],
+    [null, 'RESULTADO PENDENTE', 'Resultado pendente', `${paleta.alerta}B3`, 'Resultado pendente'],
+  ])('%s', async (resultado, chip, frase, cor, descricao) => {
+    const atual = await label(resultado)
+    expect(atual).toMatchObject({ chip, frase, cor })
+    expect(atual.descrever('3 a 1')).toBe(descricao)
+  })
+
+  it('a frase usa a sigla do cadastro da atlética', async () => {
+    buscarAtletica.mockResolvedValue({ ...LORDE, sigla: 'AACC' })
+    expect((await label('VITORIA')).frase).toBe('Vitória da AACC')
   })
 })

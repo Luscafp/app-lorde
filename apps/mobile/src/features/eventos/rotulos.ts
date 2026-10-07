@@ -16,6 +16,8 @@ export const STATUS: Record<StatusEvento, Rotulo> = {
   [StatusEvento.CANCELADO]: { rotulo: 'Cancelado', cor: paleta.erro },
 }
 
+export const MENSAGEM_RESULTADO_PENDENTE = 'Resultado pendente'
+
 export const RESULTADO: Record<Resultado, Rotulo> = {
   [Resultado.VITORIA]: { rotulo: 'Vitória', cor: paleta.sucesso },
   [Resultado.EMPATE]: { rotulo: 'Empate', cor: paleta.alerta },

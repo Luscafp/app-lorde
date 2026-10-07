@@ -11,8 +11,11 @@ export {
   EventoForm,
   MinhaRespostaChip,
   ParticipacaoAcoes,
-  PlacarCard,
+  PlacarLista,
+  ResultadoCard,
+  useResultadoLabel,
   type EventoDoCard,
+  type ResultadoLabel,
 } from './components'
 export { useEventos } from './consultas'
 export { tituloEvento } from './formatacao'
