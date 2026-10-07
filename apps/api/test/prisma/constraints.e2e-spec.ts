@@ -123,6 +123,8 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
       'evento_placar_completo',
       'evento_placar_nao_negativo',
       'evento_resultado_finalizado',
+      'evento_placar_faixa',
+      'evento_resultado_coerente',
       'serie_dias_validos',
       'serie_horario_formato',
       'serie_periodo_valido',
@@ -190,6 +192,13 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
         SELECT conname FROM pg_constraint
         WHERE contype = 'c' AND connamespace = 'public'::regnamespace`
       expect(linhas.map(({ conname }) => conname)).toEqual(expect.arrayContaining(CHECKS))
+    })
+
+    it('não duplica CHECKs com sufixo _chk (#73)', async () => {
+      const linhas = await prismaTeste.$queryRaw<{ conname: string }[]>`
+        SELECT conname FROM pg_constraint
+        WHERE contype = 'c' AND connamespace = 'public'::regnamespace AND right(conname, 4) = '_chk'`
+      expect(linhas).toEqual([])
     })
   })
 
@@ -472,7 +481,7 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
       )
     })
 
-    it('placar não negativo (evento_placar_nao_negativo)', async () => {
+    it('placar não negativo (a faixa, checada antes por ordem alfabética, também o cobre)', async () => {
       await criarEvento(cenario, {
         status: 'FINALIZADO',
         placarTime: 0,
@@ -486,8 +495,36 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
           placarAdversario: 0,
           resultado: 'DERROTA',
         }),
-        'evento_placar_nao_negativo',
+        'evento_placar_faixa',
       )
+    })
+
+    it('placar até 999 em UPDATE direto (evento_placar_faixa, #73)', async () => {
+      const evento = await criarEvento(cenario, {
+        status: 'FINALIZADO',
+        placarTime: 999,
+        placarAdversario: 0,
+        resultado: 'VITORIA',
+      })
+      await esperarViolacao(
+        prismaTeste.evento.update({ where: { id: evento.id }, data: { placarTime: 1000 } }),
+        'evento_placar_faixa',
+      )
+    })
+
+    it('resultado coerente com o placar em UPDATE direto (evento_resultado_coerente, #73)', async () => {
+      const evento = await criarEvento(cenario, {
+        status: 'FINALIZADO',
+        placarTime: 1,
+        placarAdversario: 2,
+        resultado: 'DERROTA',
+      })
+      for (const resultado of ['VITORIA', 'EMPATE'] as const) {
+        await esperarViolacao(
+          prismaTeste.evento.update({ where: { id: evento.id }, data: { resultado } }),
+          'evento_resultado_coerente',
+        )
+      }
     })
 
     it('resultado só com status FINALIZADO (evento_resultado_finalizado)', async () => {

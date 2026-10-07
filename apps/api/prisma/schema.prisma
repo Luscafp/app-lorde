@@ -19,7 +19,8 @@
 //   usuario_email_minusculo, atletica_dados_app, atletica_cores_hex, preferencia_antecedencia,
 //   membro_saida_apos_entrada, solicitacao_avaliacao_coerente, evento_tipo_coerente,
 //   evento_times_distintos, evento_placar_completo, evento_placar_nao_negativo,
-//   evento_resultado_finalizado, serie_dias_validos, serie_horario_formato, serie_periodo_valido,
+//   evento_resultado_finalizado, evento_placar_faixa, evento_resultado_coerente,
+//   serie_dias_validos, serie_horario_formato, serie_periodo_valido,
 //   serie_limite_6_meses, participacao_resposta_coerente, participacao_presenca_coerente,
 //   noticia_publicada_com_data, banner_link_https, banner_ordem_nao_negativa
 
