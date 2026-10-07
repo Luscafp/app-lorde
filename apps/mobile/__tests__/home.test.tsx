@@ -1,0 +1,297 @@
+import type {
+  EventoResumoDto,
+  ListaEventos,
+  ListaNoticias,
+  NoticiaResumoDto,
+} from '@atletica/shared'
+import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import type { ReactElement, ReactNode } from 'react'
+import type { RefreshControlProps } from 'react-native'
+import { listarEventos } from '@/features/eventos/api'
+import { HomeBannersSlot, TelaHome } from '@/features/home'
+import { listarNoticias } from '@/features/noticias/api'
+import { ApiErro } from '@/infra/api/api-erro'
+import { chaves } from '@/infra/query/chaves'
+import { criarQueryClient } from '@/infra/query/query-client'
+import { useMarcarHomePronta } from '@/infra/sentry'
+import { useSessao } from '@/infra/sessao/store'
+
+jest.mock('@/features/eventos/api', () => ({ LIMITE_PAGINA: 20, listarEventos: jest.fn() }))
+jest.mock('@/features/noticias/api', () => ({ LIMITE_PAGINA: 20, listarNoticias: jest.fn() }))
+
+jest.mock('@/infra/sentry', () => ({
+  ...jest.requireActual<object>('@/infra/sentry'),
+  useMarcarHomePronta: jest.fn(),
+}))
+
+const eventosApi = jest.mocked(listarEventos)
+const noticiasApi = jest.mocked(listarNoticias)
+
+const evento = (id: string, parcial: Partial<EventoResumoDto> = {}): EventoResumoDto => ({
+  id,
+  tipo: 'TREINO',
+  status: 'AGENDADO',
+  inicio: '2030-10-09T22:00:00.000Z',
+  local: 'Ginásio',
+  serieId: null,
+  time: { id: 't1', nome: `Time ${id}` },
+  modalidade: { id: 'm1', nome: 'Futsal', icone: 'soccer' },
+  timeAdversario: null,
+  placarTime: null,
+  placarAdversario: null,
+  resultado: null,
+  souMembro: false,
+  minhaParticipacao: null,
+  ...parcial,
+})
+
+const noticia = (id: string): NoticiaResumoDto => ({
+  id,
+  titulo: `Notícia ${id}`,
+  imagemCapaUrl: 'https://img.exemplo.com/capa.jpg',
+  publicadaEm: '2026-09-28T18:00:00.000Z',
+  resumo: 'Resumo.',
+})
+
+const listaEventos = (items: EventoResumoDto[]): ListaEventos => ({
+  items,
+  page: 1,
+  limit: 5,
+  total: items.length,
+})
+
+const listaNoticias = (items: NoticiaResumoDto[]): ListaNoticias => ({
+  items,
+  page: 1,
+  limit: 3,
+  total: items.length,
+})
+
+const falha = () => new ApiErro({ status: 500, code: 'INTERNAL_ERROR', message: 'x' })
+
+let cliente: QueryClient
+
+function Provedor({ children }: { children: ReactNode }) {
+  return <QueryClientProvider client={cliente}>{children}</QueryClientProvider>
+}
+
+const renderizar = (elemento: ReactElement) => render(elemento, { wrapper: Provedor })
+
+const navegacao = {
+  aoAbrirAgenda: jest.fn(),
+  aoAbrirTimes: jest.fn(),
+  aoAbrirNoticias: jest.fn(),
+  aoAbrirEvento: jest.fn(),
+  aoAbrirNoticia: jest.fn(),
+  aoAbrirPerfil: jest.fn(),
+}
+
+const abrirHome = () => renderizar(<TelaHome {...navegacao} />)
+
+beforeEach(() => {
+  cliente = criarQueryClient()
+  cliente.setDefaultOptions({ queries: { retry: false } })
+  onlineManager.setOnline(true)
+  jest.clearAllMocks()
+  eventosApi.mockReset().mockResolvedValue(listaEventos([evento('a')]))
+  noticiasApi.mockReset().mockResolvedValue(listaNoticias([noticia('n1')]))
+  useSessao.setState({
+    usuario: {
+      id: 'u1',
+      nome: 'Ana Souza',
+      email: 'a@x.com',
+      fotoUrl: null,
+      papel: 'ATLETA',
+      atleticaId: 'a1',
+    },
+  })
+})
+
+afterEach(() => {
+  cliente.clear()
+})
+
+describe('Home', () => {
+  it('ordem: cabeçalho, atalhos, "Próximos eventos" e "Últimas notícias" (critério 1)', async () => {
+    await abrirHome()
+    await screen.findByText('Notícia n1')
+
+    const marcos = screen
+      .getAllByText(/^(Atlética|Placar|Próximos eventos|Últimas notícias)$/)
+      .map(({ props }) => props.children as string)
+    expect(marcos).toEqual(['Atlética', 'Placar', 'Próximos eventos', 'Últimas notícias'])
+    expect(screen.getByRole('header', { name: 'Atlética' })).toBeOnTheScreen()
+  })
+
+  it('consulta 5 próximos eventos e 3 notícias com as chaves canônicas, em paralelo', async () => {
+    eventosApi.mockReturnValue(new Promise(() => {}))
+    noticiasApi.mockReturnValue(new Promise(() => {}))
+    await abrirHome()
+
+    expect(eventosApi).toHaveBeenCalledWith({ periodo: 'PROXIMOS' }, 1, expect.anything(), 5)
+    expect(noticiasApi).toHaveBeenCalledWith({ page: 1, limit: 3 }, expect.anything())
+    expect(
+      cliente.getQueryState(chaves.eventos.lista({ periodo: 'PROXIMOS', limit: 5 })),
+    ).toBeDefined()
+    expect(cliente.getQueryState(chaves.noticias.lista({ limit: 3 }))).toBeDefined()
+    expect(screen.getAllByLabelText('Carregando')).toHaveLength(2)
+  })
+
+  it('mostra os eventos recebidos (no máximo 5) e o card abre o evento (critérios 2 e 6)', async () => {
+    eventosApi.mockResolvedValue(listaEventos(['a', 'b', 'c', 'd', 'e'].map((id) => evento(id))))
+    await abrirHome()
+
+    expect(await screen.findAllByRole('button', { name: /^Treino — Time / })).toHaveLength(5)
+    await fireEvent.press(screen.getByRole('button', { name: /^Treino — Time c/ }))
+    expect(navegacao.aoAbrirEvento).toHaveBeenCalledWith('c')
+  })
+
+  it('chip de resposta para membro', async () => {
+    eventosApi.mockResolvedValue(listaEventos([evento('a', { souMembro: true })]))
+    await abrirHome()
+    expect(await screen.findByText('RESPONDER')).toBeOnTheScreen()
+  })
+
+  it('notícia tocada abre o detalhe', async () => {
+    await abrirHome()
+    await fireEvent.press(await screen.findByRole('button', { name: /^Notícia n1/ }))
+    expect(navegacao.aoAbrirNoticia).toHaveBeenCalledWith('n1')
+  })
+
+  it('sem eventos nem notícias: mensagens de vazio (critérios 5 e 12)', async () => {
+    eventosApi.mockResolvedValue(listaEventos([]))
+    noticiasApi.mockResolvedValue(listaNoticias([]))
+    await abrirHome()
+
+    expect(await screen.findByText('Nenhum evento agendado')).toBeOnTheScreen()
+    expect(await screen.findByText('Nenhuma notícia publicada')).toBeOnTheScreen()
+  })
+
+  it('eventos falham e notícias não: erro só na seção de eventos (critério 13)', async () => {
+    eventosApi.mockRejectedValueOnce(falha()).mockResolvedValue(listaEventos([evento('a')]))
+    await abrirHome()
+
+    expect(await screen.findByText('Não foi possível carregar os eventos')).toBeOnTheScreen()
+    expect(await screen.findByText('Notícia n1')).toBeOnTheScreen()
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Tentar novamente' }))
+    expect(await screen.findByText('Treino — Time a')).toBeOnTheScreen()
+    expect(eventosApi).toHaveBeenCalledTimes(2)
+    expect(noticiasApi).toHaveBeenCalledTimes(1)
+  })
+
+  it('notícias falham e eventos não: "Tentar novamente" refaz só as notícias', async () => {
+    noticiasApi.mockRejectedValueOnce(falha()).mockResolvedValue(listaNoticias([noticia('n1')]))
+    await abrirHome()
+
+    expect(await screen.findByText('Não foi possível carregar as notícias')).toBeOnTheScreen()
+    expect(await screen.findByText('Treino — Time a')).toBeOnTheScreen()
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Tentar novamente' }))
+    expect(await screen.findByText('Notícia n1')).toBeOnTheScreen()
+    expect(noticiasApi).toHaveBeenCalledTimes(2)
+    expect(eventosApi).toHaveBeenCalledTimes(1)
+  })
+
+  it('offline com cache: dados e uma faixa "Modo offline" (critério 14)', async () => {
+    await abrirHome()
+    await screen.findByText('Notícia n1')
+    await screen.findByText('Treino — Time a')
+
+    await act(() => onlineManager.setOnline(false))
+
+    expect(
+      screen.getAllByText(/^Modo offline · dados de \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/),
+    ).toHaveLength(1)
+    expect(screen.getByText('Treino — Time a')).toBeOnTheScreen()
+    expect(screen.getByText('Notícia n1')).toBeOnTheScreen()
+  })
+
+  it('offline sem cache: estado "Sem conexão" em cada seção, sem faixa (critério 14)', async () => {
+    onlineManager.setOnline(false)
+    await abrirHome()
+
+    expect(
+      await screen.findAllByText('Sem conexão. Conecte-se à internet para carregar os dados.'),
+    ).toHaveLength(2)
+    expect(screen.queryByText(/^Modo offline/)).toBeNull()
+  })
+
+  it('pull-to-refresh recarrega as duas seções', async () => {
+    await abrirHome()
+    await screen.findByText('Notícia n1')
+    await screen.findByText('Treino — Time a')
+
+    const { refreshControl } = screen.getByTestId('home').props as {
+      refreshControl: ReactElement<RefreshControlProps>
+    }
+    await act(() => refreshControl.props.onRefresh?.())
+
+    await waitFor(() => expect(eventosApi).toHaveBeenCalledTimes(2))
+    expect(noticiasApi).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    ['Agenda', 'aoAbrirAgenda', 'eventos'],
+    ['Placar', 'aoAbrirAgenda', 'placar'],
+    ['Times', 'aoAbrirTimes', undefined],
+    ['Notícias', 'aoAbrirNoticias', undefined],
+  ] as const)('atalho "%s" (critério 18)', async (rotulo, acao, argumento) => {
+    await abrirHome()
+    await fireEvent.press(screen.getByRole('button', { name: rotulo }))
+    if (argumento) expect(navegacao[acao]).toHaveBeenCalledWith(argumento)
+    else expect(navegacao[acao]).toHaveBeenCalled()
+  })
+
+  it('"Ver agenda", "Ver todas" e o avatar navegam', async () => {
+    await abrirHome()
+    await fireEvent.press(screen.getByRole('link', { name: 'Ver agenda' }))
+    expect(navegacao.aoAbrirAgenda).toHaveBeenCalledWith('eventos')
+    await fireEvent.press(screen.getByRole('link', { name: 'Ver todas' }))
+    expect(navegacao.aoAbrirNoticias).toHaveBeenCalled()
+    await fireEvent.press(screen.getByRole('button', { name: 'Abrir perfil' }))
+    expect(navegacao.aoAbrirPerfil).toHaveBeenCalled()
+  })
+
+  it('span de abertura: Home pronta só quando as duas seções respondem, mesmo com erro', async () => {
+    const pronta = jest.mocked(useMarcarHomePronta)
+    eventosApi.mockRejectedValue(falha())
+    let responderNoticias!: (lista: ListaNoticias) => void
+    noticiasApi.mockReturnValue(new Promise((resolver) => (responderNoticias = resolver)))
+    await abrirHome()
+
+    await screen.findByText('Não foi possível carregar os eventos')
+    expect(pronta).toHaveBeenLastCalledWith(false)
+
+    await act(() => responderNoticias(listaNoticias([noticia('n1')])))
+    expect(await screen.findByText('Notícia n1')).toBeOnTheScreen()
+    expect(pronta).toHaveBeenLastCalledWith(true)
+  })
+
+  it('cabeçalho usa nome e sigla da atlética, sem nome fixo (RNF20)', async () => {
+    cliente.setQueryData(chaves.atletica(), {
+      id: 'a1',
+      nome: 'Atlética de Computação',
+      sigla: 'AAC',
+      curso: null,
+      logoUrl: null,
+      corPrimaria: '#123456',
+      corSecundaria: '#654321',
+      contatoEmail: null,
+      contatoInstagram: null,
+      contatoWhatsapp: null,
+    })
+    await abrirHome()
+
+    expect(screen.getByRole('header', { name: 'Atlética de Computação' })).toBeOnTheScreen()
+    expect(screen.getByText('AAC')).toBeOnTheScreen()
+  })
+})
+
+describe('HomeBannersSlot', () => {
+  it('não renderiza nada no MVP', async () => {
+    await renderizar(<HomeBannersSlot />)
+    expect(screen.toJSON()).toBeNull()
+  })
+})

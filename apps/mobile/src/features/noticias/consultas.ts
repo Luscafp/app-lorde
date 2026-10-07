@@ -51,6 +51,16 @@ export function useNoticias() {
   })
 }
 
+export const LIMITE_ULTIMAS_HOME = 3
+
+export function useUltimasNoticias() {
+  return useQuery({
+    queryKey: chaves.noticias.lista({ limit: LIMITE_ULTIMAS_HOME }),
+    queryFn: ({ signal }) => listarNoticias({ page: 1, limit: LIMITE_ULTIMAS_HOME }, signal),
+    select: ({ items }) => items,
+  })
+}
+
 /** Despublicada ou excluída responde 404: some das listas e do detalhe em cache (épico #25 §4). */
 export function useNoticia(id: string) {
   const cliente = useQueryClient()

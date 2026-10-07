@@ -1,4 +1,9 @@
-import type { EventoDetalheDto, EventoResumoDto, ListaEventos } from '@atletica/shared'
+import {
+  PeriodoEventos,
+  type EventoDetalheDto,
+  type EventoResumoDto,
+  type ListaEventos,
+} from '@atletica/shared'
 import {
   useInfiniteQuery,
   useQuery,
@@ -57,5 +62,16 @@ export function useEventos(filtros: FiltrosEventos) {
     initialPageParam: 1,
     getNextPageParam: proximaPagina,
     select: ({ pages }) => juntarPaginas(pages),
+  })
+}
+
+export const LIMITE_PROXIMOS_HOME = 5
+
+export function useProximosEventos() {
+  const filtros = { periodo: PeriodoEventos.PROXIMOS }
+  return useQuery({
+    queryKey: chaves.eventos.lista({ ...filtros, limit: LIMITE_PROXIMOS_HOME }),
+    queryFn: ({ signal }) => listarEventos(filtros, 1, signal, LIMITE_PROXIMOS_HOME),
+    select: ({ items }) => items,
   })
 }

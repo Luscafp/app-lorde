@@ -103,14 +103,14 @@ describe('navegação', () => {
     await comSessaoSalva('ATLETA')
     const caminho = await abrir()
     expect(caminho()).toBe('/')
-    expect(screen.getByRole('header')).toHaveTextContent('Início')
+    expect(screen.getByRole('button', { name: 'Abrir perfil' })).toBeOnTheScreen()
   })
 
   it('ATLETA vê Início, Agenda, Times e Perfil, sem Painel', async () => {
     await comSessaoSalva('ATLETA')
     await abrir()
     for (const aba of ['Início', 'Agenda', 'Times', 'Perfil']) {
-      expect(screen.getByLabelText(aba)).toBeOnTheScreen()
+      expect(screen.getAllByLabelText(aba).length).toBeGreaterThan(0)
     }
     expect(screen.queryByLabelText('Painel')).toBeNull()
   })
@@ -192,6 +192,15 @@ describe('navegação', () => {
     listarEventos.mockRestore()
   })
 
+  it('atalho "Placar" da Home abre a Agenda no segmento Placar (#79)', async () => {
+    await comSessaoSalva('ATLETA')
+    const caminho = await abrir()
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Placar' }))
+    await waitFor(() => expect(caminho()).toBe('/agenda'))
+    expect(await screen.findByRole('tab', { name: 'Placar' })).toBeSelected()
+  })
+
   it('deep link /painel de ATLETA redireciona ao Início', async () => {
     await comSessaoSalva('ATLETA')
     const caminho = await abrir('/painel')
@@ -252,7 +261,7 @@ describe('navegação', () => {
     expect(screen.getByText('Página não encontrada')).toBeOnTheScreen()
 
     await fireEvent.press(screen.getByRole('link', { name: 'Voltar ao Início' }))
-    expect(await screen.findByRole('header', { name: 'Início' })).toBeOnTheScreen()
+    expect(await screen.findByRole('button', { name: 'Abrir perfil' })).toBeOnTheScreen()
     expect(caminho()).toBe('/')
   })
 })

@@ -1,8 +1,15 @@
-import { TelaProvisoria } from '@/components/tela-provisoria'
-import { useMarcarHomePronta } from '@/infra/sentry'
+import { router } from 'expo-router'
+import { TelaHome } from '@/features/home'
 
-// Conteúdo na #25; a Home com dados (#79) passa a fechar o span só quando os dados chegarem.
 export default function Inicio() {
-  useMarcarHomePronta(true)
-  return <TelaProvisoria titulo="Início" />
+  return (
+    <TelaHome
+      aoAbrirAgenda={(aba) => router.navigate({ pathname: '/agenda', params: { aba } })}
+      aoAbrirTimes={() => router.navigate('/times')}
+      aoAbrirNoticias={() => router.push('/noticias')}
+      aoAbrirEvento={(id) => router.push(`/eventos/${id}`)}
+      aoAbrirNoticia={(id) => router.push(`/noticias/${id}`)}
+      aoAbrirPerfil={() => router.navigate('/perfil')}
+    />
+  )
 }
