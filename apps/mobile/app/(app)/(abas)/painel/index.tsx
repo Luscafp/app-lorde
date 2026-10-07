@@ -40,7 +40,6 @@ export default function Painel() {
   return (
     <ScrollView className="flex-1 bg-fundo" contentContainerClassName="gap-4 p-4">
       <Texto variante="titulo">Painel</Texto>
-      {/* A lista de eventos (#72) passa a ser o destino desta entrada. */}
       <ItemPainel
         titulo="Eventos"
         descricao="Cadastrar jogos e treinos"

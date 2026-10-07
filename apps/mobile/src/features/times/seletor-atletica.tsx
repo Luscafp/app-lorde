@@ -13,9 +13,12 @@ export type AtleticaEscolhida = { id: string; nome: string; sigla: string | null
 export function BuscaAdversaria({
   selecionada,
   aoSelecionar,
+  aoCadastrarNova,
 }: {
   selecionada: AtleticaEscolhida | null
   aoSelecionar: (atletica: AtleticaEscolhida) => void
+  /** Substitui o cadastro imediato pelo sheet próprio. */
+  aoCadastrarNova?: () => void
 }) {
   const [cadastrando, setCadastrando] = useState(false)
   const { termo, setTermo, consulta } = useBuscaAdversarias()
@@ -48,7 +51,7 @@ export function BuscaAdversaria({
       <Botao
         titulo="Cadastrar nova atlética"
         variante="secundaria"
-        onPress={() => setCadastrando(true)}
+        onPress={aoCadastrarNova ?? (() => setCadastrando(true))}
       />
       {cadastrando && (
         <SheetAtleticaAdversaria

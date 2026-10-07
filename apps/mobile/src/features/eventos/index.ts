@@ -1,2 +1,2 @@
-export { AdversarioRapidoSheet, DetalheEventoPainel, EventoForm } from './components'
+export { DetalheEventoPainel, EventoForm } from './components'
 export { useEvento } from './hooks'

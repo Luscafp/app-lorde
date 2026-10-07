@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Controller, type Control, type FieldValues, type Path } from 'react-hook-form'
 import { TextInput, View, type TextInputProps } from 'react-native'
 import { paleta } from '@/features/atletica'
+import { ErroCampo } from './erro-campo'
 import { Texto } from './texto'
 
 type Props<T extends FieldValues, S> = Omit<TextInputProps, 'value' | 'onChangeText' | 'onBlur'> & {
@@ -47,11 +48,7 @@ export function Campo<T extends FieldValues, S = T>({
             />
             {acessorio && <View className="absolute right-0">{acessorio}</View>}
           </View>
-          {error?.message && (
-            <Texto variante="erro" accessibilityLiveRegion="polite">
-              {error.message}
-            </Texto>
-          )}
+          <ErroCampo mensagem={error?.message} />
         </View>
       )}
     />

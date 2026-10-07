@@ -1,21 +1,30 @@
 import type { CriarEvento, EditarEvento, EventoCanceladoDto, EventoDto } from '@atletica/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { CodigoApi } from '@/infra/api/api-erro'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import { atualizarEvento, buscarEvento, cancelarEvento, criarEvento, excluirEvento } from './api'
 
-export const EVENTO_COM_DEPENDENCIAS = 'EVENTO_COM_DEPENDENCIAS'
+export const CodigoEvento = {
+  TIME_INVALIDO: 'TIME_INVALIDO',
+  TIME_INATIVO: 'TIME_INATIVO',
+  MODALIDADE_INATIVA: 'MODALIDADE_INATIVA',
+  ADVERSARIO_INVALIDO: 'ADVERSARIO_INVALIDO',
+  MODALIDADES_DIFERENTES: 'MODALIDADES_DIFERENTES',
+  EVENTO_COM_PARTICIPACOES: 'EVENTO_COM_PARTICIPACOES',
+  EVENTO_COM_DEPENDENCIAS: 'EVENTO_COM_DEPENDENCIAS',
+} as const
 
 /** Erros que o formulário mostra no campo (todos trazem `details`). */
 const ERROS_DO_FORMULARIO = [
-  'VALIDATION_ERROR',
-  'TIME_INVALIDO',
-  'TIME_INATIVO',
-  'MODALIDADE_INATIVA',
-  'ADVERSARIO_INVALIDO',
-  'MODALIDADES_DIFERENTES',
-  'EVENTO_COM_PARTICIPACOES',
+  CodigoApi.VALIDATION_ERROR,
+  CodigoEvento.TIME_INVALIDO,
+  CodigoEvento.TIME_INATIVO,
+  CodigoEvento.MODALIDADE_INATIVA,
+  CodigoEvento.ADVERSARIO_INVALIDO,
+  CodigoEvento.MODALIDADES_DIFERENTES,
+  CodigoEvento.EVENTO_COM_PARTICIPACOES,
 ]
 
 export function useEvento(id: string) {
@@ -65,7 +74,7 @@ export function useExcluirEvento() {
   const invalidar = useInvalidar()
   return useAcaoOnline<void, ApiErro, string>({
     mutationFn: (id) => excluirEvento(id),
-    meta: { errosNaTela: [EVENTO_COM_DEPENDENCIAS] },
+    meta: { errosNaTela: [CodigoEvento.EVENTO_COM_DEPENDENCIAS] },
     onSuccess: (_resultado, id) => {
       cliente.removeQueries({ queryKey: chaves.eventos.detalhe(id), exact: true })
       return invalidar()

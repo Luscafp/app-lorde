@@ -1,13 +1,13 @@
 import { EscopoTimes, type EventoDto, type TimeDto } from '@atletica/shared'
 import { useState } from 'react'
-import { ActivityIndicator, View } from 'react-native'
-import { Botao, CampoBusca, Texto } from '@/components/ui'
-import { paleta } from '@/features/atletica'
+import { View } from 'react-native'
+import { Botao, CampoBusca, ErroCampo, Texto } from '@/components/ui'
 import { OpcaoRadio, useTimes } from '@/features/times'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
 import { useValorAtrasado } from '@/infra/use-valor-atrasado'
 import { rotuloAdversario } from '../formatacao'
 import { AdversarioRapidoSheet } from './adversario-rapido-sheet'
+import { EstadoOpcoes } from './estado-opcoes'
 
 type Adversario = NonNullable<EventoDto['timeAdversario']>
 
@@ -40,10 +40,11 @@ function ListaAdversarios({
   return (
     <View className="gap-2">
       <CampoBusca rotulo="Buscar adversário" valor={termo} aoMudar={setTermo} />
-      {consulta.isPending && <ActivityIndicator color={paleta['texto-suave']} />}
-      {consulta.isError && (
-        <Texto variante="legenda">Não foi possível carregar os adversários.</Texto>
-      )}
+      <EstadoOpcoes
+        carregando={consulta.isPending}
+        falhou={consulta.isError}
+        mensagemErro="Não foi possível carregar os adversários."
+      />
       {consulta.isSuccess && opcoes.length === 0 && (
         <Texto variante="legenda">Nenhum adversário desta modalidade.</Texto>
       )}
@@ -120,11 +121,7 @@ export function SeletorAdversario({
           />
         </>
       )}
-      {erro && (
-        <Texto variante="erro" accessibilityLiveRegion="polite">
-          {erro}
-        </Texto>
-      )}
+      <ErroCampo mensagem={erro} />
       {cadastrando && modalidade && (
         <AdversarioRapidoSheet
           modalidade={modalidade}

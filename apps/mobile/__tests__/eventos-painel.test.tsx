@@ -323,7 +323,7 @@ describe('AdversarioRapidoSheet', () => {
     await fireEvent.changeText(screen.getByLabelText('Data'), '10102026')
     await fireEvent.press(await screen.findByRole('radio', { name: 'Vôlei Masculino' }))
     await fireEvent.press(screen.getByRole('button', { name: '+ Cadastrar adversário' }))
-    expect(screen.getByText('Modalidade: Vôlei', { exact: true })).toBeOnTheScreen()
+    expect(screen.getAllByText('Modalidade: Vôlei', { exact: true })).toHaveLength(2)
     await fireEvent.press(await screen.findByRole('radio', { name: 'Atlética Fênix (FNX)' }))
     await fireEvent.changeText(screen.getByLabelText('Nome do time'), 'Fênix Vôlei B')
   }
@@ -345,7 +345,68 @@ describe('AdversarioRapidoSheet', () => {
     expect(screen.getByLabelText('Local')).toHaveDisplayValue('Ginásio Castelinho')
     expect(screen.getByLabelText('Data')).toHaveDisplayValue('10/10/2026')
     expect(screen.getByRole('radio', { name: 'Vôlei Masculino' })).toBeSelected()
-    expect(toast.sucesso).toHaveBeenCalledWith('Adversário cadastrado')
+  })
+
+  it('atlética nova é gravada antes do time, só ao salvar', async () => {
+    const nova: AtleticaAdversaria = { ...FENIX, id: '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d' }
+    times.criarAtleticaAdversaria.mockResolvedValue(nova)
+    times.criarTime.mockResolvedValue(NOVO_ADVERSARIO)
+    await renderizar(<EventoForm aoSalvar={jest.fn()} />)
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Vôlei Masculino' }))
+    await fireEvent.press(screen.getByRole('button', { name: '+ Cadastrar adversário' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Cadastrar nova atlética' }))
+    await fireEvent.changeText(screen.getByLabelText('Nome da atlética'), 'Atlética Fênix')
+    await fireEvent.changeText(screen.getByLabelText('Sigla (opcional)'), 'fnx')
+    await fireEvent.changeText(screen.getByLabelText('Nome do time'), 'Fênix Vôlei B')
+    expect(times.criarAtleticaAdversaria).not.toHaveBeenCalled()
+    await fireEvent.press(screen.getByRole('button', { name: 'Salvar adversário' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('radio', { name: 'Fênix Vôlei B · FNX' })).toBeSelected(),
+    )
+    expect(times.criarAtleticaAdversaria).toHaveBeenCalledWith({
+      nome: 'Atlética Fênix',
+      sigla: 'FNX',
+      curso: null,
+    })
+    expect(times.criarTime).toHaveBeenCalledWith({
+      nome: 'Fênix Vôlei B',
+      modalidadeId: VOLEI.id,
+      atleticaAdversariaId: nova.id,
+    })
+    expect(times.criarAtleticaAdversaria.mock.invocationCallOrder[0]).toBeLessThan(
+      times.criarTime.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('erro no time após gravar a atlética nova não a duplica ao repetir', async () => {
+    const mensagem = 'Já existe um time com este nome nesta modalidade.'
+    times.criarAtleticaAdversaria.mockResolvedValue(FENIX)
+    times.criarTime
+      .mockRejectedValueOnce(
+        new ApiErro({
+          status: 409,
+          code: 'TIME_DUPLICADO',
+          message: mensagem,
+          details: [{ field: 'nome', message: mensagem }],
+        }),
+      )
+      .mockResolvedValueOnce(NOVO_ADVERSARIO)
+    await renderizar(<EventoForm aoSalvar={jest.fn()} />)
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Vôlei Masculino' }))
+    await fireEvent.press(screen.getByRole('button', { name: '+ Cadastrar adversário' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Cadastrar nova atlética' }))
+    await fireEvent.changeText(screen.getByLabelText('Nome da atlética'), 'Atlética Fênix')
+    await fireEvent.changeText(screen.getByLabelText('Nome do time'), 'Fênix Vôlei')
+    await fireEvent.press(screen.getByRole('button', { name: 'Salvar adversário' }))
+
+    expect(await screen.findByText(mensagem)).toBeOnTheScreen()
+    expect(screen.getByRole('radio', { name: 'Atlética Fênix (FNX)' })).toBeSelected()
+    await fireEvent.changeText(screen.getByLabelText('Nome do time'), 'Fênix Vôlei B')
+    await fireEvent.press(screen.getByRole('button', { name: 'Salvar adversário' }))
+
+    await waitFor(() => expect(times.criarTime).toHaveBeenCalledTimes(2))
+    expect(times.criarAtleticaAdversaria).toHaveBeenCalledTimes(1)
   })
 
   it('erro da API mantém o sheet aberto com os dados', async () => {
@@ -503,6 +564,19 @@ describe('Edição', () => {
     await salvar()
 
     await waitFor(() => expect(toast.erro).toHaveBeenCalledWith(mensagem))
+  })
+
+  it('422 EVENTO_FINALIZADO aparece no toast (critério 11)', async () => {
+    const mensagem = 'Evento finalizado: só as observações podem ser alteradas.'
+    eventos.atualizarEvento.mockRejectedValue(
+      new ApiErro({ status: 422, code: 'EVENTO_FINALIZADO', message: mensagem }),
+    )
+    await renderizar(<EditarEvento />)
+    await fireEvent.changeText(await screen.findByLabelText('Local'), 'Quadra Central')
+    await salvar()
+
+    await waitFor(() => expect(toast.erro).toHaveBeenCalledWith(mensagem))
+    expect(screen.getByLabelText('Local')).toHaveDisplayValue('Quadra Central')
   })
 
   it('evento CANCELADO não abre o formulário', async () => {

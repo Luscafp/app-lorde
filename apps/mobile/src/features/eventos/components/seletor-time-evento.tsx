@@ -1,8 +1,8 @@
 import type { EventoDto } from '@atletica/shared'
-import { ActivityIndicator, View } from 'react-native'
-import { Texto } from '@/components/ui'
-import { paleta } from '@/features/atletica'
+import { View } from 'react-native'
+import { ErroCampo, Texto } from '@/components/ui'
 import { OpcaoRadio, useTimesProprios } from '@/features/times'
+import { EstadoOpcoes } from './estado-opcoes'
 
 export type TimeEscolhido = Pick<EventoDto, 'time' | 'modalidade'>
 
@@ -43,8 +43,11 @@ export function SeletorTimeEvento({ valor, aoMudar, atual, desabilitado, erro }:
   return (
     <View className="gap-2">
       <Texto variante="rotulo">Time da atlética</Texto>
-      {!ativos && !isError && <ActivityIndicator color={paleta['texto-suave']} />}
-      {isError && <Texto variante="legenda">Não foi possível carregar os times.</Texto>}
+      <EstadoOpcoes
+        carregando={!ativos}
+        falhou={isError}
+        mensagemErro="Não foi possível carregar os times."
+      />
       {ativos?.length === 0 && !atual && (
         <Texto variante="legenda">Cadastre um time antes de criar o evento.</Texto>
       )}
@@ -69,11 +72,7 @@ export function SeletorTimeEvento({ valor, aoMudar, atual, desabilitado, erro }:
       {selecionado && (
         <Texto variante="legenda">{`Modalidade: ${selecionado.modalidade.nome}`}</Texto>
       )}
-      {erro && (
-        <Texto variante="erro" accessibilityLiveRegion="polite">
-          {erro}
-        </Texto>
-      )}
+      <ErroCampo mensagem={erro} />
     </View>
   )
 }

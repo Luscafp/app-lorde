@@ -3,7 +3,6 @@ export { CartaoTime } from './cartao-time'
 export { ElencoPainel } from './elenco-painel'
 export { FormAtleticaAdversaria, SheetAtleticaAdversaria } from './form-atletica-adversaria'
 export { FormTime } from './form-time'
-export { rotuloAtletica } from './formatacao'
 export {
   useAtleticasAdversarias,
   useAtualizarAtleticaAdversaria,

@@ -6,9 +6,9 @@ import { mostrarErroDaMutacao } from '@/infra/query/query-client'
 import { useOnline } from '@/infra/rede/online'
 import { useTemNivelMinimo } from '@/infra/sessao/use-tem-nivel-minimo'
 import { ROTULO_STATUS, ROTULO_TIPO, rotuloAdversario, tituloEvento } from '../formatacao'
-import { EVENTO_COM_DEPENDENCIAS, useCancelarEvento, useExcluirEvento } from '../hooks'
+import { CodigoEvento, useCancelarEvento, useExcluirEvento } from '../hooks'
 
-export const MENSAGEM_COM_DEPENDENCIAS =
+const MENSAGEM_COM_DEPENDENCIAS =
   'Este evento tem respostas, presenças ou resultado. Cancele-o em vez de excluir.'
 
 const CANCELAVEIS: StatusEvento[] = [StatusEvento.AGENDADO, StatusEvento.EM_ANDAMENTO]
@@ -58,7 +58,8 @@ export function DetalheEventoPainel({ evento, aoEditar, aoExcluir }: Props) {
             aoExcluir()
           },
           onError: (erro: ApiErro) => {
-            if (erro.code === EVENTO_COM_DEPENDENCIAS) toast.erro(MENSAGEM_COM_DEPENDENCIAS)
+            if (erro.code === CodigoEvento.EVENTO_COM_DEPENDENCIAS)
+              toast.erro(MENSAGEM_COM_DEPENDENCIAS)
             else mostrarErroDaMutacao(erro)
           },
         }),

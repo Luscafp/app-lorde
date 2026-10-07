@@ -4,12 +4,21 @@ import { useState, type ReactNode } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { ScrollView, View } from 'react-native'
 import { FaixaOffline } from '@/components/estado'
-import { Alerta, Botao, Campo, confirmar, Texto, toast } from '@/components/ui'
+import {
+  Alerta,
+  Botao,
+  Campo,
+  confirmar,
+  mascararData,
+  mascararHora,
+  Texto,
+  toast,
+} from '@/components/ui'
 import { OpcaoRadio } from '@/features/times'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
-import { ApiErro } from '@/infra/api/cliente'
+import type { ApiErro } from '@/infra/api/cliente'
 import { mostrarErroDaMutacao } from '@/infra/query/query-client'
-import { mascararData, mascararHora, ROTULO_TIPO } from '../formatacao'
+import { ROTULO_TIPO } from '../formatacao'
 import { useAtualizarEvento, useCriarEvento } from '../hooks'
 import {
   CAMPO_DO_FORM,
@@ -29,7 +38,7 @@ type Props = {
   /** Sem ele, cadastra um novo. */
   evento?: EventoDto
   aoSalvar: (evento: EventoDto) => void
-  /** Ponto de extensão abaixo de Data/Horário (treino recorrente, #20). */
+  /** Abaixo de Data/Horário. */
   aposDataHora?: ReactNode
 }
 
@@ -46,36 +55,27 @@ export function EventoForm({ evento, aoSalvar, aposDataHora }: Props) {
   })
   const [tipo, observacoes] = useWatch({ control: form.control, name: ['tipo', 'observacoes'] })
 
-  function tratarErro(erro: ApiErro) {
-    const details = erro.details.map((d) => ({ ...d, field: CAMPO_DO_FORM[d.field] ?? d.field }))
-    const doFormulario = new ApiErro({
-      status: erro.status,
-      code: erro.code,
-      message: erro.message,
-      details,
-    })
-    if (!aplicarErrosDaApi(form, doFormulario)) mostrarErroDaMutacao(erro)
-  }
-
-  const retorno = (mensagem: string) => ({
+  const callbacksDeSalvar = (mensagem: string) => ({
     onSuccess: (salvo: EventoDto) => {
       toast.sucesso(mensagem)
       aoSalvar(salvo)
     },
-    onError: tratarErro,
+    onError: (erro: ApiErro) => {
+      if (!aplicarErrosDaApi(form, erro, CAMPO_DO_FORM)) mostrarErroDaMutacao(erro)
+    },
   })
 
   function gravar(dados: EventoFormSaida) {
     if (!evento) {
-      if ('tipo' in dados) criar.mutate(dados, retorno('Evento cadastrado'))
+      if ('tipo' in dados) criar.mutate(dados, callbacksDeSalvar('Evento cadastrado'))
       return
     }
     const mudancas = paraEdicao(dados, evento)
     if (Object.keys(mudancas).length === 0) return aoSalvar(evento)
-    atualizar.mutate({ id: evento.id, dados: mudancas }, retorno('Evento atualizado'))
+    atualizar.mutate({ id: evento.id, dados: mudancas }, callbacksDeSalvar('Evento atualizado'))
   }
 
-  function enviar(dados: EventoFormSaida) {
+  function confirmarSeNoPassado(dados: EventoFormSaida) {
     const inicioMudou =
       'inicio' in dados && (!evento || Date.parse(dados.inicio) !== Date.parse(evento.inicio))
     if (!inicioMudou || Date.parse(dados.inicio) >= Date.now()) return gravar(dados)
@@ -203,7 +203,7 @@ export function EventoForm({ evento, aoSalvar, aposDataHora }: Props) {
           titulo="Salvar"
           carregando={salvar.isPending || form.formState.isSubmitting}
           disabled={!salvar.online}
-          onPress={() => void form.handleSubmit(enviar)()}
+          onPress={() => void form.handleSubmit(confirmarSeNoPassado)()}
         />
       </ScrollView>
     </View>
