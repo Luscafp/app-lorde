@@ -187,7 +187,7 @@ describe('EventoForm', () => {
     expect(screen.getByLabelText('Horário')).toHaveDisplayValue('19:00')
     await salvar()
 
-    await waitFor(() => expect(aoSalvar).toHaveBeenCalledWith(EVENTO))
+    await waitFor(() => expect(aoSalvar).toHaveBeenCalledWith(EVENTO.id))
     expect(eventos.criarEvento).toHaveBeenCalledWith({
       tipo: 'JOGO',
       timeId: VOLEI_CASA.id,
