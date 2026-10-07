@@ -4,22 +4,26 @@ import { TextInput, View, type TextInputProps } from 'react-native'
 import { paleta } from '@/features/atletica'
 import { Texto } from './texto'
 
-type Props<T extends FieldValues> = Omit<TextInputProps, 'value' | 'onChangeText' | 'onBlur'> & {
-  controle: Control<T>
+type Props<T extends FieldValues, S> = Omit<TextInputProps, 'value' | 'onChangeText' | 'onBlur'> & {
+  /** `S`: valores após o resolver, quando diferem dos campos da tela. */
+  controle: Control<T, unknown, S>
   nome: Path<T>
   rotulo: string
   /** Fica à direita, dentro do campo (ex.: mostrar senha). */
   acessorio?: ReactNode
+  /** Formata o texto digitado antes de guardá-lo (ex.: `dd/mm/aaaa`). */
+  mascara?: (texto: string) => string
 }
 
 /** Campo de texto ligado ao React Hook Form; o erro do Zod aparece abaixo do campo. */
-export function Campo<T extends FieldValues>({
+export function Campo<T extends FieldValues, S = T>({
   controle,
   nome,
   rotulo,
   acessorio,
+  mascara,
   ...entrada
-}: Props<T>) {
+}: Props<T, S>) {
   return (
     <Controller
       control={controle}
@@ -31,7 +35,7 @@ export function Campo<T extends FieldValues>({
             <TextInput
               ref={field.ref}
               value={field.value == null ? '' : String(field.value)}
-              onChangeText={field.onChange}
+              onChangeText={(texto) => field.onChange(mascara ? mascara(texto) : texto)}
               onBlur={field.onBlur}
               accessibilityLabel={rotulo}
               accessibilityHint={error?.message}

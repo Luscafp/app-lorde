@@ -10,7 +10,7 @@ import { OpcaoRadio } from './opcao-radio'
 
 export type AtleticaEscolhida = { id: string; nome: string; sigla: string | null }
 
-function BuscaAdversaria({
+export function BuscaAdversaria({
   selecionada,
   aoSelecionar,
 }: {
