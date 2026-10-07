@@ -1,5 +1,5 @@
 export { AlterarSenha, MENSAGEM_SENHA_ALTERADA } from './alterar-senha'
-export { CodigoPerfil, useMe } from './consultas'
+export { CodigoPerfil, MENSAGEM_CONTA_EXCLUIDA, useMe } from './consultas'
 export { EditarPerfil, MENSAGEM_PERFIL_ATUALIZADO } from './editar-perfil'
-export { ExcluirConta, MENSAGEM_CONTA_EXCLUIDA } from './excluir-conta'
+export { ExcluirConta } from './excluir-conta'
 export { MENSAGEM_SEM_TIMES, TelaPerfil } from './tela-perfil'

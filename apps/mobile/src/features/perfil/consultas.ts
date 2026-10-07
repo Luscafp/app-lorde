@@ -7,6 +7,7 @@ import type {
 } from '@atletica/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
+import { toast } from '@/components/ui/toast'
 import { CodigoApi, type ApiErro } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
@@ -87,11 +88,16 @@ export function useAlterarSenha() {
   })
 }
 
+export const MENSAGEM_CONTA_EXCLUIDA = 'Conta excluída'
+
 /** O servidor já revogou as sessões: encerra só a local, sem `logoutPendente`. */
 export function useExcluirConta() {
   return useAcaoOnline<void, ApiErro, ExcluirConta>({
     mutationFn: (dados) => excluirConta(dados),
-    onSuccess: () => useSessao.getState().encerrarSessao({ motivo: 'CONTA_EXCLUIDA' }),
+    onSuccess: async () => {
+      await useSessao.getState().encerrarSessao({ motivo: 'CONTA_EXCLUIDA' })
+      toast.sucesso(MENSAGEM_CONTA_EXCLUIDA)
+    },
     meta: {
       errosNaTela: [
         CodigoPerfil.SENHA_INCORRETA,

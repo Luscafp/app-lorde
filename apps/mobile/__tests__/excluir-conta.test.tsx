@@ -111,6 +111,16 @@ describe('Excluir conta (#12)', () => {
     expect(adicionarLogoutPendente).not.toHaveBeenCalled()
   })
 
+  it('sucesso: "Conta excluída" aparece mesmo com a tela desmontada ao encerrar a sessão', async () => {
+    api.excluirConta.mockResolvedValue()
+    const { unmount } = await renderizar()
+    encerrarSessao.mockImplementation(async () => unmount())
+    await preencher()
+    await confirmar()
+
+    await waitFor(() => expect(toast.sucesso).toHaveBeenCalledWith(MENSAGEM_CONTA_EXCLUIDA))
+  })
+
   it('SENHA_INCORRETA: erro no campo, confirmação continua marcada e a sessão fica', async () => {
     api.excluirConta.mockRejectedValue(
       new ApiErro({

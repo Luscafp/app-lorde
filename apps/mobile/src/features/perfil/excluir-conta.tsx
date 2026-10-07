@@ -4,20 +4,11 @@ import { useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { Alert, View } from 'react-native'
 import { TelaRolavel } from '@/components/tela-rolavel'
-import {
-  Alerta,
-  AvisoOffline,
-  Botao,
-  CaixaSelecao,
-  CampoSenha,
-  Texto,
-  toast,
-} from '@/components/ui'
+import { Alerta, AvisoOffline, Botao, CaixaSelecao, CampoSenha, Texto } from '@/components/ui'
 import { ApiErro, CodigoApi } from '@/infra/api/api-erro'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
 import { useExcluirConta } from './consultas'
 
-export const MENSAGEM_CONTA_EXCLUIDA = 'Conta excluída'
 const CONFIRMACAO_IRREVERSIVEL = 'Entendo que esta ação não pode ser desfeita'
 
 const CONSEQUENCIAS = [
@@ -60,7 +51,6 @@ export function ExcluirConta() {
   const enviar = form.handleSubmit((dados) => {
     setBloqueio(null)
     excluir.mutate(dados, {
-      onSuccess: () => toast.sucesso(MENSAGEM_CONTA_EXCLUIDA),
       onError: (erro) => {
         if (!aplicarErrosDaApi(form, erro)) setBloqueio(mensagemDoBloqueio(erro))
       },

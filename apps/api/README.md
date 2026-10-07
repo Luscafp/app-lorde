@@ -325,16 +325,16 @@ Perfil do usuário autenticado (UC10, UC11, #13). Só `@UsuarioAtual()`, sem `:i
 
 `{ senha }` → `204` (UC13, RN33, #12); `400 SENHA_INCORRETA` (campo `senha`), `409 ULTIMO_ADMINISTRADOR`, `429` (mesmo contador de `PUT /me/senha`).
 
-- Uma transação (`TransacaoService.executar`). A senha é conferida antes, com `semEscopo`; dentro dela, a conta é travada (`FOR UPDATE`) e os vínculos de todas as atléticas são lidos por SQL. O trabalho de cada atlética roda em `executarComAtletica`.
-- Ordem: `bloquearPapeis` + `garantirNaoUltimoAdministrador` em cada atlética onde a conta é Administrador ativo → `ElencoService.encerrarVinculo` por time (`EXCLUSAO_CONTA`), solicitações `PENDENTE` → `CANCELADA`, vínculos → `ATLETA`/inativos, auditoria `CONTA_EXCLUIDA` (uma por atlética, `{ antes: { papel }, depois: null, contexto: { timeIds } }`) → anonimização da conta → `revogarTodas(CONTA_EXCLUIDA)`.
+- Uma transação (`TransacaoService.executar`). A senha é conferida antes (`ConfirmacaoSenhaService`, o mesmo de `PUT /me/senha`); dentro dela, a conta é travada (`FOR UPDATE`) e os vínculos de todas as atléticas são lidos por SQL, porque `semEscopo` não participa da transação. O trabalho de cada atlética roda em `executarComAtletica`.
+- Ordem: `bloquearPapeis` + `ehUltimoAdministrador` (mensagem própria da exclusão) em cada atlética onde a conta é Administrador ativo → `ElencoService.encerrarVinculo` por time (`EXCLUSAO_CONTA`), solicitações `PENDENTE` → `CANCELADA`, vínculos → `ATLETA`/inativos, auditoria `CONTA_EXCLUIDA` (uma por atlética, `{ antes: { papel }, depois: null, contexto: { timeIds } }`) → anonimização da conta → `revogarTodas(CONTA_EXCLUIDA)`.
 - Anonimização: nome `Usuário excluído`, e-mail `excluido+<id>@anonimo.invalid` (libera o original para novo cadastro), `senhaHash = '!'`, sem foto, `ativo = false`, `excluidoEm`. Apaga códigos de verificação, preferências, dispositivos push e as tentativas de login/recuperação do e-mail original. Ficam `AceiteTermos`, participações passadas e autorias.
-- Após o commit: `usuario.sessaoEncerrada` com todas as sessões revogadas e remoção da foto no R2 (falha só gera log).
+- Após o commit: `usuario.sessaoEncerrada` com todas as sessões revogadas e remoção da foto no R2 (`UploadsService.apagar`; falha gera `logger.error` + Sentry, sem afetar a resposta).
 
 ### `regras-papel.ts` (usado por #12 e #28)
 
 ```ts
 bloquearPapeis(tx, atleticaId) // pg_advisory_xact_lock(hashtext('papeis:' || atleticaId)), até o commit
-garantirNaoUltimoAdministrador(tx, atleticaId, usuarioId, mensagem?) // 409 ULTIMO_ADMINISTRADOR; chame depois do lock
+garantirNaoUltimoAdministrador(tx, atleticaId, usuarioId) // 409 ULTIMO_ADMINISTRADOR; chame depois do lock
 ehUltimoAdministrador(cliente, atleticaId, usuarioId) // mesma contagem, sem lançar
 calcularPermissoes(solicitante, alvo, ehUltimoAdmin) // permissoes do detalhe
 bloquearVinculo(tx, usuarioId, atleticaId) // vínculo do alvo com FOR UPDATE; depois do lock

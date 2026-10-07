@@ -7,20 +7,16 @@ import {
   type Perfil,
 } from '@atletica/shared'
 import { Injectable } from '@nestjs/common'
-import { MINUTO_MS } from '../../common/tempo'
 import { aposCommit, TransacaoService } from '../../infra/eventos/apos-commit'
 import { EventosDominioService } from '../../infra/eventos/eventos-dominio.service'
 import { PrismaService } from '../../infra/prisma/prisma.service'
 import { SenhaService } from '../../infra/senha/senha.service'
 import { erroNaoAutenticado } from '../auth/erros'
-import { RateLimitService, TipoTentativa, type LimiteTentativas } from '../auth/rate-limit.service'
 import { SessaoService } from '../auth/sessao.service'
 import type { UsuarioAutenticado, UsuarioNaAtletica } from '../auth/tipos'
 import { UploadsService } from '../uploads/uploads.service'
-import { erroSenhaIgualAtual, erroSenhaIncorreta } from './erros'
-
-/** Mesmo contador da exclusão de conta (#12): chave = `usuarioId`. */
-export const LIMITE_SENHA_ATUAL: LimiteTentativas = { maximo: 5, janelaMs: 15 * MINUTO_MS }
+import { ConfirmacaoSenhaService } from './confirmacao-senha.service'
+import { erroSenhaIgualAtual } from './erros'
 
 export interface DadosPerfil {
   id: string
@@ -110,7 +106,7 @@ export class PerfilService {
     private readonly transacao: TransacaoService,
     private readonly uploads: UploadsService,
     private readonly senhas: SenhaService,
-    private readonly limites: RateLimitService,
+    private readonly confirmacao: ConfirmacaoSenhaService,
     private readonly sessoes: SessaoService,
     private readonly eventos: EventosDominioService,
   ) {}
@@ -159,16 +155,7 @@ export class PerfilService {
     { id, sessaoId }: Pick<UsuarioAutenticado, 'id' | 'sessaoId'>,
     { senhaAtual, novaSenha }: AlterarSenha,
   ): Promise<void> {
-    await this.limites.verificar(TipoTentativa.SENHA_CONFIRMACAO_FALHA, id, LIMITE_SENHA_ATUAL)
-    const usuario = await this.prisma.db.usuario.findUnique({
-      where: { id },
-      select: { senhaHash: true },
-    })
-    if (!usuario) throw erroNaoAutenticado()
-    if (!(await this.senhas.verificar(usuario.senhaHash, senhaAtual))) {
-      await this.limites.registrar(TipoTentativa.SENHA_CONFIRMACAO_FALHA, id)
-      throw erroSenhaIncorreta()
-    }
+    await this.confirmacao.confirmar(id, senhaAtual, 'senhaAtual')
     if (novaSenha === senhaAtual) throw erroSenhaIgualAtual()
 
     const senhaHash = await this.senhas.hash(novaSenha)

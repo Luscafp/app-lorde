@@ -1,10 +1,10 @@
 import { Papel, StatusSolicitacao } from '@atletica/shared'
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
+import * as Sentry from '@sentry/nestjs'
 import { ContextoAtletica } from '../../infra/contexto/contexto-atletica.service'
 import { aposCommit, TransacaoService } from '../../infra/eventos/apos-commit'
 import { EventosDominioService } from '../../infra/eventos/eventos-dominio.service'
-import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prisma.service'
-import { SenhaService } from '../../infra/senha/senha.service'
+import type { TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import { AuditoriaService } from '../auditoria/auditoria.service'
 import { prefixoChaveLogin } from '../auth/chaves-limite'
 import { erroNaoAutenticado } from '../auth/erros'
@@ -12,12 +12,11 @@ import { RateLimitService, TipoTentativa } from '../auth/rate-limit.service'
 import { SessaoService } from '../auth/sessao.service'
 import { ElencoService, MotivoSaida } from '../times/elenco.service'
 import { UploadsService } from '../uploads/uploads.service'
-import { erroSenhaIncorreta, MENSAGEM_ULTIMO_ADMINISTRADOR_EXCLUSAO } from './erros'
-import { LIMITE_SENHA_ATUAL } from './perfil.service'
-import { bloquearPapeis, garantirNaoUltimoAdministrador } from './regras-papel'
+import { ConfirmacaoSenhaService } from './confirmacao-senha.service'
+import { erroUltimoAdministradorExclusao } from './erros'
+import { bloquearPapeis, ehUltimoAdministrador } from './regras-papel'
 
 export const NOME_ANONIMO = 'Usuário excluído'
-const SENHA_INCORRETA = 'Senha incorreta.'
 /** Não é um hash Argon2id: `SenhaService.verificar` nunca confere. */
 export const SENHA_HASH_INVALIDO = '!'
 
@@ -37,11 +36,12 @@ const ehAdministradorAtivo = ({ papel, ativo }: Vinculo) => ativo && papel === P
 /** Exclusão da conta pelo próprio usuário com anonimização (UC13, RN33, issue #12). */
 @Injectable()
 export class ContaService {
+  private readonly logger = new Logger(ContaService.name)
+
   constructor(
-    private readonly prisma: PrismaService,
     private readonly transacao: TransacaoService,
     private readonly contexto: ContextoAtletica,
-    private readonly senhas: SenhaService,
+    private readonly confirmacao: ConfirmacaoSenhaService,
     private readonly limites: RateLimitService,
     private readonly sessoes: SessaoService,
     private readonly elenco: ElencoService,
@@ -51,32 +51,16 @@ export class ContaService {
   ) {}
 
   async excluir(usuarioId: string, senha: string): Promise<void> {
-    await this.limites.verificar(
-      TipoTentativa.SENHA_CONFIRMACAO_FALHA,
-      usuarioId,
-      LIMITE_SENHA_ATUAL,
-    )
-    const credencial = await this.prisma.semEscopo.usuario.findUnique({
-      where: { id: usuarioId },
-      select: { senhaHash: true },
-    })
-    if (!credencial) throw erroNaoAutenticado()
-    if (!(await this.senhas.verificar(credencial.senhaHash, senha))) {
-      await this.limites.registrar(TipoTentativa.SENHA_CONFIRMACAO_FALHA, usuarioId)
-      throw erroSenhaIncorreta('senha', SENHA_INCORRETA)
-    }
+    await this.confirmacao.confirmar(usuarioId, senha, 'senha')
 
     await this.transacao.executar(async (tx) => {
-      const conta = await this.travarConta(tx, usuarioId)
+      const conta = await this.carregarContaTravada(tx, usuarioId)
       for (const { atleticaId } of conta.vinculos.filter(ehAdministradorAtivo)) {
         await this.contexto.executarComAtletica(atleticaId, async () => {
           await bloquearPapeis(tx, atleticaId)
-          await garantirNaoUltimoAdministrador(
-            tx,
-            atleticaId,
-            usuarioId,
-            MENSAGEM_ULTIMO_ADMINISTRADOR_EXCLUSAO,
-          )
+          if (await ehUltimoAdministrador(tx, atleticaId, usuarioId)) {
+            throw erroUltimoAdministradorExclusao()
+          }
         })
       }
       for (const { atleticaId, papel } of conta.vinculos) {
@@ -96,15 +80,15 @@ export class ContaService {
         })
       }
       const { fotoKey } = conta
-      if (fotoKey) aposCommit(() => this.uploads.remover(fotoKey))
+      if (fotoKey) aposCommit(() => this.removerFoto(usuarioId, fotoKey))
     })
   }
 
   /**
-   * A conta é global: SQL direto lê os vínculos de todas as atléticas, já dentro da transação.
-   * O `FOR UPDATE` serializa com outra exclusão ou troca de foto da mesma conta.
+   * A conta é global: SQL direto lê os vínculos de todas as atléticas dentro da transação, que
+   * `prisma.semEscopo` não compartilha. O `FOR UPDATE` serializa com outra exclusão ou troca de foto.
    */
-  private async travarConta(tx: TransacaoComEscopo, usuarioId: string) {
+  private async carregarContaTravada(tx: TransacaoComEscopo, usuarioId: string) {
     const [usuario] = await tx.$queryRaw<{ email: string; fotoKey: string | null }[]>`
       SELECT "email", "fotoKey" FROM "Usuario" WHERE "id" = ${usuarioId}::uuid FOR UPDATE`
     if (!usuario) throw erroNaoAutenticado()
@@ -167,5 +151,15 @@ export class ContaService {
     await tx.tentativaAcesso.deleteMany({
       where: { tipo: TipoTentativa.RECUPERACAO_ENVIO, chave: email },
     })
+  }
+
+  /** Falha não desfaz a exclusão: vai para o log e o Sentry, e a limpeza de órfãos (#56) recolhe. */
+  private async removerFoto(usuarioId: string, fotoKey: string): Promise<void> {
+    try {
+      await this.uploads.apagar(fotoKey)
+    } catch (erro) {
+      this.logger.error({ err: erro, usuarioId }, 'Falha ao remover a foto da conta excluída')
+      Sentry.captureException(erro, { tags: { modulo: 'conta' }, extra: { usuarioId } })
+    }
   }
 }

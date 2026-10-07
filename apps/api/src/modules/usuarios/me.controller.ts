@@ -36,8 +36,9 @@ import { emMinutos } from '../../common/tempo'
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator'
 import type { UsuarioAutenticado } from '../auth/tipos'
 import { ContaService } from './conta.service'
-import { MENSAGEM_ULTIMO_ADMINISTRADOR_EXCLUSAO } from './erros'
-import { LIMITE_SENHA_ATUAL, PerfilService } from './perfil.service'
+import { LIMITE_SENHA_CONFIRMACAO } from './confirmacao-senha.service'
+import { erroUltimoAdministradorExclusao } from './erros'
+import { PerfilService } from './perfil.service'
 
 class AtualizarPerfilDto extends createZodDto(atualizarPerfilSchema) {}
 class AtualizarFotoDto extends createZodDto(atualizarFotoSchema) {}
@@ -163,7 +164,7 @@ export class MeController {
   })
   @ApiTooManyRequestsResponse({
     ...RESPOSTA_LIMITE_EXCEDIDO,
-    description: `${LIMITE_SENHA_ATUAL.maximo} senhas atuais erradas em ${emMinutos(LIMITE_SENHA_ATUAL.janelaMs)} min.`,
+    description: `${LIMITE_SENHA_CONFIRMACAO.maximo} senhas atuais erradas em ${emMinutos(LIMITE_SENHA_CONFIRMACAO.janelaMs)} min.`,
   })
   alterarSenha(
     @Body() dados: AlterarSenhaDto,
@@ -190,11 +191,11 @@ export class MeController {
   @ApiNoContentResponse({ description: 'Conta excluída e sessões revogadas.' })
   @ApiBadRequestResponse({ description: '`VALIDATION_ERROR` ou `SENHA_INCORRETA`.' })
   @ApiConflictResponse({
-    description: `\`ULTIMO_ADMINISTRADOR\`: "${MENSAGEM_ULTIMO_ADMINISTRADOR_EXCLUSAO}"`,
+    description: `\`ULTIMO_ADMINISTRADOR\`: "${erroUltimoAdministradorExclusao().message}"`,
   })
   @ApiTooManyRequestsResponse({
     ...RESPOSTA_LIMITE_EXCEDIDO,
-    description: `${LIMITE_SENHA_ATUAL.maximo} senhas erradas em ${emMinutos(LIMITE_SENHA_ATUAL.janelaMs)} min (mesmo contador de \`PUT /me/senha\`).`,
+    description: `${LIMITE_SENHA_CONFIRMACAO.maximo} senhas erradas em ${emMinutos(LIMITE_SENHA_CONFIRMACAO.janelaMs)} min (mesmo contador de \`PUT /me/senha\`).`,
   })
   excluirConta(
     @Body() { senha }: ExcluirContaDto,

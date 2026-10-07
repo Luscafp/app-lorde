@@ -1,5 +1,6 @@
 import { DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { TERMOS_VERSAO } from '@atletica/shared'
+import { Logger } from '@nestjs/common'
 import request from 'supertest'
 import type { RespostaErro } from '../../src/common/erros/erro-negocio'
 import { TransacaoService } from '../../src/infra/eventos/apos-commit'
@@ -339,6 +340,7 @@ describe('Exclusão de conta DELETE /me/conta (#12)', () => {
         data: { fotoKey: `usuarios/${atleta.id}/perfil/2b7f5c1e-0d4a-4f8e-9b3c-7a6d5e4f3a21.jpg` },
       })
       armazenamento.s3.send.mockRejectedValueOnce(new Error('R2 fora do ar'))
+      const logError = jest.spyOn(Logger.prototype, 'error')
 
       const resposta = await excluir(atleta)
       await aguardarOuvintes()
@@ -346,6 +348,35 @@ describe('Exclusão de conta DELETE /me/conta (#12)', () => {
       expect(resposta.status).toBe(204)
       expect(comandosEnviados(armazenamento.s3.send, DeleteObjectCommand)).toHaveLength(1)
       expect(await contaDe(atleta)).toMatchObject({ fotoKey: null, ativo: false })
+      expect(logError).toHaveBeenCalledWith(
+        expect.objectContaining({ usuarioId: atleta.id }),
+        'Falha ao remover a foto da conta excluída',
+      )
+      logError.mockRestore()
+    })
+
+    it('Diretoria vê "Usuário excluído" sem o e-mail original nem foto (critério 14)', async () => {
+      const atleta = await usuario({ nome: 'Ana Souza', email: 'ana@ex.com' })
+      await prismaTeste.usuario.update({
+        where: { id: atleta.id },
+        data: { fotoKey: `usuarios/${atleta.id}/perfil/2b7f5c1e-0d4a-4f8e-9b3c-7a6d5e4f3a21.jpg` },
+      })
+      const tokenPresidente = await tokenPara(await usuario({ papel: 'PRESIDENTE' }))
+      expect((await excluir(atleta)).status).toBe(204)
+      await aguardarOuvintes()
+
+      const resposta = await request(contexto.http)
+        .get(`/api/v1/usuarios/${atleta.id}`)
+        .set('Authorization', `Bearer ${tokenPresidente}`)
+
+      expect(resposta.status).toBe(200)
+      expect(resposta.body).toMatchObject({
+        nome: 'Usuário excluído',
+        fotoUrl: null,
+        situacao: 'EXCLUIDO',
+        times: [],
+      })
+      expect(JSON.stringify(resposta.body)).not.toContain('ana@ex.com')
     })
   })
 

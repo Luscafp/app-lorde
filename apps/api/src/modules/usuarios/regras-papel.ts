@@ -87,11 +87,8 @@ export async function garantirNaoUltimoAdministrador(
   tx: TransacaoComEscopo,
   atleticaId: string,
   usuarioId: string,
-  mensagem?: string,
 ): Promise<void> {
-  if (await ehUltimoAdministrador(tx, atleticaId, usuarioId)) {
-    throw erroUltimoAdministrador(mensagem)
-  }
+  if (await ehUltimoAdministrador(tx, atleticaId, usuarioId)) throw erroUltimoAdministrador()
 }
 
 /** Ordem única das checagens de desativar/reativar: leitura (`permissoes`) e escrita. */

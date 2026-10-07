@@ -1,4 +1,6 @@
 import { Papel } from '@atletica/shared'
+import * as Sentry from '@sentry/nestjs'
+import { Logger } from '@nestjs/common'
 import { ErroLimiteExcedido, ErroNegocio } from '../../common/erros/erro-negocio'
 import type { ContextoAtletica } from '../../infra/contexto/contexto-atletica.service'
 import type { TransacaoService } from '../../infra/eventos/apos-commit'
@@ -10,9 +12,9 @@ import type { RateLimitService } from '../auth/rate-limit.service'
 import type { SessaoService } from '../auth/sessao.service'
 import type { ElencoService } from '../times/elenco.service'
 import type { UploadsService } from '../uploads/uploads.service'
+import { ConfirmacaoSenhaService } from './confirmacao-senha.service'
 import { ContaService, emailAnonimo, NOME_ANONIMO, SENHA_HASH_INVALIDO } from './conta.service'
-import { erroUltimoAdministrador } from './erros'
-import { bloquearPapeis, garantirNaoUltimoAdministrador } from './regras-papel'
+import { bloquearPapeis, ehUltimoAdministrador } from './regras-papel'
 
 const callbacksAposCommit: (() => unknown)[] = []
 
@@ -20,6 +22,7 @@ jest.mock('../../infra/eventos/apos-commit', () => ({
   aposCommit: (callback: () => unknown) => callbacksAposCommit.push(callback),
 }))
 jest.mock('./regras-papel')
+jest.mock('@sentry/nestjs', () => ({ captureException: jest.fn() }))
 
 const ID = '6b0e2a52-8e5d-4a43-9d6c-1f0f3c2b7a90'
 const LORDE = 'a0000000-0000-4000-8000-000000000000'
@@ -77,14 +80,10 @@ function criarServico({
     tentativaAcesso: { deleteMany: jest.fn(passo('tentativas')) },
   }
   jest.mocked(bloquearPapeis).mockImplementation(passo('lock'))
-  jest.mocked(garantirNaoUltimoAdministrador).mockImplementation(passo('rn08'))
+  jest.mocked(ehUltimoAdministrador).mockImplementation(responder('rn08', () => false))
 
   const prisma = {
-    semEscopo: {
-      usuario: {
-        findUnique: jest.fn().mockResolvedValue({ senhaHash: 'hash' }),
-      },
-    },
+    db: { usuario: { findUnique: jest.fn().mockResolvedValue({ senhaHash: 'hash' }) } },
   }
   const transacao = { executar: jest.fn((fn: (t: typeof tx) => Promise<unknown>) => fn(tx)) }
   const contexto = {
@@ -112,14 +111,18 @@ function criarServico({
     ),
   }
   const auditoria = { registrar: jest.fn(passo('auditoria')) }
-  const uploads = { remover: jest.fn() }
+  const uploads = { apagar: jest.fn() }
   const eventos = { emitirAposCommit: jest.fn() }
 
-  const servico = new ContaService(
+  const confirmacao = new ConfirmacaoSenhaService(
     prisma as unknown as PrismaService,
+    senhas as unknown as SenhaService,
+    limites as unknown as RateLimitService,
+  )
+  const servico = new ContaService(
     transacao as unknown as TransacaoService,
     contexto as unknown as ContextoAtletica,
-    senhas as unknown as SenhaService,
+    confirmacao,
     limites as unknown as RateLimitService,
     sessoes as unknown as SessaoService,
     elenco as unknown as ElencoService,
@@ -236,7 +239,7 @@ describe('ContaService.excluir', () => {
     const { servico, ordem, eventos } = criarServico({
       vinculos: [{ atleticaId: LORDE, papel: Papel.ADMINISTRADOR, ativo: true }],
     })
-    jest.mocked(garantirNaoUltimoAdministrador).mockRejectedValue(erroUltimoAdministrador())
+    jest.mocked(ehUltimoAdministrador).mockResolvedValue(true)
 
     expect(await codigo(servico.excluir(ID, 'lorde2026'))).toBe('ULTIMO_ADMINISTRADOR')
     expect(ordem).toEqual([`lock@${LORDE}`])
@@ -270,8 +273,22 @@ describe('ContaService.excluir', () => {
   it('a foto sai do R2 só depois do commit', async () => {
     const { servico, uploads } = criarServico()
     await servico.excluir(ID, 'lorde2026')
-    expect(uploads.remover).not.toHaveBeenCalled()
+    expect(uploads.apagar).not.toHaveBeenCalled()
     await Promise.all(callbacksAposCommit.map((callback) => callback()))
-    expect(uploads.remover).toHaveBeenCalledWith(FOTO)
+    expect(uploads.apagar).toHaveBeenCalledWith(FOTO)
+  })
+
+  it('falha ao apagar a foto: loga como erro e reporta ao Sentry, sem rejeitar', async () => {
+    const { servico, uploads } = criarServico()
+    const falha = new Error('R2 indisponível')
+    uploads.apagar.mockRejectedValue(falha)
+    const logError = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
+    await servico.excluir(ID, 'lorde2026')
+
+    await expect(Promise.all(callbacksAposCommit.map((callback) => callback()))).resolves.toEqual([
+      undefined,
+    ])
+    expect(logError).toHaveBeenCalledWith({ err: falha, usuarioId: ID }, expect.any(String))
+    expect(Sentry.captureException).toHaveBeenCalledWith(falha, expect.anything())
   })
 })

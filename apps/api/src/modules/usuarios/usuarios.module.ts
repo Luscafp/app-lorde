@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module'
 import { TimesModule } from '../times/times.module'
 import { UploadsModule } from '../uploads/uploads.module'
 import { CargosService } from './cargos.service'
+import { ConfirmacaoSenhaService } from './confirmacao-senha.service'
 import { ContaService } from './conta.service'
 import { GestaoUsuariosService } from './gestao-usuarios.service'
 import { MeController } from './me.controller'
@@ -13,7 +14,13 @@ import { UsuariosController } from './usuarios.controller'
 @Module({
   imports: [AuthModule, UploadsModule, SenhaModule, TimesModule],
   controllers: [MeController, UsuariosController],
-  providers: [GestaoUsuariosService, PerfilService, CargosService, ContaService],
+  providers: [
+    GestaoUsuariosService,
+    PerfilService,
+    CargosService,
+    ContaService,
+    ConfirmacaoSenhaService,
+  ],
   exports: [GestaoUsuariosService],
 })
 export class UsuariosModule {}
