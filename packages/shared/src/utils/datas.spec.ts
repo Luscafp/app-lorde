@@ -6,6 +6,7 @@ import {
   FUSO_PADRAO,
   inicioDoDiaLocal,
   localParaUtc,
+  somarMeses,
 } from './datas'
 
 const INVALIDOS = [
@@ -128,5 +129,16 @@ describe('inicioDoDiaLocal', () => {
     ['23:59 local', '2026-10-08T02:59:59.999Z', '2026-10-07T03:00:00.000Z'],
   ])('%s', (_caso, agora, esperado) => {
     expect(inicioDoDiaLocal(agora).toISOString()).toBe(esperado)
+  })
+})
+
+describe('somarMeses', () => {
+  it.each([
+    ['2026-10-05', '2027-04-05'],
+    ['2026-08-31', '2027-02-28'],
+    ['2027-08-31', '2028-02-29'],
+    ['2026-07-01', '2027-01-01'],
+  ])('%s + 6 meses = %s', (data, esperado) => {
+    expect(somarMeses(data, 6)).toBe(esperado)
   })
 })

@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { CriarSerie, EditarSeguintes } from '@atletica/shared'
 import { codigoDaRejeicao } from '../../../test/suporte/codigo-do-erro'
 import type { TransacaoService } from '../../infra/eventos/apos-commit'
 import type { EventosDominioService } from '../../infra/eventos/eventos-dominio.service'
+import { naoExcluido } from '../../infra/prisma/nao-excluido'
 import type { AuditoriaService } from '../auditoria/auditoria.service'
 import type { EventosService } from './eventos.service'
 import { SeriesRecorrenciaService } from './series-recorrencia.service'
@@ -65,6 +66,7 @@ interface Cenario {
 function criarServico(cenario: Cenario = {}) {
   const alvo = cenario.alvo ?? ocorrencia(4)
   const tx = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
     evento: {
       findFirst: jest.fn().mockResolvedValue(alvo),
       findMany: jest.fn().mockResolvedValue(cenario.seguintes ?? []),
@@ -93,22 +95,22 @@ function criarServico(cenario: Cenario = {}) {
   }
   const transacao = { executar: jest.fn((fn: (t: typeof tx) => Promise<unknown>) => fn(tx)) }
   const auditoria = { registrar: jest.fn(), registrarVarios: jest.fn() }
-  const eventos = { emitirAposCommit: jest.fn() }
+  const dominio = { emitirAposCommit: jest.fn() }
   const validator = {
     validarTime: jest.fn().mockResolvedValue({ id: TIME, modalidadeId: 'm' }),
     validarAdversario: jest.fn(),
   }
-  const eventosService = {
+  const eventos = {
     cancelar: jest.fn((_tx: unknown, ids: string[]) => Promise.resolve(cenario.cancelados ?? ids)),
   }
   const servico = new SeriesRecorrenciaService(
     transacao as unknown as TransacaoService,
     auditoria as unknown as AuditoriaService,
-    eventos as unknown as EventosDominioService,
+    dominio as unknown as EventosDominioService,
     validator,
-    eventosService as unknown as EventosService,
+    eventos as unknown as EventosService,
   )
-  return { servico, tx, auditoria, eventos, validator, eventosService }
+  return { servico, tx, auditoria, dominio, validator, eventos }
 }
 
 const acoes = (auditoria: { registrar: jest.Mock }) =>
@@ -138,7 +140,7 @@ describe('SeriesRecorrenciaService', () => {
     }
 
     it('grava série e 53 ocorrências, audita uma vez e emite um evento.criado', async () => {
-      const { servico, tx, auditoria, eventos } = criarServico()
+      const { servico, tx, auditoria, dominio } = criarServico()
       const dto = await servico.criar(entrada, AUTOR)
 
       expect(tx.serieRecorrencia.create).toHaveBeenCalledWith(
@@ -188,8 +190,8 @@ describe('SeriesRecorrenciaService', () => {
           contexto: { totalOcorrencias: 53 },
         },
       })
-      expect(eventos.emitirAposCommit).toHaveBeenCalledTimes(1)
-      expect(eventos.emitirAposCommit).toHaveBeenCalledWith('evento.criado', {
+      expect(dominio.emitirAposCommit).toHaveBeenCalledTimes(1)
+      expect(dominio.emitirAposCommit).toHaveBeenCalledWith('evento.criado', {
         atleticaId: ATUAL,
         eventoId: dto.primeiraOcorrencia.id,
         timeId: TIME,
@@ -199,7 +201,7 @@ describe('SeriesRecorrenciaService', () => {
     })
 
     it('sem datas geradas: SERIE_SEM_OCORRENCIAS e nada gravado', async () => {
-      const { servico, tx, eventos } = criarServico()
+      const { servico, tx, dominio } = criarServico()
       const semDatas = {
         ...entrada,
         recorrencia: { ...entrada.recorrencia, dataFim: '2026-10-05', diasSemana: [2] },
@@ -210,7 +212,7 @@ describe('SeriesRecorrenciaService', () => {
       )
       expect(tx.serieRecorrencia.create).not.toHaveBeenCalled()
       expect(tx.evento.createManyAndReturn).not.toHaveBeenCalled()
-      expect(eventos.emitirAposCommit).not.toHaveBeenCalled()
+      expect(dominio.emitirAposCommit).not.toHaveBeenCalled()
     })
 
     it('valida o time antes de gravar', async () => {
@@ -231,7 +233,7 @@ describe('SeriesRecorrenciaService', () => {
     const seguintes = [5, 6, 7, 8, 9, 10].map((n) => ocorrencia(n))
 
     it('a partir da 4ª com novo horário divide a série e altera 4 a 10 no próprio dia', async () => {
-      const { servico, tx, auditoria, eventos } = criarServico({ seguintes, anteriores: 3 })
+      const { servico, tx, auditoria, dominio } = criarServico({ seguintes, anteriores: 3 })
       const dto = await servico.editarSeguintes(idOcorrencia(4), horarioELocal, AUTOR)
 
       expect(dto).toEqual({
@@ -270,8 +272,8 @@ describe('SeriesRecorrenciaService', () => {
         acao: 'EVENTO_ALTERADO',
         dados: { contexto: { serieId: NOVA_SERIE, escopo: 'ESTA_E_SEGUINTES' } },
       })
-      expect(eventos.emitirAposCommit).toHaveBeenCalledTimes(1)
-      expect(eventos.emitirAposCommit).toHaveBeenCalledWith('evento.alterado', {
+      expect(dominio.emitirAposCommit).toHaveBeenCalledTimes(1)
+      expect(dominio.emitirAposCommit).toHaveBeenCalledWith('evento.alterado', {
         atleticaId: ATUAL,
         eventoIds: dto.eventoIds,
         timeId: TIME,
@@ -291,6 +293,15 @@ describe('SeriesRecorrenciaService', () => {
         data: { horario: '19:00', local: 'Quadra 2' },
       })
       expect(acoes(auditoria)).toEqual(['SERIE_ALTERADA'])
+    })
+
+    it('anteriores excluídas não contam para a divisão', async () => {
+      const { servico, tx } = criarServico()
+      await servico.editarSeguintes(idOcorrencia(4), horarioELocal, AUTOR)
+
+      expect(tx.evento.count).toHaveBeenCalledWith({
+        where: { serieId: SERIE, inicio: { lt: ocorrencia(4).inicio }, ...naoExcluido },
+      })
     })
 
     it('só o local a partir do meio não cria nem altera série', async () => {
@@ -352,7 +363,7 @@ describe('SeriesRecorrenciaService', () => {
     })
 
     it('só observações: altera sem evento de domínio', async () => {
-      const { servico, eventos } = criarServico({ anteriores: 3 })
+      const { servico, dominio } = criarServico({ anteriores: 3 })
       const dto = await servico.editarSeguintes(
         idOcorrencia(4),
         { escopo: 'ESTA_E_SEGUINTES', observacoes: 'Trazer colete' },
@@ -360,7 +371,7 @@ describe('SeriesRecorrenciaService', () => {
       )
 
       expect(dto.eventoIds).toEqual([idOcorrencia(4)])
-      expect(eventos.emitirAposCommit).not.toHaveBeenCalled()
+      expect(dominio.emitirAposCommit).not.toHaveBeenCalled()
     })
 
     it.each([
@@ -377,7 +388,7 @@ describe('SeriesRecorrenciaService', () => {
 
   describe('cancelarSeguintes', () => {
     it('cancela alvo e seguintes com contexto e emite um evento.cancelado', async () => {
-      const { servico, tx, eventos, eventosService, auditoria } = criarServico({
+      const { servico, tx, dominio, eventos, auditoria } = criarServico({
         seguintes: [ocorrencia(5), ocorrencia(6)],
         agendadosRestantes: 3,
       })
@@ -385,12 +396,12 @@ describe('SeriesRecorrenciaService', () => {
 
       const ids = [4, 5, 6].map(idOcorrencia)
       expect(dto).toEqual({ eventoIds: ids, status: 'CANCELADO' })
-      expect(eventosService.cancelar).toHaveBeenCalledWith(tx, ids, AUTOR, {
+      expect(eventos.cancelar).toHaveBeenCalledWith(tx, ids, AUTOR, {
         contexto: { serieId: SERIE, escopo: 'ESTA_E_SEGUINTES' },
       })
       expect(tx.serieRecorrencia.updateMany).not.toHaveBeenCalled()
       expect(auditoria.registrar).not.toHaveBeenCalled()
-      expect(eventos.emitirAposCommit).toHaveBeenCalledWith('evento.cancelado', {
+      expect(dominio.emitirAposCommit).toHaveBeenCalledWith('evento.cancelado', {
         atleticaId: ATUAL,
         eventoIds: ids,
         timeId: TIME,
@@ -423,22 +434,55 @@ describe('SeriesRecorrenciaService', () => {
     })
 
     it.each([
-      [{ serieId: null }, [], 'EVENTO_SEM_SERIE'],
-      [{ status: 'FINALIZADO' }, [], 'EVENTO_FINALIZADO'],
-      [{ status: 'CANCELADO' }, [], 'EVENTO_JA_CANCELADO'],
-    ])('alvo %j sem nada a cancelar: %s', async (dados, cancelados, codigo) => {
-      const { servico, eventos } = criarServico({ alvo: ocorrencia(4, dados), cancelados })
+      [{ serieId: null }, 'EVENTO_SEM_SERIE'],
+      [{ status: 'FINALIZADO' }, 'EVENTO_FINALIZADO'],
+      [{ status: 'CANCELADO' }, 'EVENTO_JA_CANCELADO'],
+    ])('alvo %j, mesmo com seguintes agendadas: %s', async (dados, codigo) => {
+      const { servico, dominio, eventos } = criarServico({
+        alvo: ocorrencia(4, dados),
+        seguintes: [ocorrencia(5)],
+      })
       await expect(
         codigoDaRejeicao(servico.cancelarSeguintes(idOcorrencia(4), AUTOR)),
       ).resolves.toBe(codigo)
-      expect(eventos.emitirAposCommit).not.toHaveBeenCalled()
+      expect(eventos.cancelar).not.toHaveBeenCalled()
+      expect(dominio.emitirAposCommit).not.toHaveBeenCalled()
+    })
+
+    it('bloqueia a série antes de cancelar', async () => {
+      const { servico, tx, eventos } = criarServico()
+      await servico.cancelarSeguintes(idOcorrencia(4), AUTOR)
+
+      expect(tx.$queryRaw).toHaveBeenCalledTimes(1)
+      expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        eventos.cancelar.mock.invocationCallOrder[0] ?? 0,
+      )
+    })
+
+    it('alvo movida para outra série enquanto esperava o bloqueio: CONFLITO_STATUS', async () => {
+      const { servico, tx, eventos } = criarServico()
+      tx.evento.findFirst
+        .mockResolvedValueOnce(ocorrencia(4))
+        .mockResolvedValueOnce(ocorrencia(4, { serieId: NOVA_SERIE }))
+      await expect(
+        codigoDaRejeicao(servico.cancelarSeguintes(idOcorrencia(4), AUTOR)),
+      ).resolves.toBe('CONFLITO_STATUS')
+      expect(eventos.cancelar).not.toHaveBeenCalled()
+    })
+
+    it('alvo cancelável sem nada cancelado (concorrência): EVENTO_JA_CANCELADO', async () => {
+      const { servico, dominio } = criarServico({ cancelados: [] })
+      await expect(
+        codigoDaRejeicao(servico.cancelarSeguintes(idOcorrencia(4), AUTOR)),
+      ).resolves.toBe('EVENTO_JA_CANCELADO')
+      expect(dominio.emitirAposCommit).not.toHaveBeenCalled()
     })
   })
 
   it('não usa offset fixo de fuso', () => {
     for (const arquivo of [
       join(__dirname, 'series-recorrencia.service.ts'),
-      join(__dirname, '../../../../../packages/shared/src/eventos/recorrencia.ts'),
+      join(dirname(require.resolve('@atletica/shared/package.json')), 'src/eventos/recorrencia.ts'),
     ]) {
       expect(readFileSync(arquivo, 'utf8')).not.toMatch(/-03:?00/)
     }

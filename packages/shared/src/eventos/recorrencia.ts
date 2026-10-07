@@ -1,6 +1,15 @@
 import { z } from 'zod'
 import { TipoEvento } from '../enums/evento'
-import { chaveDiaLocal, localParaUtc, type Instante } from '../utils/datas'
+import {
+  DATA_LOCAL,
+  diaDaSemana,
+  HORARIO_HHMM,
+  hojeLocal,
+  localParaUtc,
+  somarDias,
+  somarMeses,
+  type Instante,
+} from '../utils/datas'
 import { EscopoOcorrencia } from './escopo'
 import {
   criarEventoSchema,
@@ -12,46 +21,10 @@ import {
 /** RN13: a série vai até 6 meses de calendário após o início. */
 export const MESES_MAX_SERIE = 6
 
-export const HORARIO_SERIE = /^([01]\d|2[0-3]):[0-5]\d$/
-
-const DATA_ISO = /^(\d{4})-(\d{2})-(\d{2})$/
-
-function partesData(data: string): [number, number, number] {
-  const [, ano, mes, dia] = DATA_ISO.exec(data) ?? []
-  if (!ano || !mes || !dia) throw new Error(`Data inválida: ${data}`)
-  return [Number(ano), Number(mes), Number(dia)]
-}
-
-function formatarIso(data: Date): string {
-  return data.toISOString().slice(0, 10)
-}
-
-export function somarDias(data: string, dias: number): string {
-  const [ano, mes, dia] = partesData(data)
-  return formatarIso(new Date(Date.UTC(ano, mes - 1, dia + dias)))
-}
-
-/** Meses de calendário; o dia é limitado ao último do mês (31/08 + 6 = 28/02). */
-export function somarMeses(data: string, meses: number): string {
-  const [ano, mes, dia] = partesData(data)
-  const ultimoDia = new Date(Date.UTC(ano, mes - 1 + meses + 1, 0)).getUTCDate()
-  return formatarIso(new Date(Date.UTC(ano, mes - 1 + meses, Math.min(dia, ultimoDia))))
-}
-
-/** 0 = domingo … 6 = sábado, do dia de calendário (sem fuso). */
-export function diaDaSemana(data: string): number {
-  const [ano, mes, dia] = partesData(data)
-  return new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay()
-}
-
-export function hojeLocal(agora: Instante = Date.now()): string {
-  return chaveDiaLocal(agora)
-}
-
 export const recorrenciaSchema = z
   .object({
     dataInicio: z.iso.date({ error: 'Informe a data de início.' }),
-    horario: z.string({ error: 'Informe o horário.' }).regex(HORARIO_SERIE, {
+    horario: z.string({ error: 'Informe o horário.' }).regex(HORARIO_HHMM, {
       error: 'Informe o horário (HH:mm).',
     }),
     diasSemana: z
@@ -72,7 +45,7 @@ export const recorrenciaSchema = z
   .strict()
   .check((ctx) => {
     const { dataInicio, dataFim } = ctx.value
-    if (!DATA_ISO.test(dataInicio) || !DATA_ISO.test(dataFim)) return
+    if (!DATA_LOCAL.test(dataInicio) || !DATA_LOCAL.test(dataFim)) return
     const falhar = (campo: 'dataInicio' | 'dataFim', message: string) =>
       ctx.issues.push({ code: 'custom', path: [campo], message, input: ctx.value[campo] })
 
@@ -118,7 +91,7 @@ export const criarSerieSchema = z
 export const editarSeguintesSchema = z
   .object({
     escopo: z.literal(EscopoOcorrencia.ESTA_E_SEGUINTES),
-    horario: z.string().regex(HORARIO_SERIE, { error: 'Informe o horário (HH:mm).' }).optional(),
+    horario: z.string().regex(HORARIO_HHMM, { error: 'Informe o horário (HH:mm).' }).optional(),
     local: localEventoSchema.optional(),
     observacoes: observacoesEventoSchema.optional(),
   })

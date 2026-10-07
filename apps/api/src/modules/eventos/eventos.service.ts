@@ -37,9 +37,9 @@ const CAMPOS_EDITAVEIS = ['inicio', 'local', 'observacoes', 'timeId', 'timeAdver
 type CampoEditavel = (typeof CAMPOS_EDITAVEIS)[number]
 
 /** Só estes geram `evento.alterado` (épico #19 §7). */
-const CAMPOS_NOTIFICADOS = ['inicio', 'local'] as const satisfies CampoAlteradoEvento[]
+export const CAMPOS_NOTIFICADOS = ['inicio', 'local'] as const satisfies CampoAlteradoEvento[]
 
-const CANCELAVEIS: StatusEvento[] = ['AGENDADO', 'EM_ANDAMENTO']
+export const CANCELAVEIS: StatusEvento[] = ['AGENDADO', 'EM_ANDAMENTO']
 
 export interface OpcoesCancelamento {
   statusAtual?: StatusEvento

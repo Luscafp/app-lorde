@@ -1,11 +1,9 @@
-import { chaveDiaLocal, formatarHora } from '../utils/datas'
+import { chaveDiaLocal, diaDaSemana, formatarHora } from '../utils/datas'
 import {
   criarEventoOuSerieSchema,
-  diaDaSemana,
   editarOcorrenciaSchema,
   gerarDatasSerie,
   recorrenciaSchema,
-  somarMeses,
   type Recorrencia,
 } from './recorrencia'
 
@@ -24,17 +22,6 @@ const serie = (dados: Partial<Recorrencia> = {}): Recorrencia => ({
 function campos(resultado: { error?: { issues: { path: PropertyKey[] }[] } }): string[] {
   return (resultado.error?.issues ?? []).map(({ path }) => path.join('.'))
 }
-
-describe('somarMeses', () => {
-  it.each([
-    ['2026-10-05', '2027-04-05'],
-    ['2026-08-31', '2027-02-28'],
-    ['2027-08-31', '2028-02-29'],
-    ['2026-07-01', '2027-01-01'],
-  ])('%s + 6 meses = %s', (data, esperado) => {
-    expect(somarMeses(data, 6)).toBe(esperado)
-  })
-})
 
 describe('gerarDatasSerie', () => {
   it('Seg e Qua de 05/10/2026 a 05/04/2027 às 18:30 geram 53 treinos às 21:30Z', () => {

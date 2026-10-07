@@ -5,3 +5,7 @@ export const EscopoOcorrencia = {
 } as const
 
 export type EscopoOcorrencia = (typeof EscopoOcorrencia)[keyof typeof EscopoOcorrencia]
+
+export function ehEstaESeguintes(escopo: unknown): boolean {
+  return escopo === EscopoOcorrencia.ESTA_E_SEGUINTES
+}

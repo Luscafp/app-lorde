@@ -8,7 +8,15 @@ import { tituloEvento } from '../formatacao'
 
 export type EventoDoCard = Pick<
   EventoResumoDto,
-  'id' | 'tipo' | 'status' | 'inicio' | 'local' | 'time' | 'modalidade' | 'timeAdversario'
+  | 'id'
+  | 'tipo'
+  | 'status'
+  | 'inicio'
+  | 'local'
+  | 'time'
+  | 'modalidade'
+  | 'timeAdversario'
+  | 'serieId'
 >
 
 const ROTULO_TIPO = { [TipoEvento.JOGO]: 'JOGO', [TipoEvento.TREINO]: 'TREINO' } as const
@@ -52,6 +60,7 @@ export function EventoCard<T extends EventoDoCard>({ evento, aoAbrir, direita }:
             <Selo texto={ROTULO_TIPO[evento.tipo]} cor={corTipo} />
             <Selo texto={evento.modalidade.nome} />
             {status && <Selo texto={status.texto} cor={status.cor} />}
+            {evento.serieId && <Selo texto="↺ Recorrente" />}
           </View>
           <Texto
             className="font-semibold"

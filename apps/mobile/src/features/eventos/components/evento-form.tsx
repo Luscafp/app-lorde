@@ -1,6 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
-  EscopoOcorrencia,
   gerarDatasSerie,
   OBSERVACOES_EVENTO_MAX,
   recorrenciaSchema,
@@ -27,6 +26,7 @@ import { OpcaoRadio } from '@/features/times'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
 import type { ApiErro } from '@/infra/api/cliente'
 import { mostrarErroDaMutacao } from '@/infra/query/query-client'
+import { contarTreinos } from '../formatacao'
 import { useAtualizarEvento, useCriarEvento, useCriarSerie, useEditarSeguintes } from '../hooks'
 import {
   CAMPO_DO_FORM,
@@ -53,18 +53,18 @@ type Props = {
   evento?: EventoDto
   /** Na criação de série, recebe a 1ª ocorrência. */
   aoSalvar: (eventoId: string) => void
-  /** `ESTA_E_SEGUINTES` trava data e time (#20 §6). */
-  escopo?: EscopoOcorrencia
+  /** "Este e os seguintes" trava data e time (#20 §6). */
+  seguintes?: boolean
   /** Abaixo de Data/Horário. */
   aposDataHora?: ReactNode
 }
 
-export function EventoForm({ evento, aoSalvar, escopo, aposDataHora }: Props) {
+export function EventoForm({ evento, aoSalvar, seguintes: emLote, aposDataHora }: Props) {
   const criar = useCriarEvento()
   const criarSerie = useCriarSerie()
   const atualizar = useAtualizarEvento()
   const editarSeguintes = useEditarSeguintes()
-  const seguintes = !!evento?.serieId && escopo === EscopoOcorrencia.ESTA_E_SEGUINTES
+  const seguintes = !!evento?.serieId && !!emLote
   const salvando = [criar, criarSerie, atualizar, editarSeguintes].some((m) => m.isPending)
   const somenteObservacoes = evento?.status === StatusEvento.FINALIZADO
   const [modalidade, setModalidade] = useState(evento?.modalidade)
@@ -102,10 +102,7 @@ export function EventoForm({ evento, aoSalvar, escopo, aposDataHora }: Props) {
   function gravarSerie(dados: CriarSerie) {
     criarSerie.mutate(dados, {
       onSuccess: ({ totalOcorrencias, primeiraOcorrencia }) =>
-        concluir(
-          totalOcorrencias === 1 ? '1 treino criado' : `${totalOcorrencias} treinos criados`,
-          primeiraOcorrencia.id,
-        ),
+        concluir(contarTreinos(totalOcorrencias, 'criado'), primeiraOcorrencia.id),
       onError: aoFalhar,
     })
   }

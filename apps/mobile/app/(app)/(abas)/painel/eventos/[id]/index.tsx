@@ -1,4 +1,4 @@
-import { EscopoOcorrencia } from '@atletica/shared'
+import { ehEstaESeguintes } from '@atletica/shared'
 import { router, useLocalSearchParams } from 'expo-router'
 import { View } from 'react-native'
 import { TelaDados } from '@/components/estado'
@@ -16,7 +16,7 @@ export default function EventoPainel() {
             evento={evento}
             aoEditar={(escopo) =>
               router.push(
-                escopo === EscopoOcorrencia.ESTA_E_SEGUINTES
+                ehEstaESeguintes(escopo)
                   ? `/painel/eventos/${id}/editar?escopo=${escopo}`
                   : `/painel/eventos/${id}/editar`,
               )

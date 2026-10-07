@@ -492,7 +492,7 @@ describe('Detalhe do evento no Painel', () => {
     )
     await confirmarAlerta('Cancelar evento')
     await waitFor(() => expect(toast.sucesso).toHaveBeenCalledWith('Evento cancelado'))
-    expect(eventos.cancelarEvento).toHaveBeenCalledWith(EVENTO.id)
+    expect(eventos.cancelarEvento).toHaveBeenCalledWith(EVENTO.id, undefined)
   })
 
   it('evento cancelado não mostra Editar nem Cancelar', async () => {

@@ -1,4 +1,4 @@
-import { EscopoOcorrencia, StatusEvento } from '@atletica/shared'
+import { ehEstaESeguintes, StatusEvento } from '@atletica/shared'
 import { router, useLocalSearchParams } from 'expo-router'
 import { View } from 'react-native'
 import { EstadoVazio, TelaDados } from '@/components/estado'
@@ -7,8 +7,6 @@ import { EventoForm, useEventoPainel } from '@/features/eventos'
 export default function EditarEvento() {
   const { id, escopo } = useLocalSearchParams<{ id: string; escopo?: string }>()
   const consulta = useEventoPainel(id)
-  const seguintes = escopo === EscopoOcorrencia.ESTA_E_SEGUINTES
-
   return (
     <View className="flex-1 bg-fundo">
       <TelaDados consulta={consulta} esqueleto="detalhe">
@@ -18,7 +16,7 @@ export default function EditarEvento() {
           ) : (
             <EventoForm
               evento={evento}
-              escopo={seguintes ? EscopoOcorrencia.ESTA_E_SEGUINTES : undefined}
+              seguintes={ehEstaESeguintes(escopo)}
               aoSalvar={() => router.back()}
             />
           )

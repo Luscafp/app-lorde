@@ -4,6 +4,7 @@ import {
   EscopoOcorrencia,
   formatarData,
   formatarHora,
+  HORARIO_HHMM,
   localParaUtc,
   observacoesEventoSchema,
   TipoEvento,
@@ -17,7 +18,6 @@ import {
 import { z } from 'zod'
 
 const DATA_FORM = /^(\d{2})\/(\d{2})\/(\d{4})$/
-const HORA_FORM = /^([01]\d|2[0-3]):[0-5]\d$/
 
 /** Erros de `inicio` e da recorrência, do Zod ou da API, aparecem nos campos da tela. */
 export const CAMPO_DO_FORM: Record<string, string> = {
@@ -44,7 +44,7 @@ export function dataLocal(data: string): string | undefined {
 /** Data e horário locais (`FUSO_PADRAO`) → `inicio` ISO UTC. */
 export function paraInicio(data: string, hora: string): string | undefined {
   const dia = dataLocal(data)
-  return dia && HORA_FORM.test(hora) ? localParaUtc(dia, hora).toISOString() : undefined
+  return dia && HORARIO_HHMM.test(hora) ? localParaUtc(dia, hora).toISOString() : undefined
 }
 
 const camposFormSchema = z.object({
@@ -68,7 +68,7 @@ export function recorrenciaDoForm(
 ): Recorrencia | undefined {
   const dataInicio = dataLocal(form.data)
   const dataFim = dataLocal(form.dataFim)
-  if (!dataInicio || !dataFim || !HORA_FORM.test(form.hora)) return undefined
+  if (!dataInicio || !dataFim || !HORARIO_HHMM.test(form.hora)) return undefined
   return { dataInicio, dataFim, horario: form.hora, diasSemana: form.diasSemana }
 }
 
@@ -79,7 +79,7 @@ export const eventoFormSchema = camposFormSchema.transform(
       ctx.issues.push({ code: 'custom', path: [campo], message, input: form })
 
     if (!dataLocal(form.data)) falhar('data', 'Informe a data (dd/mm/aaaa).')
-    if (!HORA_FORM.test(form.hora)) falhar('hora', 'Informe o horário (HH:mm).')
+    if (!HORARIO_HHMM.test(form.hora)) falhar('hora', 'Informe o horário (HH:mm).')
     if (form.tipo === TipoEvento.TREINO && form.recorrente) return validarSerie(form, falhar)
     const inicio = paraInicio(form.data, form.hora)
 

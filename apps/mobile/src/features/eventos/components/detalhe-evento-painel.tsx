@@ -1,5 +1,6 @@
 import {
   EscopoOcorrencia,
+  ehEstaESeguintes,
   formatarDataHora,
   Papel,
   StatusEvento,
@@ -12,7 +13,7 @@ import type { ApiErro } from '@/infra/api/cliente'
 import { mostrarErroDaMutacao } from '@/infra/query/query-client'
 import { useOnline } from '@/infra/rede/online'
 import { useTemNivelMinimo } from '@/infra/sessao/use-tem-nivel-minimo'
-import { rotuloAdversario, tituloEvento } from '../formatacao'
+import { contarTreinos, rotuloAdversario, tituloEvento } from '../formatacao'
 import { CodigoEvento, useAgendadosDaSerie, useCancelarEvento, useExcluirEvento } from '../hooks'
 import { ROTULO_TIPO, STATUS } from '../rotulos'
 import { EscopoSheet } from './escopo-sheet'
@@ -30,12 +31,13 @@ const TITULO_ESCOPO: Record<Acao, string> = {
 }
 
 function mensagemCancelarSeguintes(agendados?: number): string {
-  const visivel = 'continuarão visíveis como Cancelado até a data.'
   if (agendados === undefined)
-    return `Os treinos agendados a partir deste serão cancelados e ${visivel}`
-  if (agendados === 1)
-    return `1 treino agendado será cancelado e continuará visível como Cancelado até a data.`
-  return `${agendados} treinos agendados serão cancelados e ${visivel}`
+    return 'Os treinos agendados a partir deste serão cancelados e continuarão visíveis como Cancelado até a data.'
+  const verbos =
+    agendados === 1
+      ? 'será cancelado e continuará visível'
+      : 'serão cancelados e continuarão visíveis'
+  return `${contarTreinos(agendados, 'agendado')} ${verbos} como Cancelado até a data.`
 }
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
@@ -63,7 +65,7 @@ export function DetalheEventoPainel({ evento, aoEditar, aoExcluir }: Props) {
   const ocupado = !online || cancelar.isPending || excluir.isPending
 
   const pedirCancelamento = (escopo: EscopoOcorrencia) => {
-    const seguintes = escopo === EscopoOcorrencia.ESTA_E_SEGUINTES
+    const seguintes = ehEstaESeguintes(escopo)
     confirmar({
       titulo: seguintes ? 'Cancelar treinos?' : 'Cancelar evento?',
       mensagem: seguintes
@@ -78,7 +80,7 @@ export function DetalheEventoPainel({ evento, aoEditar, aoExcluir }: Props) {
             onSuccess: ({ eventoIds }) =>
               toast.sucesso(
                 seguintes && eventoIds.length > 1
-                  ? `${eventoIds.length} treinos cancelados`
+                  ? contarTreinos(eventoIds.length, 'cancelado')
                   : 'Evento cancelado',
               ),
           },

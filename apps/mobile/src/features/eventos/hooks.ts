@@ -106,7 +106,7 @@ type Cancelamento = { id: string; escopo?: EscopoOcorrencia }
 export function useCancelarEvento() {
   const invalidar = useInvalidar()
   return useAcaoOnline<EventoCanceladoDto, ApiErro, Cancelamento>({
-    mutationFn: ({ id, escopo }) => (escopo ? cancelarEvento(id, escopo) : cancelarEvento(id)),
+    mutationFn: ({ id, escopo }) => cancelarEvento(id, escopo),
     onSuccess: invalidar,
   })
 }

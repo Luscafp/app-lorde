@@ -1,6 +1,7 @@
 import { EscopoOcorrencia } from '@atletica/shared'
 import { Modal, View } from 'react-native'
 import { Botao, Texto } from '@/components/ui'
+import { contarTreinos } from '../formatacao'
 
 type Props = {
   titulo: string
@@ -19,9 +20,7 @@ export function EscopoSheet({ titulo, agendados, aoEscolher, aoFechar }: Props) 
           <Texto variante="subtitulo">{titulo}</Texto>
           {agendados !== undefined && (
             <Texto variante="legenda">
-              {agendados === 1
-                ? '1 treino agendado a partir deste.'
-                : `${agendados} treinos agendados a partir deste.`}
+              {`${contarTreinos(agendados, 'agendado')} a partir deste.`}
             </Texto>
           )}
           <Botao

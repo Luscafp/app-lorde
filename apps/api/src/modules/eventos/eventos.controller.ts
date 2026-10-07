@@ -7,7 +7,7 @@ import {
   editarEventoSchema,
   editarOcorrenciaSchema,
   editarSeguintesSchema,
-  EscopoOcorrencia,
+  ehEstaESeguintes,
   eventoCanceladoDtoSchema,
   eventoDetalheSchema,
   eventoDtoSchema,
@@ -176,7 +176,7 @@ const EXEMPLO_SERIE: SerieCriadaDto = {
 const ehSerie = (dados: CriarEvento | CriarSerie): dados is CriarSerie => 'recorrencia' in dados
 
 const ehSeguintes = (dados: EditarEvento | EditarSeguintes): dados is EditarSeguintes =>
-  dados.escopo === EscopoOcorrencia.ESTA_E_SEGUINTES
+  ehEstaESeguintes(dados.escopo)
 
 const NAO_AUTENTICADO = '`UNAUTHENTICATED` ou `TOKEN_EXPIRED`.'
 const SEM_PERMISSAO = '`FORBIDDEN`: papel insuficiente.'
@@ -429,7 +429,7 @@ export class EventosController {
     @Body() { escopo }: CancelarEventoDto,
     @UsuarioAtual() usuario: UsuarioAutenticado,
   ): Promise<EventoCanceladoDto> {
-    return escopo === EscopoOcorrencia.ESTA_E_SEGUINTES
+    return ehEstaESeguintes(escopo)
       ? this.series.cancelarSeguintes(id, usuario)
       : this.eventos.cancelarPorId(id, usuario)
   }

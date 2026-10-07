@@ -1,5 +1,6 @@
 import {
   chaveDiaLocal,
+  dataIso,
   EscopoOcorrencia,
   gerarDatasSerie,
   localParaUtc,
@@ -13,7 +14,6 @@ import {
 import { Injectable } from '@nestjs/common'
 import type { Prisma } from '../../generated/prisma/client'
 import { TransacaoService } from '../../infra/eventos/apos-commit'
-import type { CampoAlteradoEvento } from '../../infra/eventos/eventos-dominio'
 import { EventosDominioService } from '../../infra/eventos/eventos-dominio.service'
 import { naoExcluido } from '../../infra/prisma/nao-excluido'
 import type { TransacaoComEscopo } from '../../infra/prisma/prisma.service'
@@ -21,12 +21,18 @@ import { AuditoriaService, type EntradaAuditoria } from '../auditoria/auditoria.
 import { diferenca, type DiferencaAuditoria } from '../auditoria/diferenca'
 import {
   erroCancelamento,
+  erroConflitoStatus,
   erroEventoCancelado,
   erroEventoFinalizado,
   erroEventoSemSerie,
   erroSerieSemOcorrencias,
 } from './erros'
-import { EventosService, type AutorEvento } from './eventos.service'
+import {
+  CAMPOS_NOTIFICADOS,
+  CANCELAVEIS,
+  EventosService,
+  type AutorEvento,
+} from './eventos.service'
 import { EventosValidator } from './eventos.validator'
 import { buscarEvento } from './linha-evento'
 
@@ -52,17 +58,11 @@ const CAMPOS_EM_LOTE = ['inicio', 'local', 'observacoes'] as const
 
 const CAMPOS_DA_SERIE = ['horario', 'local', 'observacoes'] as const
 
-const CAMPOS_NOTIFICADOS = ['inicio', 'local'] as const satisfies CampoAlteradoEvento[]
-
 const ESCOPO = EscopoOcorrencia.ESTA_E_SEGUINTES
 
 /** Coluna `@db.Date`: meia-noite UTC do dia de calendário. */
 function paraData(dia: string): Date {
   return new Date(`${dia}T00:00:00.000Z`)
-}
-
-function dataIso(data: Date): string {
-  return data.toISOString().slice(0, 10)
 }
 
 function maior(a: string, b: string): string {
@@ -73,14 +73,26 @@ function auditavel({ id: _id, dataInicio, dataFim, ...serie }: LinhaSerie) {
   return { ...serie, dataInicio: dataIso(dataInicio), dataFim: dataIso(dataFim) }
 }
 
+interface CamposModelo {
+  local: string
+  observacoes: string | null
+}
+
+/** `observacoes: null` limpa o campo; ausente mantém o atual. */
+function mesclarModelo(atual: CamposModelo, entrada: EditarSeguintes): CamposModelo {
+  return {
+    local: entrada.local ?? atual.local,
+    observacoes: entrada.observacoes === undefined ? atual.observacoes : entrada.observacoes,
+  }
+}
+
 /** Cada ocorrência mantém o seu dia local; só o horário, o local e as observações mudam. */
 function aplicar(ocorrencia: Ocorrencia, entrada: EditarSeguintes): Ocorrencia {
-  const { horario, local, observacoes } = entrada
+  const { horario } = entrada
   return {
     ...ocorrencia,
+    ...mesclarModelo(ocorrencia, entrada),
     inicio: horario ? localParaUtc(chaveDiaLocal(ocorrencia.inicio), horario) : ocorrencia.inicio,
-    local: local ?? ocorrencia.local,
-    observacoes: observacoes === undefined ? ocorrencia.observacoes : observacoes,
   }
 }
 
@@ -95,9 +107,9 @@ export class SeriesRecorrenciaService {
   constructor(
     private readonly transacao: TransacaoService,
     private readonly auditoria: AuditoriaService,
-    private readonly eventos: EventosDominioService,
+    private readonly dominio: EventosDominioService,
     private readonly validator: EventosValidator,
-    private readonly eventosService: EventosService,
+    private readonly eventos: EventosService,
   ) {}
 
   criar(entrada: CriarSerie, autor: AutorEvento): Promise<SerieCriadaDto> {
@@ -150,7 +162,7 @@ export class SeriesRecorrenciaService {
           contexto: { totalOcorrencias: ocorrencias.length },
         },
       })
-      this.eventos.emitirAposCommit('evento.criado', {
+      this.dominio.emitirAposCommit('evento.criado', {
         atleticaId: autor.atleticaId,
         eventoId: primeira.id,
         timeId,
@@ -180,8 +192,7 @@ export class SeriesRecorrenciaService {
     autor: AutorEvento,
   ): Promise<OcorrenciasAlteradasDto> {
     return this.transacao.executar(async (tx) => {
-      const alvo = await buscarEvento(tx, id)
-      if (!alvo.serieId) throw erroEventoSemSerie()
+      const alvo = await this.alvoComSerieBloqueada(tx, id)
       if (alvo.status === 'CANCELADO') throw erroEventoCancelado()
       if (alvo.status === 'FINALIZADO') {
         throw erroEventoFinalizado('Treino finalizado não pode ser alterado em lote.')
@@ -193,7 +204,7 @@ export class SeriesRecorrenciaService {
       })
       const seguintes = await this.seguintes(tx, serie.id, alvo.inicio, CAMPOS_OCORRENCIA)
       const anteriores = await tx.evento.count({
-        where: { serieId: serie.id, inicio: { lt: alvo.inicio } },
+        where: { serieId: serie.id, inicio: { lt: alvo.inicio }, ...naoExcluido },
       })
       const { horario } = entrada
       const divide = anteriores > 0 && horario !== undefined && horario !== serie.horario
@@ -230,12 +241,12 @@ export class SeriesRecorrenciaService {
   /** Alvo (se cancelável) + seguintes `AGENDADO`; sem agendados, a série fica cancelada. */
   cancelarSeguintes(id: string, autor: AutorEvento): Promise<EventoCanceladoDto> {
     return this.transacao.executar(async (tx) => {
-      const alvo = await buscarEvento(tx, id)
-      const serieId = alvo.serieId
-      if (!serieId) throw erroEventoSemSerie()
+      const alvo = await this.alvoComSerieBloqueada(tx, id)
+      const { serieId } = alvo
+      if (!CANCELAVEIS.includes(alvo.status)) throw erroCancelamento(alvo.status)
 
       const seguintes = await this.seguintes(tx, serieId, alvo.inicio, { id: true })
-      const eventoIds = await this.eventosService.cancelar(
+      const eventoIds = await this.eventos.cancelar(
         tx,
         [alvo.id, ...seguintes.map((ocorrencia) => ocorrencia.id)],
         autor,
@@ -244,7 +255,7 @@ export class SeriesRecorrenciaService {
       if (eventoIds.length === 0) throw erroCancelamento(alvo.status)
 
       await this.encerrarSemAgendados(tx, serieId)
-      this.eventos.emitirAposCommit('evento.cancelado', {
+      this.dominio.emitirAposCommit('evento.cancelado', {
         atleticaId: autor.atleticaId,
         eventoIds,
         timeId: alvo.timeId,
@@ -252,6 +263,16 @@ export class SeriesRecorrenciaService {
       })
       return { eventoIds, status: 'CANCELADO' }
     })
+  }
+
+  /** Serializa os lotes da mesma série; a alvo é relida depois do bloqueio. */
+  private async alvoComSerieBloqueada(tx: TransacaoComEscopo, id: string) {
+    const { serieId } = await buscarEvento(tx, id)
+    if (!serieId) throw erroEventoSemSerie()
+    await tx.$queryRaw`SELECT id FROM "SerieRecorrencia" WHERE id = ${serieId}::uuid FOR UPDATE`
+    const alvo = await buscarEvento(tx, id)
+    if (alvo.serieId !== serieId) throw erroConflitoStatus()
+    return { ...alvo, serieId }
   }
 
   /** "Seguintes" = mesma série, depois da alvo, `AGENDADO` e não excluídas (#20 §3 item 9). */
@@ -286,8 +307,7 @@ export class SeriesRecorrenciaService {
         horario: entrada.horario,
         dataInicio: paraData(diaAlvo),
         dataFim: paraData(maior(fimOriginal, diaAlvo)),
-        local: entrada.local ?? serie.local,
-        observacoes: entrada.observacoes === undefined ? serie.observacoes : entrada.observacoes,
+        ...mesclarModelo(serie, entrada),
         criadoPorId: autor.id,
       },
       select: { id: true },
@@ -308,7 +328,7 @@ export class SeriesRecorrenciaService {
       dados: {
         antes: { dataFim: fimOriginal },
         depois: { dataFim },
-        contexto: { serieOriginalId: serie.id, novaSerieId: nova.id },
+        contexto: { novaSerieId: nova.id },
       },
     })
     return nova.id
@@ -322,9 +342,8 @@ export class SeriesRecorrenciaService {
   ): Promise<void> {
     const depois: LinhaSerie = {
       ...serie,
+      ...mesclarModelo(serie, entrada),
       horario: entrada.horario ?? serie.horario,
-      local: entrada.local ?? serie.local,
-      observacoes: entrada.observacoes === undefined ? serie.observacoes : entrada.observacoes,
     }
     const diff = diferenca(serie, depois, CAMPOS_DA_SERIE)
     if (!diff) return
@@ -364,7 +383,7 @@ export class SeriesRecorrenciaService {
       alteracoes.some(({ diff }) => campo in diff.depois),
     )
     if (campos.length === 0) return
-    this.eventos.emitirAposCommit('evento.alterado', {
+    this.dominio.emitirAposCommit('evento.alterado', {
       atleticaId: autor.atleticaId,
       eventoIds: alteracoes
         .filter(({ diff }) => campos.some((campo) => campo in diff.depois))

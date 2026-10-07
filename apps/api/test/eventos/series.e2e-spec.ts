@@ -342,7 +342,7 @@ describe('/eventos — treino recorrente (#20)', () => {
       })
       expect(auditados.find(({ acao }) => acao === 'SERIE_DIVIDIDA')).toMatchObject({
         entidadeId: serieOriginal,
-        dados: { contexto: { serieOriginalId: serieOriginal, novaSerieId: dto.serieId } },
+        dados: { contexto: { novaSerieId: dto.serieId } },
       })
       await expect(emitidos()).resolves.toEqual([
         {
@@ -482,6 +482,20 @@ describe('/eventos — treino recorrente (#20)', () => {
       })
     })
 
+    it('alvo já cancelada → 422 EVENTO_JA_CANCELADO e as seguintes seguem agendadas', async () => {
+      const lista = await serieDeDez()
+      const quarta = lista[3]
+      if (!quarta) throw new Error('série incompleta')
+      const diretor = await como('DIRETOR')
+      await diretor.cancelar(quarta.id)
+
+      const resposta = await diretor.cancelar(quarta.id, { escopo: 'ESTA_E_SEGUINTES' })
+
+      expect(resposta.status).toBe(422)
+      expect(erro(resposta).code).toBe('EVENTO_JA_CANCELADO')
+      expect((await ocorrencias()).filter(({ status }) => status === 'CANCELADO')).toHaveLength(1)
+    })
+
     it('respostas "Vou" são mantidas no cancelamento em lote (critério 16)', async () => {
       const lista = await serieDeDez()
       const quinta = lista[4]
@@ -494,6 +508,39 @@ describe('/eventos — treino recorrente (#20)', () => {
       await expect(
         prismaTeste.participacao.count({ where: { eventoId: quinta.id } }),
       ).resolves.toBe(1)
+    })
+  })
+
+  describe('concorrência na mesma série', () => {
+    it('dois cancelamentos em lote simultâneos da mesma alvo: um cancela, o outro recebe 422', async () => {
+      const quarta = (await serieDeDez())[3]
+      if (!quarta) throw new Error('série incompleta')
+      const diretor = await como('DIRETOR')
+      const respostas = await Promise.all(
+        [1, 2].map(() => diretor.cancelar(quarta.id, { escopo: 'ESTA_E_SEGUINTES' })),
+      )
+
+      expect(respostas.map(({ status }) => status).sort()).toEqual([200, 422])
+      const canceladas = (await ocorrencias()).filter(({ status }) => status === 'CANCELADO')
+      expect(canceladas).toHaveLength(7)
+      await expect(registros('Evento')).resolves.toHaveLength(7)
+      await expect(emitidos()).resolves.toHaveLength(1)
+    })
+
+    it('duas edições de horário simultâneas não deixam série vazia', async () => {
+      const lista = await serieDeDez()
+      const diretor = await como('DIRETOR')
+      const respostas = await Promise.all([
+        diretor.patch(lista[3]?.id ?? '', { escopo: 'ESTA_E_SEGUINTES', horario: '19:00' }),
+        diretor.patch(lista[5]?.id ?? '', { escopo: 'ESTA_E_SEGUINTES', horario: '20:00' }),
+      ])
+
+      for (const { status } of respostas) expect([200, 409]).toContain(status)
+      const series = await prismaTeste.serieRecorrencia.findMany({
+        where: { atleticaId },
+        include: { _count: { select: { eventos: true } } },
+      })
+      for (const serie of series) expect(serie._count.eventos).toBeGreaterThan(0)
     })
   })
 

@@ -9,7 +9,7 @@ import { Controller, type Control } from 'react-hook-form'
 import { Pressable, Switch, Text, View } from 'react-native'
 import { Campo, ErroCampo, mascararData, Texto } from '@/components/ui'
 import { corTextoSobre, paleta, useAtletica } from '@/features/atletica'
-import { dataHoraComSemana } from '../formatacao'
+import { contarTreinos, dataHoraComSemana } from '../formatacao'
 import type { EventoFormEntrada, EventoFormSaida } from '../schemas'
 
 const DIAS = [
@@ -83,10 +83,9 @@ function SeriePrevia({ previa }: { previa: PreviaSerie }) {
   if (total === 0 || !primeira || !ultima) {
     return <Texto variante="legenda">Nenhuma data corresponde aos dias escolhidos</Texto>
   }
-  const quantidade = total === 1 ? '1 treino' : `${total} treinos`
   return (
     <Texto accessibilityLiveRegion="polite">
-      {`${quantidade} · primeiro em ${dataHoraComSemana(primeira)} · último em ${dataHoraComSemana(ultima)}`}
+      {`${contarTreinos(total)} · primeiro em ${dataHoraComSemana(primeira)} · último em ${dataHoraComSemana(ultima)}`}
     </Texto>
   )
 }
