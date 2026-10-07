@@ -14,7 +14,10 @@ export const TEMPO_LIMITE_MS = 15_000
 
 export type Metodo = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
-export type ValorConsulta = string | number | boolean | null | undefined
+type Escalar = string | number | boolean
+
+/** Lista vira chave repetida (`?status=A&status=B`). */
+export type ValorConsulta = Escalar | readonly Escalar[] | null | undefined
 
 export type OpcoesRequisicao = {
   metodo?: Metodo
@@ -35,9 +38,11 @@ export function montarUrl(caminho: string, consulta?: Record<string, ValorConsul
   const base = /^https?:\/\//i.test(caminho)
     ? caminho
     : ambiente.apiUrl.replace(/\/+$/, '') + caminho
-  const parametros = Object.entries(consulta ?? {})
-    .filter(([, valor]) => valor !== undefined && valor !== null)
-    .map(([chave, valor]) => `${encodeURIComponent(chave)}=${encodeURIComponent(String(valor))}`)
+  const parametros = Object.entries(consulta ?? {}).flatMap(([chave, valor]) =>
+    (valor === undefined || valor === null ? [] : [valor].flat()).map(
+      (item) => `${encodeURIComponent(chave)}=${encodeURIComponent(String(item))}`,
+    ),
+  )
   if (parametros.length === 0) return base
   return base + (base.includes('?') ? '&' : '?') + parametros.join('&')
 }

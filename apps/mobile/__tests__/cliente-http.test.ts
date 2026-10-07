@@ -119,6 +119,14 @@ describe('requisição', () => {
     expect(cabecalhos['X-Request-Id']).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-/)
   })
 
+  it('lista na consulta vira chave repetida', async () => {
+    fetchMock.mockResolvedValue(resposta(200, {}))
+
+    await api.get('/solicitacoes', { consulta: { status: ['APROVADA', 'REJEITADA'], page: 1 } })
+
+    expect(chamadas()[0]?.url).toBe(`${API}/solicitacoes?status=APROVADA&status=REJEITADA&page=1`)
+  })
+
   it('não envia Authorization para outro domínio', async () => {
     fetchMock.mockResolvedValue(resposta(200))
 

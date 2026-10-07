@@ -33,6 +33,14 @@ export function erroSolicitacaoPendente(): ErroNegocio {
   )
 }
 
+export function erroSolicitacaoCancelada(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.CONFLICT,
+    'SOLICITACAO_CANCELADA',
+    'O atleta cancelou esta solicitação.',
+  )
+}
+
 export function erroSolicitacaoJaAvaliada(): ErroNegocio {
   return new ErroNegocio(
     HttpStatus.CONFLICT,
