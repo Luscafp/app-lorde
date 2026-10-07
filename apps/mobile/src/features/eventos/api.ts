@@ -25,9 +25,10 @@ export async function listarEventos(
   filtros: FiltrosEventos,
   page: number,
   sinal?: AbortSignal,
+  limit = LIMITE_PAGINA,
 ): Promise<ListaEventos> {
   const resposta = await api.get('/eventos', {
-    consulta: { ...filtros, page, limit: LIMITE_PAGINA },
+    consulta: { ...filtros, page, limit },
     sinal,
   })
   return listaEventosSchema.parse(resposta)

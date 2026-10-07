@@ -1,15 +1,17 @@
-import type { TimeDto } from '@atletica/shared'
+import { TipoEvento, type TimeDto } from '@atletica/shared'
 import { RefreshControl, ScrollView, View } from 'react-native'
 import { EstadoVazio, TelaDados } from '@/components/estado'
 import { Texto } from '@/components/ui'
 import { useAtletica } from '@/features/atletica'
+import type { FiltrosSelecionados } from '@/features/eventos'
 import { ModalidadeIcone } from '@/features/modalidades'
 import { AcaoEntradaTime } from '@/features/solicitacoes'
 import { ehNaoEncontrado } from '@/infra/api/api-erro'
 import { combinarConsultas } from '@/infra/query/combinar-consultas'
 import { contar } from './formatacao'
-import { useElenco, useTime } from './hooks'
+import { useElenco, useProximosTreinos, useTime } from './hooks'
 import { ListaElenco } from './lista-elenco'
+import { ProximosTreinos } from './proximos-treinos'
 
 export const MENSAGEM_TIME_NAO_ENCONTRADO = 'Time não encontrado'
 
@@ -29,10 +31,19 @@ function CabecalhoTime({ time }: { time: TimeDto }) {
   )
 }
 
-export function TelaTime({ timeId, aoVoltar }: { timeId: string; aoVoltar: () => void }) {
+export type NavegacaoTime = {
+  aoVoltar: () => void
+  aoAbrirEvento: (id: string) => void
+  aoVerAgenda: (filtros: FiltrosSelecionados) => void
+}
+
+type Props = NavegacaoTime & { timeId: string }
+
+export function TelaTime({ timeId, aoVoltar, aoAbrirEvento, aoVerAgenda }: Props) {
   const time = useTime(timeId)
   const elenco = useElenco(timeId)
-  const ambas = combinarConsultas([time, elenco])
+  const treinos = useProximosTreinos(timeId)
+  const todas = combinarConsultas([time, elenco, treinos])
 
   if (ehNaoEncontrado(time.error)) {
     return (
@@ -55,13 +66,20 @@ export function TelaTime({ timeId, aoVoltar }: { timeId: string; aoVoltar: () =>
               contentContainerClassName="gap-6 p-4"
               refreshControl={
                 <RefreshControl
-                  refreshing={ambas.isRefetching}
-                  onRefresh={() => void ambas.refetch()}
+                  refreshing={todas.isRefetching}
+                  onRefresh={() => void todas.refetch()}
                 />
               }
             >
               <CabecalhoTime time={dados} />
               <ListaElenco consulta={elenco} />
+              <ProximosTreinos
+                consulta={treinos}
+                aoAbrirTreino={aoAbrirEvento}
+                aoVerAgenda={() =>
+                  aoVerAgenda({ tipo: TipoEvento.TREINO, modalidadeId: dados.modalidade.id })
+                }
+              />
             </ScrollView>
             <AcaoEntradaTime time={dados} aoTimeIndisponivel={aoVoltar} />
           </>

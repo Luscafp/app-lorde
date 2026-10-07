@@ -1,5 +1,6 @@
 import {
   EscopoTimes,
+  TipoEvento,
   type AtleticaAdversaria,
   type AtleticaAdversariaAtualizacao,
   type AtleticaAdversariaCriacao,
@@ -9,6 +10,7 @@ import {
 } from '@atletica/shared'
 import { useInfiniteQuery, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import { useProximosEventos } from '@/features/eventos'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
@@ -112,6 +114,13 @@ export function useElenco(timeId: string) {
     queryKey: chaves.times.elenco(timeId),
     queryFn: ({ signal }) => buscarElenco(timeId, signal),
   })
+}
+
+const LIMITE_PROXIMOS_TREINOS = 5
+
+/** Período padrão da API: futuros em ordem crescente, cancelados inclusos até a data (RN18). */
+export function useProximosTreinos(timeId: string) {
+  return useProximosEventos({ timeId, tipo: TipoEvento.TREINO }, LIMITE_PROXIMOS_TREINOS)
 }
 
 const ERROS_DE_ELENCO_DESATUALIZADO = ['CAPITAO_FORA_DO_ELENCO', 'MEMBRO_NAO_ENCONTRADO']
