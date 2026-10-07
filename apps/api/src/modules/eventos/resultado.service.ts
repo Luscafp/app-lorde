@@ -5,7 +5,7 @@ import { EventosDominioService } from '../../infra/eventos/eventos-dominio.servi
 import { AuditoriaService } from '../auditoria/auditoria.service'
 import { diferenca } from '../auditoria/diferenca'
 import {
-  erroConflitoStatus,
+  erroConflitoPlacar,
   erroEventoCancelado,
   erroEventoNaoEJogo,
   erroEventoNaoFinalizado,
@@ -36,14 +36,8 @@ export class ResultadoService {
       }
       if (antes.status !== 'FINALIZADO') {
         if (!entrada.finalizar) throw erroEventoNaoFinalizado()
-        await this.status.trocar(tx, id, antes.status, 'FINALIZADO')
-        this.dominio.emitirAposCommit('evento.alterado', {
-          atleticaId: autor.atleticaId,
-          eventoIds: [id],
-          timeId: antes.timeId,
-          campos: ['status'],
-          autorId: autor.id,
-        })
+        const troca = { id, timeId: antes.timeId, de: antes.status, para: 'FINALIZADO' } as const
+        await this.status.trocar(tx, troca, autor)
       }
 
       const { placarTime, placarAdversario } = entrada
@@ -65,7 +59,7 @@ export class ResultadoService {
         },
         data: placar,
       })
-      if (count === 0) throw erroConflitoStatus()
+      if (count === 0) throw erroConflitoPlacar()
 
       const primeiroRegistro = antes.resultado === null
       await this.auditoria.registrar(tx, {

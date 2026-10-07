@@ -168,23 +168,17 @@ describe('ResultadoService.registrar', () => {
       })
       const dto = await servico.registrar(ID, placar(3, 1, true), AUTOR)
 
-      expect(status.trocar).toHaveBeenCalledWith(tx, ID, de, 'FINALIZADO')
+      const troca = { id: ID, timeId: TIME, de, para: 'FINALIZADO' }
+      expect(status.trocar).toHaveBeenCalledWith(tx, troca, AUTOR)
       expect(auditoria.registrar).toHaveBeenCalledWith(
         tx,
         expect.objectContaining({ acao: 'RESULTADO_REGISTRADO' }),
       )
-      expect(dominio.emitirAposCommit).toHaveBeenCalledTimes(2)
-      expect(dominio.emitirAposCommit).toHaveBeenLastCalledWith(
+      expect(dominio.emitirAposCommit).toHaveBeenCalledTimes(1)
+      expect(dominio.emitirAposCommit).toHaveBeenCalledWith(
         'evento.resultadoRegistrado',
         expect.anything(),
       )
-      expect(dominio.emitirAposCommit).toHaveBeenNthCalledWith(1, 'evento.alterado', {
-        atleticaId: ATUAL,
-        eventoIds: [ID],
-        timeId: TIME,
-        campos: ['status'],
-        autorId: AUTOR.id,
-      })
       expect(dto).toMatchObject({ status: 'FINALIZADO', resultado: 'VITORIA' })
     },
   )
@@ -217,10 +211,10 @@ describe('ResultadoService.registrar', () => {
     )
   })
 
-  it('placar mudou entre a leitura e a gravação: 409 CONFLITO_STATUS sem auditoria', async () => {
+  it('placar mudou entre a leitura e a gravação: 409 CONFLITO_CONCORRENTE sem auditoria', async () => {
     const { servico, auditoria, dominio } = criarServico({ atualizados: 0 })
     expect(await codigoDaRejeicao(servico.registrar(ID, placar(3, 1), AUTOR))).toBe(
-      'CONFLITO_STATUS',
+      'CONFLITO_CONCORRENTE',
     )
     expect(auditoria.registrar).not.toHaveBeenCalled()
     expect(dominio.emitirAposCommit).not.toHaveBeenCalled()

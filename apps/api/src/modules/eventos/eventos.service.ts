@@ -148,10 +148,7 @@ export class EventosService {
     })
   }
 
-  /**
-   * Cancela os canceláveis na transação de quem chama e devolve os ids; quem chama emite o evento.
-   * Com `statusAtual`, só cancela quem ainda estiver nele (atualização condicional da #73).
-   */
+  /** Cancela na transação de quem chama e devolve os ids; `statusAtual` torna a troca condicional. */
   async cancelar(
     tx: TransacaoComEscopo,
     eventoIds: string[],
