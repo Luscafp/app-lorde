@@ -1,3 +1,7 @@
+// O app.config.ts, lido pelo metro.config.js nos testes, roda fora do sandbox e exige o ambiente.
+process.env.EXPO_PUBLIC_AMBIENTE ??= 'development'
+process.env.EXPO_PUBLIC_API_URL ??= 'http://localhost:3000/api/v1'
+
 /** @type {import('jest').Config} */
 module.exports = {
   preset: 'jest-expo',

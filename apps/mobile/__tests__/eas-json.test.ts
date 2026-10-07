@@ -5,6 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 type Perfil = {
+  extends?: string
   developmentClient?: boolean
   distribution?: string
   channel?: string
@@ -17,6 +18,19 @@ type EasJson = { cli: { appVersionSource: string }; build: Record<string, Perfil
 const texto = fs.readFileSync(path.resolve(__dirname, '../eas.json'), 'utf8')
 const eas = JSON.parse(texto) as EasJson
 
+/** Aplica o `extends` como o EAS: herda o perfil base, sobrescrevendo `env` e `android` por chave. */
+function perfil(nome: string): Perfil {
+  const { extends: base, ...proprio } = eas.build[nome] ?? {}
+  if (!base) return proprio
+  const herdado = perfil(base)
+  return {
+    ...herdado,
+    ...proprio,
+    env: { ...herdado.env, ...proprio.env },
+    android: { ...herdado.android, ...proprio.android },
+  }
+}
+
 describe('eas.json', () => {
   it('versionCode remoto', () => {
     expect(eas.cli.appVersionSource).toBe('remote')
@@ -28,31 +42,31 @@ describe('eas.json', () => {
     ['production', 'app-bundle', 'store', 'producao', 'producao'],
     ['production-apk', 'apk', 'internal', 'producao', 'producao'],
   ])('%s: %s, %s, canal %s, ambiente %s', (nome, buildType, distribution, channel, ambiente) => {
-    const perfil = eas.build[nome]
+    const resolvido = perfil(nome)
 
-    expect(perfil).toEqual(
+    expect(resolvido).toEqual(
       expect.objectContaining({ distribution, channel, android: { buildType } }),
     )
-    expect(perfil?.env?.EXPO_PUBLIC_AMBIENTE).toBe(ambiente)
-    expect(perfil?.env).toHaveProperty('EXPO_PUBLIC_API_URL')
-    expect(perfil?.env).toHaveProperty('EXPO_PUBLIC_SENTRY_DSN')
+    expect(resolvido.env?.EXPO_PUBLIC_AMBIENTE).toBe(ambiente)
+    expect(resolvido.env).toHaveProperty('EXPO_PUBLIC_API_URL')
+    expect(resolvido.env).toHaveProperty('EXPO_PUBLIC_SENTRY_DSN')
   })
 
   it('dev client só no perfil development', () => {
-    expect(eas.build.development?.developmentClient).toBe(true)
+    expect(perfil('development').developmentClient).toBe(true)
     for (const nome of ['preview', 'production', 'production-apk']) {
-      expect(eas.build[nome]?.developmentClient).toBeUndefined()
+      expect(perfil(nome).developmentClient).toBeUndefined()
     }
   })
 
   it('versionCode incrementado nos builds de produção', () => {
-    expect(eas.build.production?.autoIncrement).toBe(true)
-    expect(eas.build['production-apk']?.autoIncrement).toBe(true)
+    expect(perfil('production').autoIncrement).toBe(true)
+    expect(perfil('production-apk').autoIncrement).toBe(true)
   })
 
   it('URL https:// fora de development', () => {
     for (const nome of ['preview', 'production', 'production-apk']) {
-      expect(eas.build[nome]?.env?.EXPO_PUBLIC_API_URL).toMatch(/^https:\/\//)
+      expect(perfil(nome).env?.EXPO_PUBLIC_API_URL).toMatch(/^https:\/\//)
     }
   })
 

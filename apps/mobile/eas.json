@@ -43,16 +43,10 @@
       }
     },
     "production-apk": {
+      "extends": "production",
       "distribution": "internal",
-      "channel": "producao",
-      "autoIncrement": true,
       "android": {
         "buildType": "apk"
-      },
-      "env": {
-        "EXPO_PUBLIC_AMBIENTE": "producao",
-        "EXPO_PUBLIC_API_URL": "https://api.preencher.invalid/api/v1",
-        "EXPO_PUBLIC_SENTRY_DSN": ""
       }
     }
   }

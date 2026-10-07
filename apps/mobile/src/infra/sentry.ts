@@ -88,9 +88,9 @@ export function acompanharUsuario(): () => void {
 
 let spanAbertura: Span | undefined
 
-/** Abertura a frio até a Home com dados (RNF03); sem DSN não cria span. */
+/** Abertura a frio até a Home com dados (RNF03); com o Sentry desligado não cria span. */
 export function iniciarSpanAbertura(): void {
-  if (!ambiente.sentryDsn) return
+  if (!ambiente.sentryDsn || __DEV__) return
   spanAbertura = Sentry.startInactiveSpan({
     name: 'inicio_home_pronta',
     op: 'app.inicio',

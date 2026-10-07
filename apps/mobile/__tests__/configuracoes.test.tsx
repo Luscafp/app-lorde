@@ -112,10 +112,10 @@ function perfil(termosAceitos: Perfil['termosAceitos']): Perfil {
 
 let cliente: QueryClient
 
-function linha(rotulo: string) {
-  const linha = screen.getByText(rotulo).parent
-  if (!linha) throw new Error(`Linha "${rotulo}" sem contêiner`)
-  return linha
+function linhaDoItem(rotulo: string) {
+  const conteiner = screen.getByText(rotulo).parent
+  if (!conteiner) throw new Error(`Linha "${rotulo}" sem contêiner`)
+  return conteiner
 }
 
 function renderizar(elemento: ReactElement) {
@@ -277,9 +277,9 @@ describe('Tela Sobre', () => {
     buscarAtletica.mockResolvedValue(atletica())
     await renderizar(<TelaSobre />)
 
-    expect(within(linha('Runtime')).getByText('a1b2c3d4e5f6')).toBeOnTheScreen()
-    expect(within(linha('Atualização')).getByText('01234567')).toBeOnTheScreen()
-    expect(within(linha('Canal')).getByText('homologacao')).toBeOnTheScreen()
+    expect(within(linhaDoItem('Runtime')).getByText('a1b2c3d4e5f6')).toBeOnTheScreen()
+    expect(within(linhaDoItem('Atualização')).getByText('01234567')).toBeOnTheScreen()
+    expect(within(linhaDoItem('Canal')).getByText('homologacao')).toBeOnTheScreen()
   })
 
   it('não mostra o canal de produção', async () => {
@@ -289,7 +289,7 @@ describe('Tela Sobre', () => {
     buscarAtletica.mockResolvedValue(atletica())
     await renderizar(<TelaSobre />)
 
-    expect(within(linha('Atualização')).getByText('01234567')).toBeOnTheScreen()
+    expect(within(linhaDoItem('Atualização')).getByText('01234567')).toBeOnTheScreen()
     expect(screen.queryByText('Canal')).toBeNull()
     expect(screen.queryByText('producao')).toBeNull()
   })
@@ -299,7 +299,7 @@ describe('Tela Sobre', () => {
     buscarAtletica.mockResolvedValue(atletica())
     await renderizar(<TelaSobre />)
 
-    expect(within(linha('Atualização')).getByText('embutido')).toBeOnTheScreen()
+    expect(within(linhaDoItem('Atualização')).getByText('embutido')).toBeOnTheScreen()
   })
 
   it('tocar no e-mail abre o app de e-mail (critério 7)', async () => {

@@ -5,8 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { ExpoConfig } from 'expo/config'
 import resolverConfig from '../app.config'
-
-type Ambiente = 'development' | 'homologacao' | 'producao'
+import { AMBIENTES, type Ambiente } from '@/config/ambiente'
 
 const URL_HTTPS = 'https://api.exemplo.com/api/v1'
 const ENV_ORIGINAL = { ...process.env }
@@ -56,7 +55,7 @@ describe('app.config.ts por ambiente', () => {
     },
   )
 
-  it.each<Ambiente>(['development', 'homologacao', 'producao'])(
+  it.each(AMBIENTES)(
     '%s: versão, Android 8.0, OTA por fingerprint e plugins de release',
     (ambiente) => {
       const config = resolverAmbiente(ambiente)
@@ -89,18 +88,15 @@ describe('app.config.ts por ambiente', () => {
     },
   )
 
-  it.each<Ambiente>(['development', 'homologacao', 'producao'])(
-    '%s: os ícones referenciados existem',
-    (ambiente) => {
-      const config = resolverAmbiente(ambiente)
-      const icones = [config.icon, ...Object.values(config.android?.adaptiveIcon ?? {})].filter(
-        (valor): valor is string => typeof valor === 'string' && valor.startsWith('./'),
-      )
+  it.each(AMBIENTES)('%s: os ícones referenciados existem', (ambiente) => {
+    const config = resolverAmbiente(ambiente)
+    const icones = [config.icon, ...Object.values(config.android?.adaptiveIcon ?? {})].filter(
+      (valor): valor is string => typeof valor === 'string' && valor.startsWith('./'),
+    )
 
-      for (const icone of icones)
-        expect(fs.existsSync(path.resolve(__dirname, '..', icone))).toBe(true)
-    },
-  )
+    for (const icone of icones)
+      expect(fs.existsSync(path.resolve(__dirname, '..', icone))).toBe(true)
+  })
 
   it('development aceita a URL http:// local', () => {
     const config = resolver({

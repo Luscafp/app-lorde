@@ -1,13 +1,12 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config'
 import { z } from 'zod'
+import { AMBIENTES, type Ambiente } from './src/config/ambiente.ts'
 
 /** Decisões da #97 num só lugar: nome, pacote (permanente após publicar) e projeto EAS. */
 const NOME_APP = 'Atlética Lorde'
 const IDENTIFICADOR_ANDROID = 'br.com.atleticalorde.app'
 /** Gerado pelo `eas init` na #95. */
 const ID_PROJETO_EAS = '00000000-0000-0000-0000-000000000000'
-
-const AMBIENTES = ['development', 'homologacao', 'producao'] as const
 
 const esquemaEnv = z
   .object({
@@ -25,6 +24,17 @@ const esquemaEnv = z
     },
   )
 
+function variante(ambiente: Ambiente) {
+  if (ambiente !== 'homologacao') {
+    return { nome: NOME_APP, pacote: IDENTIFICADOR_ANDROID, sufixoIcone: '' }
+  }
+  return {
+    nome: `${NOME_APP} (Homolog)`,
+    pacote: `${IDENTIFICADOR_ANDROID}.homolog`,
+    sufixoIcone: '-homolog',
+  }
+}
+
 function lerEnv() {
   const resultado = esquemaEnv.safeParse(process.env)
   if (!resultado.success) {
@@ -35,12 +45,11 @@ function lerEnv() {
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const { EXPO_PUBLIC_AMBIENTE: ambiente, EXPO_PUBLIC_API_URL: apiUrl } = lerEnv()
-  const homologacao = ambiente === 'homologacao'
-  const sufixoIcone = homologacao ? '-homolog' : ''
+  const { nome, pacote, sufixoIcone } = variante(ambiente)
 
   return {
     ...config,
-    name: homologacao ? `${NOME_APP} (Homolog)` : NOME_APP,
+    name: nome,
     slug: 'atletica-lorde',
     scheme: 'atletica',
     version: '1.0.0',
@@ -54,7 +63,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       fallbackToCacheTimeout: 0,
     },
     android: {
-      package: homologacao ? `${IDENTIFICADOR_ANDROID}.homolog` : IDENTIFICADOR_ANDROID,
+      package: pacote,
       adaptiveIcon: {
         backgroundColor: '#E6F4FE',
         foregroundImage: `./assets/android-icon-foreground${sufixoIcone}.png`,

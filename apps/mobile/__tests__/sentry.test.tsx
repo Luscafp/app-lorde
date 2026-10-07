@@ -14,6 +14,7 @@ import {
 import { useSessao } from '@/infra/sessao/store'
 
 const DSN = 'https://chave@o1.ingest.sentry.io/1'
+const globais = globalThis as typeof globalThis & { __DEV__: boolean }
 
 beforeEach(() => jest.clearAllMocks())
 afterEach(() => jest.restoreAllMocks())
@@ -55,6 +56,7 @@ describe('span inicio_home_pronta', () => {
     return end
   }
 
+  beforeEach(() => jest.replaceProperty(globais, '__DEV__', false))
   afterEach(() => marcarHomePronta())
 
   it('iniciado uma vez e finalizado uma única vez no primeiro render com dados', async () => {
@@ -82,6 +84,14 @@ describe('span inicio_home_pronta', () => {
     iniciarSpanAbertura()
 
     await renderHook(() => useMarcarHomePronta(true))
+    expect(startInactiveSpan).not.toHaveBeenCalled()
+  })
+
+  it('em __DEV__, com o Sentry desligado, nenhum span é criado', () => {
+    jest.replaceProperty(globais, '__DEV__', true)
+    jest.replaceProperty(ambiente, 'sentryDsn', DSN)
+    iniciarSpanAbertura()
+
     expect(startInactiveSpan).not.toHaveBeenCalled()
   })
 })
