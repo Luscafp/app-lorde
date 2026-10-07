@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { Resultado, StatusEvento, TipoEvento } from '../enums/evento'
+import { contagemParticipacaoSchema } from '../participacoes/dtos'
 import { respostaPaginadaSchema } from '../utils/paginacao'
 import { MotivoBloqueioResposta } from './participacao'
 
@@ -48,16 +49,6 @@ export const minhaParticipacaoSchema = z
   .object({ confirmado: z.boolean(), respondidoEm: z.iso.datetime() })
   .strict()
   .nullable()
-
-/** Respostas do elenco atual do time. */
-export const contagemParticipacaoSchema = z
-  .object({
-    confirmados: z.number().int(),
-    recusados: z.number().int(),
-    semResposta: z.number().int(),
-    elenco: z.number().int(),
-  })
-  .strict()
 
 /** Item de `GET /eventos`. */
 export const eventoResumoSchema = eventoDtoSchema
@@ -110,7 +101,6 @@ export const statusEventoAlteradoDtoSchema = z
 
 export type EventoDto = z.infer<typeof eventoDtoSchema>
 export type EventoCanceladoDto = z.infer<typeof eventoCanceladoDtoSchema>
-export type ContagemParticipacao = z.infer<typeof contagemParticipacaoSchema>
 export type MinhaParticipacao = z.infer<typeof minhaParticipacaoSchema>
 export type EventoResumoDto = z.infer<typeof eventoResumoSchema>
 export type ListaEventos = z.infer<typeof listaEventosSchema>

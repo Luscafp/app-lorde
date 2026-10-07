@@ -5,6 +5,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import type { ReactNode } from 'react'
 import { toast } from '@/components/ui/toast'
 import { TelaEvento } from '@/features/eventos'
+import { ParticipacaoAcoes, SecaoMeusProximosEventos } from '@/features/participacoes'
 import { contagemComResposta } from '@/features/participacoes/hooks'
 import { ApiErro } from '@/infra/api/api-erro'
 import { api } from '@/infra/api/cliente'
@@ -71,9 +72,16 @@ function Provedor({ children }: { children: ReactNode }) {
 }
 
 function renderizar(aoAbrirTime = jest.fn()) {
-  return render(<TelaEvento id={ID} aoGerenciar={jest.fn()} aoAbrirTime={aoAbrirTime} />, {
-    wrapper: Provedor,
-  })
+  return render(
+    <TelaEvento
+      id={ID}
+      aoGerenciar={jest.fn()}
+      acoesParticipacao={(evento) => (
+        <ParticipacaoAcoes evento={evento} aoAbrirTime={aoAbrirTime} />
+      )}
+    />,
+    { wrapper: Provedor },
+  )
 }
 
 const botao = (nome: 'Vou' | 'Não vou') => screen.getByRole('button', { name: nome })
@@ -189,9 +197,27 @@ describe('ParticipacaoAcoes — estados (§6)', () => {
 
       expect(await screen.findByRole('button', { name: 'Vou' })).toBeDisabled()
       expect(botao('Não vou')).toBeDisabled()
+      expect(botao('Vou')).toHaveStyle({ opacity: 0.55 })
       expect(legenda()).toHaveTextContent(texto)
     },
   )
+
+  it('offline com evento cancelado: o motivo vence "Sem conexão"', async () => {
+    get.mockResolvedValue(
+      detalhe({
+        status: 'CANCELADO',
+        podeResponder: false,
+        motivoBloqueioResposta: 'EVENTO_CANCELADO',
+      }),
+    )
+    await renderizar()
+    await screen.findByRole('button', { name: 'Vou' })
+
+    await emitirRede(false)
+
+    expect(botao('Vou')).toBeDisabled()
+    expect(legenda()).toHaveTextContent('Evento cancelado')
+  })
 
   it('offline: botões desabilitados, "Sem conexão" e nenhuma requisição (critério 13)', async () => {
     get.mockResolvedValue(detalhe())
@@ -312,6 +338,23 @@ describe('ParticipacaoAcoes — resposta', () => {
     await fireEvent.press(await screen.findByRole('button', { name: 'Não vou' }))
 
     expect(put).not.toHaveBeenCalled()
+  })
+})
+
+describe('SecaoMeusProximosEventos', () => {
+  it('consulta exata: PROXIMOS, confirmadoPorMim e limit 5', async () => {
+    get.mockResolvedValue({ items: [], page: 1, limit: 5, total: 0 })
+    await render(<SecaoMeusProximosEventos aoAbrirEvento={jest.fn()} />, { wrapper: Provedor })
+
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(1))
+    const [rota, opcoes] = get.mock.calls[0]!
+    expect(rota).toBe('/eventos')
+    expect(opcoes?.consulta).toEqual({
+      periodo: 'PROXIMOS',
+      confirmadoPorMim: true,
+      page: 1,
+      limit: 5,
+    })
   })
 })
 

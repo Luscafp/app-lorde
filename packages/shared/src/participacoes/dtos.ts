@@ -1,5 +1,14 @@
 import { z } from 'zod'
-import { contagemParticipacaoSchema } from '../eventos/dtos'
+
+/** Respostas do elenco atual do time. */
+export const contagemParticipacaoSchema = z
+  .object({
+    confirmados: z.number().int(),
+    recusados: z.number().int(),
+    semResposta: z.number().int(),
+    elenco: z.number().int(),
+  })
+  .strict()
 
 /** Resposta de `PUT /eventos/:id/participacao` (#24). */
 export const participacaoRespondidaDtoSchema = z
@@ -12,3 +21,4 @@ export const participacaoRespondidaDtoSchema = z
   .strict()
 
 export type ParticipacaoRespondidaDto = z.infer<typeof participacaoRespondidaDtoSchema>
+export type ContagemParticipacao = z.infer<typeof contagemParticipacaoSchema>

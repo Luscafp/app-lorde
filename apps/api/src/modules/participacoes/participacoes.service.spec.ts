@@ -29,7 +29,13 @@ function criarServico(cenario: Cenario = {}) {
   const evento =
     cenario.evento === null
       ? null
-      : { id: EVENTO, status: cenario.evento?.status ?? 'AGENDADO', inicio: INICIO, timeId: TIME }
+      : {
+          id: EVENTO,
+          atleticaId: ATUAL,
+          status: cenario.evento?.status ?? 'AGENDADO',
+          inicio: INICIO,
+          timeId: TIME,
+        }
   const tx = {
     evento: { findFirst: jest.fn().mockResolvedValue(evento) },
     membroTime: { count: jest.fn().mockResolvedValue(cenario.membro === false ? 0 : 1) },
@@ -82,6 +88,7 @@ describe('ParticipacoesService', () => {
     )
     expect(leitura.contagem).toHaveBeenCalledWith({
       id: EVENTO,
+      atleticaId: ATUAL,
       status: 'AGENDADO',
       inicio: INICIO,
       timeId: TIME,

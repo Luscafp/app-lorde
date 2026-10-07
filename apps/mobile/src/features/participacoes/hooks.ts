@@ -5,8 +5,12 @@ import {
   type ParticipacaoRespondidaDto,
 } from '@atletica/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { listarEventos, type FiltrosEventos } from '@/features/eventos/api'
-import { ehDetalhe, type EventoEmTela } from '@/features/eventos/consultas'
+import {
+  ehDetalhe,
+  listarEventos,
+  type EventoEmTela,
+  type FiltrosEventos,
+} from '@/features/eventos'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'

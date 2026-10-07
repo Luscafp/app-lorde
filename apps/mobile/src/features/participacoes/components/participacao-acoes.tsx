@@ -4,6 +4,7 @@ import {
   MotivoBloqueioResposta,
   StatusEvento,
   type EventoDetalheDto,
+  type MinhaParticipacao,
 } from '@atletica/shared'
 import { useEffect, useRef, useState } from 'react'
 import { Pressable, View } from 'react-native'
@@ -15,9 +16,7 @@ export const MENSAGEM_SEM_RESPOSTA = 'Você ainda não respondeu'
 export const MENSAGEM_SEM_CONEXAO_RESPOSTA = 'Sem conexão'
 export const INTERVALO_RELOGIO_MS = 30_000
 
-const TOAST_RESPOSTA = { true: 'Participação confirmada', false: 'Você marcou que não vai' }
-
-function bloqueio(motivo: MotivoBloqueioResposta, status: StatusEvento): string {
+function rotuloBloqueio(motivo: MotivoBloqueioResposta, status: StatusEvento): string {
   if (motivo === MotivoBloqueioResposta.EVENTO_CANCELADO) return 'Evento cancelado'
   if (
     motivo === MotivoBloqueioResposta.EVENTO_NAO_AGENDADO &&
@@ -26,6 +25,19 @@ function bloqueio(motivo: MotivoBloqueioResposta, status: StatusEvento): string 
     return 'Evento finalizado'
   }
   return 'O evento já começou'
+}
+
+/** O motivo de bloqueio vence a falta de conexão: a resposta não seria aceita nem online. */
+function legendaParticipacao(
+  motivo: MotivoBloqueioResposta | null,
+  status: StatusEvento,
+  online: boolean,
+  atual: MinhaParticipacao,
+): string {
+  if (motivo) return rotuloBloqueio(motivo, status)
+  if (!online) return MENSAGEM_SEM_CONEXAO_RESPOSTA
+  if (!atual) return MENSAGEM_SEM_RESPOSTA
+  return `Respondido em ${formatarDataHora(atual.respondidoEm)} · você pode alterar até o início`
 }
 
 /** Desabilita os botões quando o início passa com a tela aberta, sem esperar o servidor. */
@@ -43,7 +55,7 @@ type Props = { evento: EventoDetalheDto; aoAbrirTime: (timeId: string) => void }
 /** Botões "Vou"/"Não vou" do detalhe (#24, UC15). */
 export function ParticipacaoAcoes({ evento, aoAbrirTime }: Props) {
   const agora = useAgora()
-  const resposta = useResponderParticipacao(evento.id)
+  const mutacao = useResponderParticipacao(evento.id)
   const enviando = useRef(false)
 
   if (!evento.souMembro) {
@@ -65,21 +77,15 @@ export function ParticipacaoAcoes({ evento, aoAbrirTime }: Props) {
   const local = avaliarResposta(evento, evento.souMembro, agora)
   const motivo = evento.motivoBloqueioResposta ?? local.motivoBloqueioResposta
   const atual = evento.minhaParticipacao
-  const desabilitado = Boolean(motivo) || !resposta.online || resposta.isPending
-
-  const legenda = !resposta.online
-    ? MENSAGEM_SEM_CONEXAO_RESPOSTA
-    : motivo
-      ? bloqueio(motivo, evento.status)
-      : atual
-        ? `Respondido em ${formatarDataHora(atual.respondidoEm)} · você pode alterar até o início`
-        : MENSAGEM_SEM_RESPOSTA
+  const desabilitado = Boolean(motivo) || !mutacao.online || mutacao.isPending
+  const legenda = legendaParticipacao(motivo, evento.status, mutacao.online, atual)
 
   function responder(confirmado: boolean) {
     if (enviando.current || atual?.confirmado === confirmado) return
     enviando.current = true
-    resposta.mutate(confirmado, {
-      onSuccess: () => toast.sucesso(TOAST_RESPOSTA[`${confirmado}`]),
+    mutacao.mutate(confirmado, {
+      onSuccess: () =>
+        toast.sucesso(confirmado ? 'Participação confirmada' : 'Você marcou que não vai'),
       onSettled: () => {
         enviando.current = false
       },
@@ -89,7 +95,7 @@ export function ParticipacaoAcoes({ evento, aoAbrirTime }: Props) {
   const opcao = (confirmado: boolean) => {
     const ativa = atual?.confirmado === confirmado
     const destaque = confirmado ? 'sucesso' : 'perigo'
-    const carregando = resposta.isPending && resposta.variables === confirmado
+    const carregando = mutacao.isPending && mutacao.variables === confirmado
     return {
       variante: !atual || ativa ? destaque : 'secundaria',
       carregando,

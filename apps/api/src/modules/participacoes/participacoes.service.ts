@@ -10,7 +10,7 @@ import { EventosLeituraService } from '../eventos/eventos-leitura.service'
 import { ELENCO_ATUAL } from '../times/membro'
 import { erroRespostaBloqueada } from './erros'
 
-interface Resposta {
+interface RespostaGravada {
   evento: { id: string; timeId: string }
   confirmado: boolean
   respondidoEm: Date
@@ -35,7 +35,7 @@ export class ParticipacoesService {
     usuario: UsuarioNaAtletica,
   ): Promise<ParticipacaoRespondidaDto> {
     const executar = () =>
-      this.transacao.executar((tx) => this.gravar(tx, eventoId, confirmado, usuario))
+      this.transacao.executar((tx) => this.validarEGravar(tx, eventoId, confirmado, usuario))
     const resposta = await executar().catch((erro: unknown) => {
       if (corridaNaCriacao(erro)) return executar()
       throw erro
@@ -49,15 +49,15 @@ export class ParticipacoesService {
   }
 
   /** Horário do servidor; ordem de avaliação de `avaliarResposta` (#75). */
-  private async gravar(
+  private async validarEGravar(
     tx: TransacaoComEscopo,
     eventoId: string,
     confirmado: boolean,
     usuario: UsuarioNaAtletica,
-  ): Promise<Resposta> {
+  ): Promise<RespostaGravada> {
     const evento = await tx.evento.findFirst({
       where: { id: eventoId, ...naoExcluido },
-      select: { id: true, status: true, inicio: true, timeId: true },
+      select: { id: true, atleticaId: true, status: true, inicio: true, timeId: true },
     })
     if (!evento) throw erroEventoNaoEncontrado()
 
@@ -78,7 +78,7 @@ export class ParticipacoesService {
     const gravada = await tx.participacao.upsert({
       where: chave,
       create: {
-        atleticaId: usuario.atleticaId,
+        atleticaId: evento.atleticaId,
         eventoId,
         usuarioId: usuario.id,
         confirmado,

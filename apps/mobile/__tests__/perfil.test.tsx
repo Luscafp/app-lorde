@@ -1,6 +1,6 @@
 import type { EventoResumoDto, Perfil } from '@atletica/shared'
 import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native'
 import { toast } from '@/components/ui/toast'
 import {
   AlterarSenha,
@@ -284,6 +284,28 @@ describe('Meus próximos eventos (#24)', () => {
     expect(
       await screen.findByText('Você não confirmou presença em nenhum evento próximo.'),
     ).toBeOnTheScreen()
+  })
+  it('carregando só na seção: esqueleto e o restante do Perfil visível (critério 17)', async () => {
+    api.buscarPerfil.mockResolvedValue(perfil())
+    listarEventos.mockReturnValue(new Promise(() => undefined))
+    await renderizar(<TelaPerfil {...navegacao()} />)
+
+    const secao = await screen.findByTestId('meus-proximos-eventos')
+    expect(within(secao).getByLabelText('Carregando')).toBeOnTheScreen()
+    expect(screen.getByText('Ana Souza')).toBeOnTheScreen()
+  })
+
+  it('offline sem cache só na seção: "Sem conexão" e o restante do Perfil visível (critério 17)', async () => {
+    cliente.setQueryData(chaves.me(), perfil())
+    onlineManager.setOnline(false)
+    await renderizar(<TelaPerfil {...navegacao()} />)
+
+    const secao = await screen.findByTestId('meus-proximos-eventos')
+    expect(
+      within(secao).getByText('Sem conexão. Conecte-se à internet para carregar os dados.'),
+    ).toBeOnTheScreen()
+    expect(screen.getByText('Ana Souza')).toBeOnTheScreen()
+    expect(listarEventos).not.toHaveBeenCalled()
   })
 })
 

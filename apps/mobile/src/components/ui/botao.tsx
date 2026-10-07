@@ -56,7 +56,7 @@ export function Botao({
       } ${className ?? ''}`}
       style={{
         backgroundColor: cores.fundo,
-        opacity: desabilitado ? 0.5 : pressionado ? 0.7 : 1,
+        opacity: desabilitado ? 0.55 : pressionado ? 0.7 : 1,
       }}
       {...props}
     >

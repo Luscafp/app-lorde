@@ -5,6 +5,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import type { ReactElement, ReactNode } from 'react'
 import type { RefreshControlProps } from 'react-native'
 import { TelaEvento } from '@/features/eventos'
+import { ParticipacaoAcoes } from '@/features/participacoes'
 import { ApiErro } from '@/infra/api/api-erro'
 import { api } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
@@ -81,9 +82,14 @@ function Provedor({ children }: { children: ReactNode }) {
 }
 
 function renderizar(aoGerenciar = jest.fn()) {
-  return render(<TelaEvento id={ID} aoGerenciar={aoGerenciar} aoAbrirTime={jest.fn()} />, {
-    wrapper: Provedor,
-  })
+  return render(
+    <TelaEvento
+      id={ID}
+      aoGerenciar={aoGerenciar}
+      acoesParticipacao={(evento) => <ParticipacaoAcoes evento={evento} aoAbrirTime={jest.fn()} />}
+    />,
+    { wrapper: Provedor },
+  )
 }
 
 function comPapel(papel: Papel) {

@@ -1,15 +1,15 @@
 import { RefreshControl, ScrollView, View } from 'react-native'
 import { EstadoVazio, TelaDados } from '@/components/estado'
 import { ehNaoEncontrado } from '@/infra/api/api-erro'
-import { EventoDetalhe } from './components'
+import { EventoDetalhe, type AcoesParticipacao } from './components'
 import { useEvento } from './consultas'
 
 export const MENSAGEM_EVENTO_NAO_ENCONTRADO = 'Evento não encontrado'
 
-/** O 404 vence o cache: o evento pode ter sido excluído depois de carregado. */
-type Props = { id: string; aoGerenciar: () => void; aoAbrirTime: (timeId: string) => void }
+type Props = { id: string; aoGerenciar: () => void; acoesParticipacao: AcoesParticipacao }
 
-export function TelaEvento({ id, aoGerenciar, aoAbrirTime }: Props) {
+/** O 404 vence o cache: o evento pode ter sido excluído depois de carregado. */
+export function TelaEvento({ id, aoGerenciar, acoesParticipacao }: Props) {
   const consulta = useEvento(id)
 
   return (
@@ -32,7 +32,7 @@ export function TelaEvento({ id, aoGerenciar, aoAbrirTime }: Props) {
               <EventoDetalhe
                 evento={evento}
                 aoGerenciar={aoGerenciar}
-                aoAbrirTime={aoAbrirTime}
+                acoesParticipacao={acoesParticipacao}
                 aoTentarNovamente={consulta.refetch}
               />
             </ScrollView>

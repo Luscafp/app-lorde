@@ -3,7 +3,7 @@ import { View } from 'react-native'
 import { TelaDados } from '@/components/estado'
 import { Texto } from '@/components/ui'
 import { paleta } from '@/features/atletica'
-import { EventoCard } from '@/features/eventos/components/evento-card'
+import { EventoCard } from '@/features/eventos'
 import { useMeusProximosEventos } from '../hooks'
 
 export const MENSAGEM_SEM_PROXIMOS = 'Você não confirmou presença em nenhum evento próximo.'
