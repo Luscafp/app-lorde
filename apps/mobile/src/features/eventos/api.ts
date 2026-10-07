@@ -10,12 +10,15 @@ import {
   type EventoDto,
   type ListaEventos,
   type ListarEventosQuery,
+  type StatusEvento,
 } from '@atletica/shared'
 import { api } from '@/infra/api/cliente'
 
 export const LIMITE_PAGINA = 20
 
-export type FiltrosEventos = Partial<Omit<ListarEventosQuery, 'page' | 'limit' | 'status'>>
+export type FiltrosEventos = Partial<Omit<ListarEventosQuery, 'page' | 'limit' | 'status'>> & {
+  status?: StatusEvento
+}
 
 export async function listarEventos(
   filtros: FiltrosEventos,

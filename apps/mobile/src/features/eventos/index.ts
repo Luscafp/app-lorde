@@ -11,6 +11,7 @@ export {
   EventoForm,
   MinhaRespostaChip,
   ParticipacaoAcoes,
+  PlacarCard,
   type EventoDoCard,
 } from './components'
 export { useEventos } from './consultas'

@@ -2,11 +2,12 @@ import {
   chaveDiaLocal,
   formatarData,
   localParaUtc,
+  Resultado,
   TipoEvento,
   type EventoResumoDto,
   type Instante,
 } from '@atletica/shared'
-import { siglaOuNome, type AtleticaAdversaria } from './rotulos'
+import { RESULTADO, siglaOuNome, type AtleticaAdversaria } from './rotulos'
 
 const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'] as const
 const UM_DIA_MS = 86_400_000
@@ -36,3 +37,9 @@ export const rotuloAdversario = ({
   nome: string
   atletica: AtleticaAdversaria
 }) => `${nome} · ${siglaOuNome(atletica)}`
+
+/** RNF20: "Vitória da {sigla}", com a sigla (ou o nome) da atlética dona. */
+export function rotuloResultado(resultado: Resultado, atletica: string): string {
+  if (resultado === Resultado.EMPATE) return RESULTADO[resultado].rotulo
+  return `${RESULTADO[resultado].rotulo} da ${atletica}`
+}

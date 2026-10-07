@@ -24,4 +24,5 @@ export const RESULTADO: Record<Resultado, Rotulo> = {
 
 export type AtleticaAdversaria = NonNullable<EventoResumoDto['timeAdversario']>['atletica']
 
-export const siglaOuNome = ({ sigla, nome }: AtleticaAdversaria) => sigla ?? nome
+export const siglaOuNome = ({ sigla, nome }: Pick<AtleticaAdversaria, 'sigla' | 'nome'>) =>
+  sigla ?? nome

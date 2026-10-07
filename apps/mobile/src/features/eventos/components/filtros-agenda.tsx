@@ -10,10 +10,15 @@ const OPCOES_TIPO: readonly Opcao<TipoEvento>[] = [
   { valor: TipoEvento.TREINO, rotulo: 'Treinos' },
 ]
 
-type Props = { filtros: FiltrosSelecionados; aoMudar: (filtros: FiltrosSelecionados) => void }
+type Props = {
+  filtros: FiltrosSelecionados
+  aoMudar: (filtros: FiltrosSelecionados) => void
+  /** O Placar só filtra por modalidade. */
+  comTipo?: boolean
+}
 
 /** Sem modalidades (carregando ou erro) fica só "Todas": a lista não depende delas. */
-export function FiltrosAgenda({ filtros, aoMudar }: Props) {
+export function FiltrosAgenda({ filtros, aoMudar, comTipo = true }: Props) {
   const { data: modalidades = [] } = useModalidades({ incluirInativas: false })
   const opcoesModalidade: Opcao<string>[] = [
     { valor: undefined, rotulo: 'Todas' },
@@ -22,12 +27,14 @@ export function FiltrosAgenda({ filtros, aoMudar }: Props) {
 
   return (
     <View className="gap-2 px-4">
-      <Pilulas
-        rotulo="Tipo de evento"
-        opcoes={OPCOES_TIPO}
-        valor={filtros.tipo}
-        aoMudar={(tipo) => aoMudar({ ...filtros, tipo })}
-      />
+      {comTipo && (
+        <Pilulas
+          rotulo="Tipo de evento"
+          opcoes={OPCOES_TIPO}
+          valor={filtros.tipo}
+          aoMudar={(tipo) => aoMudar({ ...filtros, tipo })}
+        />
+      )}
       <Pilulas
         rotulo="Modalidade"
         opcoes={opcoesModalidade}

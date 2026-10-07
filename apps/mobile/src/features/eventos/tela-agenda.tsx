@@ -1,16 +1,24 @@
 import Ionicons from '@expo/vector-icons/Ionicons'
-import { PeriodoEventos, type EventoResumoDto } from '@atletica/shared'
+import { PeriodoEventos, StatusEvento, TipoEvento, type EventoResumoDto } from '@atletica/shared'
 import { View } from 'react-native'
 import { ListaInfinita, TelaDados } from '@/components/estado'
 import { Segmentos, Texto, type Segmento } from '@/components/ui'
 import { paleta } from '@/features/atletica'
 import { agruparPorDia, type AbaAgenda, type FiltrosSelecionados } from './agenda'
-import { CabecalhoDia, EventoCard, FiltrosAgenda, MinhaRespostaChip } from './components'
+import {
+  CabecalhoDia,
+  EventoCard,
+  FiltrosAgenda,
+  MinhaRespostaChip,
+  PlacarCard,
+} from './components'
 import { useEventos } from './consultas'
 
 export const MENSAGEM_SEM_EVENTOS = 'Nenhum evento agendado'
 export const MENSAGEM_SEM_EVENTOS_FILTRADOS = 'Nenhum evento para os filtros escolhidos'
 export const MENSAGEM_ERRO_AGENDA = 'Não foi possível carregar a agenda'
+export const MENSAGEM_SEM_RESULTADOS = 'Nenhum resultado registrado'
+export const MENSAGEM_ERRO_PLACAR = 'Não foi possível carregar o placar'
 
 const SEGMENTOS: readonly Segmento<AbaAgenda>[] = [
   { valor: 'eventos', rotulo: 'Jogos e treinos' },
@@ -79,6 +87,50 @@ function JogosETreinos({ filtros, aoMudarFiltros, aoAbrirEvento }: PropsEventos)
   )
 }
 
+/** RN15: só jogos finalizados, do mais recente ao mais antigo; o tipo da URL é ignorado. */
+function Placar({ filtros, aoMudarFiltros, aoAbrirEvento }: PropsEventos) {
+  const { modalidadeId } = filtros
+  const consulta = useEventos({
+    periodo: PeriodoEventos.TODOS,
+    tipo: TipoEvento.JOGO,
+    status: StatusEvento.FINALIZADO,
+    ordem: 'desc',
+    modalidadeId,
+  })
+
+  return (
+    <View className="flex-1 gap-2">
+      <FiltrosAgenda filtros={filtros} aoMudar={aoMudarFiltros} comTipo={false} />
+      <TelaDados
+        consulta={consulta}
+        esqueleto="cartoes"
+        vazio={(eventos) => eventos.length === 0}
+        mensagemVazio={MENSAGEM_SEM_RESULTADOS}
+        acaoVazio={
+          modalidadeId !== undefined
+            ? {
+                titulo: 'Limpar filtro',
+                onPress: () => aoMudarFiltros({ ...filtros, modalidadeId: undefined }),
+              }
+            : undefined
+        }
+        mensagemErro={MENSAGEM_ERRO_PLACAR}
+      >
+        {(eventos) => (
+          <ListaInfinita
+            testID="lista-placar"
+            consulta={consulta}
+            data={eventos}
+            keyExtractor={({ id }) => id}
+            contentContainerClassName="gap-2 p-4"
+            renderItem={({ item }) => <PlacarCard evento={item} aoAbrir={aoAbrirEvento} />}
+          />
+        )}
+      </TelaDados>
+    </View>
+  )
+}
+
 type Props = PropsEventos & { aba: AbaAgenda; aoMudarAba: (aba: AbaAgenda) => void }
 
 export function TelaAgenda({ aba, aoMudarAba, ...eventos }: Props) {
@@ -88,8 +140,7 @@ export function TelaAgenda({ aba, aoMudarAba, ...eventos }: Props) {
         <Texto variante="titulo">Agenda</Texto>
         <Segmentos opcoes={SEGMENTOS} valor={aba} aoMudar={aoMudarAba} />
       </View>
-      {/* Segmento Placar: `PlacarLista` da #23. */}
-      {aba === 'eventos' ? <JogosETreinos {...eventos} /> : <View className="flex-1" />}
+      {aba === 'eventos' ? <JogosETreinos {...eventos} /> : <Placar {...eventos} />}
     </View>
   )
 }
