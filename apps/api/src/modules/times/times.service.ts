@@ -3,6 +3,7 @@ import {
   type ListaTimes,
   type TimeAtualizacao,
   type TimeCriacao,
+  type TimeDetalheDto,
   type TimeDto,
   type TimesQuery,
 } from '@atletica/shared'
@@ -15,7 +16,9 @@ import { erroAdversariaNaoEncontrada } from '../atleticas/erros'
 import { AuditoriaService } from '../auditoria/auditoria.service'
 import { diferenca } from '../auditoria/diferenca'
 import { entradasDaAlteracao } from '../auditoria/entradas-da-alteracao'
+import type { UsuarioNaAtletica } from '../auth/tipos'
 import { erroModalidadeNaoEncontrada } from '../modalidades/erros'
+import { SolicitacoesService } from '../solicitacoes/solicitacoes.service'
 import {
   erroModalidadeInativa,
   erroTimeComDependencias,
@@ -67,6 +70,7 @@ export class TimesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditoria: AuditoriaService,
+    private readonly solicitacoes: SolicitacoesService,
   ) {}
 
   /** `incluirInativos` já vem resolvido pelo papel (só a Diretoria). */
@@ -86,13 +90,18 @@ export class TimesService {
     return { ...pagina, items: pagina.items.map((time) => paraDto(time, atleticaId)) }
   }
 
-  async detalhar(id: string, atleticaId: string, incluirInativos: boolean): Promise<TimeDto> {
-    const time = await this.prisma.db.time.findFirst({
+  async detalhar(
+    id: string,
+    usuario: UsuarioNaAtletica,
+    incluirInativos: boolean,
+  ): Promise<TimeDetalheDto> {
+    const linha = await this.prisma.db.time.findFirst({
       where: incluirInativos ? { id } : { id, ...VISIVEL_PARA_TODOS },
       select: CAMPOS_TIME,
     })
-    if (!time) throw erroTimeNaoEncontrado()
-    return paraDto(time, atleticaId)
+    if (!linha) throw erroTimeNaoEncontrado()
+    const time = paraDto(linha, usuario.atleticaId)
+    return { ...time, minhaSituacao: await this.solicitacoes.minhaSituacao(time, usuario.id) }
   }
 
   /** O `atleticaId` de `Time` não vem da extensão: é a atlética ativa ou a adversária. */

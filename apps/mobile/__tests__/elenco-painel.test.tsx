@@ -82,7 +82,7 @@ beforeEach(() => {
   jest.spyOn(Alert, 'alert').mockImplementation(() => undefined)
   cliente = criarQueryClient()
   onlineManager.setOnline(true)
-  api.buscarTime.mockResolvedValue(TIME)
+  api.buscarTime.mockResolvedValue({ ...TIME, minhaSituacao: null })
   api.buscarElenco.mockResolvedValue(elenco(BRUNO, ANA))
 })
 
@@ -256,7 +256,11 @@ describe('ElencoPainel', () => {
   })
 
   it('time adversário não exibe o elenco', async () => {
-    api.buscarTime.mockResolvedValue({ ...TIME, atletica: { ...TIME.atletica, propria: false } })
+    api.buscarTime.mockResolvedValue({
+      ...TIME,
+      atletica: { ...TIME.atletica, propria: false },
+      minhaSituacao: null,
+    })
     await renderizar()
 
     expect(

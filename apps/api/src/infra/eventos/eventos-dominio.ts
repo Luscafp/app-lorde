@@ -33,6 +33,13 @@ export interface EventosDominio {
     papelNovo: Papel
     autorId: string
   }
+  /** #68; `autorId` = solicitante. Ouvido pela #89 (push para a Diretoria). */
+  'solicitacao.criada': PayloadBase & {
+    atleticaId: string
+    solicitacaoId: string
+    timeId: string
+    autorId: string
+  }
   /** #80, só na primeira publicação; `autorId` = quem publicou. Ouvido pela #89 (push de notícia). */
   'noticia.publicada': PayloadBase & { atleticaId: string; noticiaId: string; autorId: string }
   /** Em série, `eventoId` é a 1ª ocorrência. */

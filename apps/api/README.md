@@ -528,7 +528,7 @@ Times da atlética ativa e de adversárias. A extensão multi-atlética lê `Tim
 | Rota                | Papel mínimo         | Resposta                                                                                                                                                       |
 | ------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /times`        | qualquer autenticado | `200` paginado; filtros `modalidadeId`, `escopo=PROPRIOS\|ADVERSARIOS`, `atleticaId`, `q`; sem `incluirInativos` (só Diretoria), só ativos de modalidade ativa |
-| `GET /times/:id`    | qualquer autenticado | `200`; fora da Diretoria, inativo ou de modalidade inativa → `404`                                                                                             |
+| `GET /times/:id`    | qualquer autenticado | `200` com `minhaSituacao` (`null` em adversário); fora da Diretoria, inativo ou de modalidade inativa → `404`                                                  |
 | `POST /times`       | DIRETOR              | `201`; `422 MODALIDADE_INATIVA`, `409 TIME_DUPLICADO` (índice `time_nome_unico`)                                                                               |
 | `PATCH /times/:id`  | DIRETOR              | `200`; `nome`, `modalidadeId`, `ativo`; trocar a modalidade de time com eventos → `409 TIME_COM_EVENTOS`                                                       |
 | `DELETE /times/:id` | PRESIDENTE           | `204` (exclusão física); com evento, `MembroTime` (inclusive histórico) ou solicitação → `409 TIME_COM_DEPENDENCIAS`                                           |
@@ -567,6 +567,17 @@ await this.prisma.db.$transaction((tx) =>
   }),
 )
 ```
+
+## Solicitações de entrada (`src/modules/solicitacoes`)
+
+O usuário é sempre o do token. Schemas e DTOs em `@atletica/shared` (`solicitacoes/`). Sem auditoria na criação e no cancelamento (convenções §7).
+
+| Rota                              | Papel mínimo                  | Resposta                                                                                                                                                                    |
+| --------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /times/:id/solicitacoes`    | qualquer autenticado          | `201 PENDENTE`; ordem: `404` → `422 TIME_ADVERSARIO` → `422 TIME_INATIVO` → `409 JA_E_MEMBRO` → `409 SOLICITACAO_PENDENTE` (checagem e índice `solicitacao_pendente_unica`) |
+| `POST /solicitacoes/:id/cancelar` | qualquer autenticado (o dono) | `200 CANCELADA`; já cancelada → `200` sem gravar; de outro usuário → `404`; aprovada/rejeitada → `409 SOLICITACAO_JA_AVALIADA`                                              |
+
+A criação emite `solicitacao.criada { atleticaId, solicitacaoId, timeId, autorId }` após o commit; o cancelamento não emite. `SolicitacoesService.minhaSituacao(time, usuarioId)` monta o `minhaSituacao` de `GET /times/:id`. Fábrica: `criarSolicitacao(time, usuario, { status? })` em `test/fabricas/solicitacoes.ts`.
 
 ## Notícias (`src/modules/noticias`)
 
