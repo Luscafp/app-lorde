@@ -5,6 +5,7 @@ import { TelaDados } from '@/components/estado'
 import { Imagem } from '@/components/imagem'
 import { Botao, Cartao, Selo, Texto } from '@/components/ui'
 import { paleta } from '@/features/atletica'
+import { SecaoMeusProximosEventos } from '@/features/participacoes'
 import { useMe } from './consultas'
 
 export const MENSAGEM_SEM_TIMES = 'Você ainda não faz parte de nenhum time.'
@@ -12,6 +13,7 @@ export const MENSAGEM_SEM_TIMES = 'Você ainda não faz parte de nenhum time.'
 type Navegacao = {
   aoAbrirConfiguracoes: () => void
   aoAbrirTime: (id: string) => void
+  aoAbrirEvento: (id: string) => void
   aoConhecerTimes: () => void
 }
 
@@ -75,11 +77,12 @@ function Conteudo({
         <Selo texto={ROTULO_PAPEL[perfil.papel]} />
       </View>
       <MeusTimes times={perfil.times} {...navegacao} />
+      <SecaoMeusProximosEventos aoAbrirEvento={navegacao.aoAbrirEvento} />
     </ScrollView>
   )
 }
 
-/** Estatísticas (#85) e "Meus próximos eventos" (#24) entram como seções desta tela. */
+/** Estatísticas (#85) entram como seção desta tela. */
 export function TelaPerfil(navegacao: Navegacao) {
   const consulta = useMe()
 

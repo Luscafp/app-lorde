@@ -4,16 +4,17 @@ export {
   type FiltrosSelecionados,
   type ParametrosAgenda,
 } from './agenda'
+export { listarEventos, type FiltrosEventos } from './api'
 export {
   CabecalhoDia,
   DetalheEventoPainel,
   EventoCard,
   EventoForm,
   MinhaRespostaChip,
-  ParticipacaoAcoes,
+  type AcoesParticipacao,
   type EventoDoCard,
 } from './components'
-export { useEventos, useProximosEventos } from './consultas'
+export { ehDetalhe, useEventos, useProximosEventos, type EventoEmTela } from './consultas'
 export { rotuloInicio, tituloEvento } from './formatacao'
 export { useEventoPainel, useEventosPainel, type FiltrosEventosPainel } from './hooks'
 export { ListaEventosPainel, type NavegacaoEventos } from './lista-eventos-painel'

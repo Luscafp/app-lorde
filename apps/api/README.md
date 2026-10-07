@@ -619,6 +619,16 @@ As regras que dependem do banco ficam no `EventosValidator`, chamado dentro da t
 
 Fábricas (`test/fabricas/eventos.ts`): `criarEvento({ atleticaId, ...campos, participantes? })` (TREINO por padrão, `AGENDADO` amanhã; cria time, adversário da mesma modalidade e autor quando faltam; valores informados, inclusive `null`, vão direto ao banco), `criarJogo`, `criarTreino` e `criarParticipacoes(evento, [{ usuarioId, confirmado?, presente? }])`.
 
+## Participações (`src/modules/participacoes`)
+
+Confirmação "Vou"/"Não vou" do atleta (#24, RN30, UC15). O usuário é sempre o do token; `responderParticipacaoSchema` e `ParticipacaoRespondidaDto` em `@atletica/shared` (`participacoes/`). Sem auditoria e sem evento de domínio.
+
+| Rota                            | Papel mínimo                            | Resposta                                                                                                                                                                                       |
+| ------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUT /eventos/:id/participacao` | qualquer autenticado (membro do elenco) | `200 { eventoId, confirmado, respondidoEm, contagem }`; ordem de `avaliarResposta`: `403 NAO_MEMBRO_DO_ELENCO` → `422 EVENTO_CANCELADO` → `422 EVENTO_NAO_AGENDADO` → `422 EVENTO_JA_INICIADO` |
+
+Upsert por `(eventoId, usuarioId)`; a mesma resposta não regrava `respondidoEm` e a presença nunca muda. Com o escopo de atlética o upsert não é nativo, então a criação concorrente (`P2002`) repete a transação uma vez. `contagem` vem de `EventosLeituraService.contagem(evento)`, a mesma do `GET /eventos/:id`.
+
 ## Senhas (`src/infra/senha`)
 
 Importe `SenhaModule` e injete `SenhaService`: `hash(senha)` (Argon2id, `@node-rs/argon2`, parâmetros em `senha.config.ts` — convenções §5) e `verificar(hash, senha)` (`false` também para hash malformado); `precisaRefazerHash(hash)` indica hash gerado com outros parâmetros (refeito no login). Valide a entrada com `senhaSchema` de `@atletica/shared` (política do UC06), sem redefini-la.
