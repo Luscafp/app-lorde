@@ -1,25 +1,17 @@
 import { formatarData, type MembroElencoDto } from '@atletica/shared'
 import { Alert, FlatList, View } from 'react-native'
-import { TelaDados } from '@/components/estado'
+import { EstadoVazio, TelaDados } from '@/components/estado'
 import { Imagem } from '@/components/imagem'
-import { BotaoIcone, CartaoLinha, Selo, Texto, toast } from '@/components/ui'
+import { BotaoIcone, CartaoLinha, confirmar, Selo, Texto, toast } from '@/components/ui'
 import { useAtletica } from '@/features/atletica'
 import { useDefinirCapitao, useElenco, useRemoverMembro, useTime } from './hooks'
 
 const MENSAGEM_VAZIO =
   'Elenco ainda vazio. Os atletas entram pelas solicitações (Painel > Solicitações).'
+const MENSAGEM_TIME_ADVERSARIO = 'O elenco só é gerido para times da própria atlética.'
 
 const capitaoPrimeiro = (membros: readonly MembroElencoDto[]) =>
   [...membros].sort((a, b) => Number(b.capitao) - Number(a.capitao))
-
-type Confirmacao = { titulo: string; mensagem: string; acao: string; destrutiva: boolean }
-
-function confirmar({ titulo, mensagem, acao, destrutiva }: Confirmacao, aoConfirmar: () => void) {
-  Alert.alert(titulo, mensagem, [
-    { text: 'Cancelar', style: 'cancel' },
-    { text: acao, style: destrutiva ? 'destructive' : 'default', onPress: aoConfirmar },
-  ])
-}
 
 type PropsItem = {
   membro: MembroElencoDto
@@ -57,8 +49,10 @@ export function ElencoPainel({ timeId }: { timeId: string }) {
   const definicaoCapitao = useDefinirCapitao(timeId)
   const remocao = useRemoverMembro(timeId)
   const acoesHabilitadas =
-    definicaoCapitao.online && !definicaoCapitao.isPending && !remocao.isPending
-  const nomeDoTime = time?.nome ?? 'time'
+    time !== undefined &&
+    definicaoCapitao.online &&
+    !definicaoCapitao.isPending &&
+    !remocao.isPending
   const capitaoAtual = consulta.data?.items.find(({ capitao }) => capitao)
 
   function definirCapitao(membro: MembroElencoDto) {
@@ -67,15 +61,12 @@ export function ElencoPainel({ timeId }: { timeId: string }) {
         onSuccess: () => toast.sucesso('Capitão definido'),
       })
     if (!capitaoAtual) return enviar()
-    confirmar(
-      {
-        titulo: 'Trocar capitão',
-        mensagem: `${membro.nome} será o capitão no lugar de ${capitaoAtual.nome}.`,
-        acao: 'Confirmar',
-        destrutiva: false,
-      },
-      enviar,
-    )
+    confirmar({
+      titulo: 'Trocar capitão',
+      mensagem: `${membro.nome} será o capitão no lugar de ${capitaoAtual.nome}.`,
+      destrutiva: false,
+      aoConfirmar: enviar,
+    })
   }
 
   function removerCapitania() {
@@ -84,15 +75,13 @@ export function ElencoPainel({ timeId }: { timeId: string }) {
 
   function removerDoElenco(membro: MembroElencoDto) {
     const aviso = membro.capitao ? ' O time ficará sem capitão.' : ''
-    confirmar(
-      {
-        titulo: 'Remover do elenco',
-        mensagem: `Remover ${membro.nome} do ${nomeDoTime}? Para voltar, será preciso uma nova solicitação.${aviso}`,
-        acao: 'Remover',
-        destrutiva: true,
-      },
-      () => remocao.mutate(membro.usuarioId, { onSuccess: () => toast.sucesso('Membro removido') }),
-    )
+    confirmar({
+      titulo: 'Remover do elenco',
+      mensagem: `Remover ${membro.nome} do ${time?.nome}? Para voltar, será preciso uma nova solicitação.${aviso}`,
+      acao: 'Remover',
+      aoConfirmar: () =>
+        remocao.mutate(membro.usuarioId, { onSuccess: () => toast.sucesso('Membro removido') }),
+    })
   }
 
   function abrirMenu(membro: MembroElencoDto) {
@@ -104,6 +93,14 @@ export function ElencoPainel({ timeId }: { timeId: string }) {
       { text: 'Remover do elenco', style: 'destructive', onPress: () => removerDoElenco(membro) },
       { text: 'Cancelar', style: 'cancel' },
     ])
+  }
+
+  if (time && !time.atletica.propria) {
+    return (
+      <View className="flex-1 bg-fundo">
+        <EstadoVazio mensagem={MENSAGEM_TIME_ADVERSARIO} />
+      </View>
+    )
   }
 
   return (

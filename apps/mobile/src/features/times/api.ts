@@ -53,7 +53,6 @@ export async function buscarElenco(timeId: string, sinal?: AbortSignal): Promise
   return elencoDtoSchema.parse(await api.get(`/times/${timeId}/elenco`, { sinal }))
 }
 
-/** `usuarioId` nulo remove a capitania. */
 export async function definirCapitao(timeId: string, usuarioId: string | null): Promise<TimeDto> {
   return timeDtoSchema.parse(await api.put(`/times/${timeId}/capitao`, { usuarioId }))
 }

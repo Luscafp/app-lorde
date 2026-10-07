@@ -59,6 +59,10 @@ async function renderizar() {
       <ElencoTime />
     </QueryClientProvider>,
   )
+}
+
+async function abrirElenco() {
+  await renderizar()
   await screen.findByText(BRUNO.nome)
 }
 
@@ -86,7 +90,7 @@ afterEach(() => cliente.clear())
 
 describe('ElencoPainel', () => {
   it('lista o capitão primeiro, com chip e data de entrada', async () => {
-    await renderizar()
+    await abrirElenco()
 
     const [primeiro, segundo] = screen.getAllByText(/Ana Souza|Bruno Lima/)
     expect(primeiro).toHaveTextContent(ANA.nome)
@@ -97,7 +101,7 @@ describe('ElencoPainel', () => {
   })
 
   it('menu do membro oferece definir capitão e remover do elenco', async () => {
-    await renderizar()
+    await abrirElenco()
     await abrirMenu(BRUNO.nome)
 
     const textos = ultimoAlerta()?.[2]?.map((botao) => botao.text)
@@ -105,7 +109,7 @@ describe('ElencoPainel', () => {
   })
 
   it('menu do capitão oferece remover capitania', async () => {
-    await renderizar()
+    await abrirElenco()
     await abrirMenu(ANA.nome)
 
     const textos = ultimoAlerta()?.[2]?.map((botao) => botao.text)
@@ -117,7 +121,7 @@ describe('ElencoPainel', () => {
       ...TIME,
       capitao: { id: BRUNO.usuarioId, nome: BRUNO.nome },
     })
-    await renderizar()
+    await abrirElenco()
 
     await abrirMenu(BRUNO.nome)
     await tocarNoAlerta('Definir como capitão')
@@ -141,7 +145,7 @@ describe('ElencoPainel', () => {
   it('definir capitão sem capitão atual não pede confirmação', async () => {
     api.buscarElenco.mockResolvedValue(elenco(BRUNO, { ...ANA, capitao: false }))
     api.definirCapitao.mockResolvedValue(TIME)
-    await renderizar()
+    await abrirElenco()
 
     await abrirMenu(BRUNO.nome)
     await tocarNoAlerta('Definir como capitão')
@@ -152,7 +156,7 @@ describe('ElencoPainel', () => {
 
   it('remover capitania envia usuário nulo', async () => {
     api.definirCapitao.mockResolvedValue({ ...TIME, capitao: null })
-    await renderizar()
+    await abrirElenco()
 
     await abrirMenu(ANA.nome)
     await tocarNoAlerta('Remover capitania')
@@ -163,7 +167,7 @@ describe('ElencoPainel', () => {
 
   it('remover membro comum confirma e mostra o toast', async () => {
     api.removerMembro.mockResolvedValue()
-    await renderizar()
+    await abrirElenco()
 
     await abrirMenu(BRUNO.nome)
     await tocarNoAlerta('Remover do elenco')
@@ -180,7 +184,7 @@ describe('ElencoPainel', () => {
   })
 
   it('remover o capitão avisa que o time ficará sem capitão', async () => {
-    await renderizar()
+    await abrirElenco()
 
     await abrirMenu(ANA.nome)
     await tocarNoAlerta('Remover do elenco')
@@ -190,32 +194,50 @@ describe('ElencoPainel', () => {
     )
   })
 
-  it.each([
-    [422, 'CAPITAO_FORA_DO_ELENCO', 'Definir como capitão'],
-    [404, 'MEMBRO_NAO_ENCONTRADO', 'Remover do elenco'],
-  ])('%i %s mostra o toast e recarrega o elenco', async (status, code, acao) => {
-    const erro = new ApiErro({ status, code, message: 'Já não está no elenco.' })
-    api.definirCapitao.mockRejectedValue(erro)
-    api.removerMembro.mockRejectedValue(erro)
+  async function esperarToastERecarga(chamadasAntes: number) {
+    await waitFor(() => expect(toast.erro).toHaveBeenCalledWith('Já não está no elenco.'))
+    await waitFor(() => expect(api.buscarElenco.mock.calls.length).toBeGreaterThan(chamadasAntes))
+  }
+
+  it('422 CAPITAO_FORA_DO_ELENCO mostra o toast e recarrega o elenco', async () => {
+    api.definirCapitao.mockRejectedValue(
+      new ApiErro({
+        status: 422,
+        code: 'CAPITAO_FORA_DO_ELENCO',
+        message: 'Já não está no elenco.',
+      }),
+    )
     api.buscarElenco.mockResolvedValue(elenco(BRUNO, { ...ANA, capitao: false }))
-    await renderizar()
+    await abrirElenco()
     const chamadas = api.buscarElenco.mock.calls.length
 
     await abrirMenu(BRUNO.nome)
-    await tocarNoAlerta(acao)
-    if (acao === 'Remover do elenco') await tocarNoAlerta('Remover')
+    await tocarNoAlerta('Definir como capitão')
 
-    await waitFor(() => expect(toast.erro).toHaveBeenCalledWith('Já não está no elenco.'))
-    await waitFor(() => expect(api.buscarElenco.mock.calls.length).toBeGreaterThan(chamadas))
+    await esperarToastERecarga(chamadas)
+  })
+
+  it('404 MEMBRO_NAO_ENCONTRADO mostra o toast e recarrega o elenco', async () => {
+    api.removerMembro.mockRejectedValue(
+      new ApiErro({
+        status: 404,
+        code: 'MEMBRO_NAO_ENCONTRADO',
+        message: 'Já não está no elenco.',
+      }),
+    )
+    await abrirElenco()
+    const chamadas = api.buscarElenco.mock.calls.length
+
+    await abrirMenu(BRUNO.nome)
+    await tocarNoAlerta('Remover do elenco')
+    await tocarNoAlerta('Remover')
+
+    await esperarToastERecarga(chamadas)
   })
 
   it('elenco vazio orienta a usar as solicitações', async () => {
     api.buscarElenco.mockResolvedValue(elenco())
-    await render(
-      <QueryClientProvider client={cliente}>
-        <ElencoTime />
-      </QueryClientProvider>,
-    )
+    await renderizar()
 
     expect(
       await screen.findByText(
@@ -225,11 +247,28 @@ describe('ElencoPainel', () => {
   })
 
   it('offline desabilita as ações e mostra a faixa offline', async () => {
-    await renderizar()
+    await abrirElenco()
     await act(() => onlineManager.setOnline(false))
 
     expect(screen.getByRole('button', { name: `Ações de ${ANA.nome}` })).toBeDisabled()
     expect(screen.getByRole('button', { name: `Ações de ${BRUNO.nome}` })).toBeDisabled()
     expect(screen.getByText(/Modo offline/)).toBeOnTheScreen()
+  })
+
+  it('time adversário não exibe o elenco', async () => {
+    api.buscarTime.mockResolvedValue({ ...TIME, atletica: { ...TIME.atletica, propria: false } })
+    await renderizar()
+
+    expect(
+      await screen.findByText('O elenco só é gerido para times da própria atlética.'),
+    ).toBeOnTheScreen()
+    expect(screen.queryByText(BRUNO.nome)).not.toBeOnTheScreen()
+  })
+
+  it('ações ficam desabilitadas até o time carregar', async () => {
+    api.buscarTime.mockReturnValue(new Promise(() => undefined))
+    await abrirElenco()
+
+    expect(screen.getByRole('button', { name: `Ações de ${BRUNO.nome}` })).toBeDisabled()
   })
 })

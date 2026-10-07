@@ -6,7 +6,7 @@ import type {
   TimeCriacao,
   TimeDto,
 } from '@atletica/shared'
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
@@ -75,13 +75,11 @@ export function useBuscaAdversarias() {
 }
 
 /** Times mostram a sigla da adversária e adversárias contam times: uma escrita invalida os dois. */
-function useInvalidar() {
+function useInvalidar(
+  prefixos: readonly QueryKey[] = [chaves.times.todos(), chaves.painel.adversarias.todos()],
+) {
   const cliente = useQueryClient()
-  return () =>
-    Promise.all([
-      cliente.invalidateQueries({ queryKey: chaves.times.todos() }),
-      cliente.invalidateQueries({ queryKey: chaves.painel.adversarias.todos() }),
-    ])
+  return () => Promise.all(prefixos.map((queryKey) => cliente.invalidateQueries({ queryKey })))
 }
 
 export function useElenco(timeId: string) {
@@ -91,13 +89,12 @@ export function useElenco(timeId: string) {
   })
 }
 
-/** O membro pode ter saído por outro diretor: o toast global avisa e o elenco é recarregado. */
 const ERROS_DE_ELENCO_DESATUALIZADO = ['CAPITAO_FORA_DO_ELENCO', 'MEMBRO_NAO_ENCONTRADO']
 
-function useAcaoDeElenco<TVariables>(mutationFn: (variaveis: TVariables) => Promise<unknown>) {
-  const cliente = useQueryClient()
-  const invalidar = () => cliente.invalidateQueries({ queryKey: chaves.times.todos() })
-  return useAcaoOnline<unknown, ApiErro, TVariables>({
+/** O membro pode ter saído por outro diretor: o toast global avisa e o elenco é recarregado. */
+function useAcaoDeElenco<TData, TVariables>(mutationFn: (variaveis: TVariables) => Promise<TData>) {
+  const invalidar = useInvalidar([chaves.times.todos()])
+  return useAcaoOnline<TData, ApiErro, TVariables>({
     mutationFn,
     onSuccess: invalidar,
     onError: (erro) => {
