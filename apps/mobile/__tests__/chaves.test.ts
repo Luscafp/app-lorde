@@ -30,6 +30,7 @@ describe('chaves', () => {
     ['banners()', chaves.banners(), ['banners']],
     ['solicitacoes(f)', chaves.solicitacoes(f), ['solicitacoes', f]],
     ['painel.todos()', chaves.painel.todos(), ['painel']],
+    ['painel.noticias.todos()', chaves.painel.noticias.todos(), ['painel', 'noticias']],
     [
       'painel.noticias.lista(f)',
       chaves.painel.noticias.lista(f),

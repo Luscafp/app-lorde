@@ -58,6 +58,12 @@ export interface EventosDominio {
     timeId: string
     autorId: string
   }
+  /** #73, só no primeiro registro do placar (não na correção). */
+  'evento.resultadoRegistrado': PayloadBase & {
+    atleticaId: string
+    eventoId: string
+    autorId: string
+  }
 }
 
 export type CampoAlteradoEvento = 'inicio' | 'local' | 'status'

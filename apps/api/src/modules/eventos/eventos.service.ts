@@ -7,7 +7,6 @@ import type {
 } from '@atletica/shared'
 import { Injectable } from '@nestjs/common'
 import type { DetalheErro } from '../../common/erros/erro-negocio'
-import type { Prisma } from '../../generated/prisma/client'
 import { TransacaoService } from '../../infra/eventos/apos-commit'
 import type { CampoAlteradoEvento } from '../../infra/eventos/eventos-dominio'
 import { EventosDominioService } from '../../infra/eventos/eventos-dominio.service'
@@ -23,34 +22,9 @@ import {
   erroEventoComDependencias,
   erroEventoComParticipacoes,
   erroEventoFinalizado,
-  erroEventoNaoEncontrado,
 } from './erros'
 import { EventosValidator, type TimeDoEvento } from './eventos.validator'
-
-const CAMPOS = {
-  id: true,
-  tipo: true,
-  status: true,
-  inicio: true,
-  local: true,
-  observacoes: true,
-  serieId: true,
-  timeId: true,
-  timeAdversarioId: true,
-  placarTime: true,
-  placarAdversario: true,
-  resultado: true,
-  criadoEm: true,
-  atualizadoEm: true,
-  time: {
-    select: { id: true, nome: true, modalidade: { select: { id: true, nome: true, icone: true } } },
-  },
-  timeAdversario: {
-    select: { id: true, nome: true, atletica: { select: { id: true, nome: true, sigla: true } } },
-  },
-} as const satisfies Prisma.EventoSelect
-
-type LinhaEvento = Prisma.EventoGetPayload<{ select: typeof CAMPOS }>
+import { auditaveis, buscarEvento, CAMPOS_EVENTO, type LinhaEvento, paraDto } from './linha-evento'
 
 export type AutorEvento = Pick<UsuarioAutenticado, 'id' | 'atleticaId'>
 
@@ -62,45 +36,6 @@ type CampoEditavel = (typeof CAMPOS_EDITAVEIS)[number]
 const CAMPOS_NOTIFICADOS = ['inicio', 'local'] as const satisfies CampoAlteradoEvento[]
 
 const CANCELAVEIS: StatusEvento[] = ['AGENDADO', 'EM_ANDAMENTO']
-
-function auditaveis(evento: LinhaEvento) {
-  const { tipo, status, timeId, timeAdversarioId, serieId, inicio, local, observacoes } = evento
-  const { placarTime, placarAdversario, resultado } = evento
-  return {
-    tipo,
-    status,
-    timeId,
-    timeAdversarioId,
-    serieId,
-    inicio,
-    local,
-    observacoes,
-    placarTime,
-    placarAdversario,
-    resultado,
-  }
-}
-
-function paraDto(evento: LinhaEvento): EventoDto {
-  const { modalidade, ...time } = evento.time
-  return {
-    id: evento.id,
-    tipo: evento.tipo,
-    status: evento.status,
-    inicio: evento.inicio.toISOString(),
-    local: evento.local,
-    observacoes: evento.observacoes,
-    serieId: evento.serieId,
-    time,
-    modalidade,
-    timeAdversario: evento.timeAdversario,
-    placarTime: evento.placarTime,
-    placarAdversario: evento.placarAdversario,
-    resultado: evento.resultado,
-    criadoEm: evento.criadoEm.toISOString(),
-    atualizadoEm: evento.atualizadoEm.toISOString(),
-  }
-}
 
 function descreverParticipacoes(total: number): string {
   return total === 1 ? '1 resposta' : `${total} respostas`
@@ -133,7 +68,7 @@ export class EventosService {
           observacoes: entrada.observacoes ?? null,
           criadoPorId: autor.id,
         },
-        select: CAMPOS,
+        select: CAMPOS_EVENTO,
       })
       await this.auditoria.registrar(tx, {
         entidade: 'Evento',
@@ -154,7 +89,7 @@ export class EventosService {
   /** Sem mudança: 200 sem auditoria nem evento de domínio (convenções §7). */
   atualizar(id: string, entrada: EditarEvento, autor: AutorEvento): Promise<EventoDto> {
     return this.transacao.executar(async (tx) => {
-      const antes = await this.buscar(tx, id)
+      const antes = await buscarEvento(tx, id)
       if (antes.tipo === 'TREINO' && entrada.timeAdversarioId !== undefined) {
         throw erroAdversarioEmTreino()
       }
@@ -174,7 +109,7 @@ export class EventosService {
       const depois = await tx.evento.update({
         where: { id },
         data: diff.depois,
-        select: CAMPOS,
+        select: CAMPOS_EVENTO,
       })
       await this.auditoria.registrar(tx, {
         entidade: 'Evento',
@@ -199,7 +134,7 @@ export class EventosService {
 
   cancelarPorId(id: string, autor: AutorEvento): Promise<EventoCanceladoDto> {
     return this.transacao.executar(async (tx) => {
-      const evento = await this.buscar(tx, id)
+      const evento = await buscarEvento(tx, id)
       const eventoIds = await this.cancelar(tx, [id], autor)
       if (eventoIds.length === 0) throw erroCancelamento(evento.status)
 
@@ -213,13 +148,18 @@ export class EventosService {
     })
   }
 
-  /** Cancela os canceláveis na transação de quem chama e devolve os ids; quem chama emite o evento. */
+  /**
+   * Cancela os canceláveis na transação de quem chama e devolve os ids; quem chama emite o evento.
+   * Com `statusAtual`, só cancela quem ainda estiver nele (atualização condicional da #73).
+   */
   async cancelar(
     tx: TransacaoComEscopo,
     eventoIds: string[],
     usuario: Pick<UsuarioAutenticado, 'id'>,
+    statusAtual?: StatusEvento,
   ): Promise<string[]> {
-    const where = { id: { in: eventoIds }, status: { in: CANCELAVEIS }, ...naoExcluido }
+    const status = statusAtual ? CANCELAVEIS.filter((s) => s === statusAtual) : CANCELAVEIS
+    const where = { id: { in: eventoIds }, status: { in: status }, ...naoExcluido }
     const antes = await tx.evento.findMany({ where, select: { id: true, status: true } })
     const cancelados = await tx.evento.updateManyAndReturn({
       where,
@@ -244,7 +184,7 @@ export class EventosService {
   /** Exclusão lógica, só sem participações nem resultado (RN26); não emite evento (§8). */
   async excluir(id: string): Promise<void> {
     await this.transacao.executar(async (tx) => {
-      const evento = await this.buscar(tx, id)
+      const evento = await buscarEvento(tx, id)
       const dependencias = await this.dependencias(tx, evento)
       if (dependencias.length > 0) throw erroEventoComDependencias(dependencias)
 
@@ -256,12 +196,6 @@ export class EventosService {
         dados: { antes: auditaveis(evento), depois: null },
       })
     })
-  }
-
-  private async buscar(tx: TransacaoComEscopo, id: string): Promise<LinhaEvento> {
-    const evento = await tx.evento.findFirst({ where: { id, ...naoExcluido }, select: CAMPOS })
-    if (!evento) throw erroEventoNaoEncontrado()
-    return evento
   }
 
   /** Troca de time só sem participações; o adversário é revalidado contra o time resultante. */
