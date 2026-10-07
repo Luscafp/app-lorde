@@ -22,6 +22,6 @@ export const RESULTADO: Record<Resultado, Rotulo> = {
   [Resultado.DERROTA]: { rotulo: 'Derrota', cor: paleta.erro },
 }
 
-type AtleticaAdversaria = NonNullable<EventoResumoDto['timeAdversario']>['atletica']
+export type AtleticaAdversaria = NonNullable<EventoResumoDto['timeAdversario']>['atletica']
 
 export const siglaOuNome = ({ sigla, nome }: AtleticaAdversaria) => sigla ?? nome
