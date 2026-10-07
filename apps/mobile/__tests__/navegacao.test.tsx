@@ -24,6 +24,7 @@ import { redirectSystemPath } from '../app/+native-intent'
 import PaginaNaoEncontrada from '../app/+not-found'
 import LayoutRaiz from '../app/_layout'
 import * as apiEventos from '@/features/eventos/api'
+import * as apiSolicitacoes from '@/features/solicitacoes/api'
 import * as apiTimes from '@/features/times/api'
 import { ApiErro } from '@/infra/api/cliente'
 import { consumirDestinoAposLogin } from '@/infra/sessao/destino'
@@ -254,6 +255,18 @@ describe('navegação', () => {
     await comSessaoSalva(papel)
     await abrir('/painel')
     expect(screen.queryByRole('link', { name: 'Usuários' }) !== null).toBe(ve)
+  })
+
+  it('Painel mostra o total de solicitações pendentes (#69)', async () => {
+    const listar = jest
+      .spyOn(apiSolicitacoes, 'listarSolicitacoes')
+      .mockResolvedValue({ items: [], page: 1, limit: 1, total: 3 })
+    await comSessaoSalva('DIRETOR')
+    await abrir('/painel')
+
+    expect(await screen.findByRole('link', { name: 'Solicitações, 3 pendentes' })).toBeOnTheScreen()
+    expect(listar).toHaveBeenCalledWith({ status: ['PENDENTE'] }, 1, expect.anything(), 1)
+    listar.mockRestore()
   })
 
   it('a aba Painel acompanha o papel da store', async () => {

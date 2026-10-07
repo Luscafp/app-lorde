@@ -572,12 +572,17 @@ await this.prisma.db.$transaction((tx) =>
 
 O usuário é sempre o do token. Schemas e DTOs em `@atletica/shared` (`solicitacoes/`). Sem auditoria na criação e no cancelamento (convenções §7).
 
-| Rota                              | Papel mínimo                  | Resposta                                                                                                                                                                    |
-| --------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /times/:id/solicitacoes`    | qualquer autenticado          | `201 PENDENTE`; ordem: `404` → `422 TIME_ADVERSARIO` → `422 TIME_INATIVO` → `409 JA_E_MEMBRO` → `409 SOLICITACAO_PENDENTE` (checagem e índice `solicitacao_pendente_unica`) |
-| `POST /solicitacoes/:id/cancelar` | qualquer autenticado (o dono) | `200 CANCELADA`; já cancelada → `200` sem gravar; de outro usuário → `404`; aprovada/rejeitada → `409 SOLICITACAO_JA_AVALIADA`                                              |
+| Rota                              | Papel mínimo                  | Resposta                                                                                                                                                                                    |
+| --------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /times/:id/solicitacoes`    | qualquer autenticado          | `201 PENDENTE`; ordem: `404` → `422 TIME_ADVERSARIO` → `422 TIME_INATIVO` → `409 JA_E_MEMBRO` → `409 SOLICITACAO_PENDENTE` (checagem e índice `solicitacao_pendente_unica`)                 |
+| `POST /solicitacoes/:id/cancelar` | qualquer autenticado (o dono) | `200 CANCELADA`; já cancelada → `200` sem gravar; de outro usuário → `404`; aprovada/rejeitada → `409 SOLICITACAO_JA_AVALIADA`                                                              |
+| `GET /solicitacoes`               | DIRETOR                       | `status` repetível (padrão `PENDENTE`), `timeId?`, paginação; só pendentes → `criadaEm ASC`; demais → `COALESCE(avaliadaEm, canceladaEm) DESC`; só nome e foto das pessoas                  |
+| `POST /solicitacoes/:id/aprovar`  | DIRETOR                       | `200 APROVADA` + `MembroTime` com `solicitacaoId`; ordem: `404` → `422 TIME_INATIVO` (time ou modalidade) → transição condicional (`409 SOLICITACAO_CANCELADA` / `SOLICITACAO_JA_AVALIADA`) |
+| `POST /solicitacoes/:id/rejeitar` | DIRETOR                       | `200 REJEITADA`; sem `MembroTime` e sem checar time inativo; mesmos `404`/`409` do aprovar                                                                                                  |
 
 A criação emite `solicitacao.criada { atleticaId, solicitacaoId, timeId, autorId }` após o commit; o cancelamento não emite. `SolicitacoesService.minhaSituacao(time, usuarioId)` monta o `minhaSituacao` de `GET /times/:id`. Fábrica: `criarSolicitacao(time, usuario, { status? })` em `test/fabricas/solicitacoes.ts`.
+
+A avaliação (`SolicitacoesPainelService`) usa `updateManyAndReturn` com `status = PENDENTE` no `WHERE`: a concorrência com outro diretor ou com o cancelamento é decidida pela própria instrução, e a releitura só escolhe o código do `409`. O vínculo nasce com `INSERT ... ON CONFLICT ("timeId", "usuarioId") WHERE "saidaEm" IS NULL DO NOTHING`, restrito ao índice `membro_time_ativo_unico`: um `P2002` abortaria a transação, e o atleta já no elenco não duplica o vínculo (`contexto.jaEraMembro: true`, sem `MEMBRO_ADICIONADO`). Auditoria `SOLICITACAO_APROVADA`/`SOLICITACAO_REJEITADA` e `MEMBRO_ADICIONADO` na mesma transação; `solicitacao.avaliada { atleticaId, solicitacaoId, timeId, usuarioId, status, autorId }` após o commit (`usuarioId` = solicitante, `autorId` = diretor).
 
 ## Notícias (`src/modules/noticias`)
 
