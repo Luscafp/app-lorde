@@ -1,5 +1,5 @@
 import { StatusEvento } from '../enums/evento'
-import { alterarStatusSchema, transicaoPermitida, TRANSICOES_STATUS } from './status'
+import { transicaoPermitida, TRANSICOES_STATUS } from './status'
 
 describe('TRANSICOES_STATUS', () => {
   it('é a tabela do épico #21 §4', () => {
@@ -21,19 +21,4 @@ describe('TRANSICOES_STATUS', () => {
   it('nenhum status transita para si mesmo', () => {
     for (const status of todos) expect(TRANSICOES_STATUS[status]).not.toContain(status)
   })
-})
-
-describe('alterarStatusSchema', () => {
-  it('aceita os quatro status', () => {
-    for (const status of Object.values(StatusEvento)) {
-      expect(alterarStatusSchema.parse({ status })).toEqual({ status })
-    }
-  })
-
-  it.each([{}, { status: 'ENCERRADO' }, { status: 'AGENDADO', motivo: 'x' }])(
-    'rejeita %j',
-    (corpo) => {
-      expect(alterarStatusSchema.safeParse(corpo).success).toBe(false)
-    },
-  )
 })

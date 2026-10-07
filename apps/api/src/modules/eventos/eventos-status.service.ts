@@ -13,6 +13,13 @@ import { AuditoriaService } from '../auditoria/auditoria.service'
 import { erroConflitoStatus, erroEventoNaoEncontrado, erroTransicaoInvalida } from './erros'
 import { EventosService, type AutorEvento } from './eventos.service'
 
+interface TrocaStatus {
+  id: string
+  timeId: string
+  de: StatusEvento
+  para: StatusEvento
+}
+
 interface EventoLido {
   status: StatusEvento
   timeId: string
@@ -48,24 +55,16 @@ export class EventosStatusService {
         return resposta
       }
 
-      await this.trocar(tx, id, de, para)
-      this.dominio.emitirAposCommit('evento.alterado', {
-        atleticaId: autor.atleticaId,
-        eventoIds: [id],
-        timeId: evento.timeId,
-        campos: ['status'],
-        autorId: autor.id,
-      })
+      await this.trocar(tx, { id, timeId: evento.timeId, de, para }, autor)
       return resposta
     })
   }
 
-  /** Atualização condicional ao status lido, com auditoria; quem chama emite o evento. */
+  /** Atualização condicional ao status lido, com auditoria e `evento.alterado` após o commit. */
   async trocar(
     tx: TransacaoComEscopo,
-    id: string,
-    de: StatusEvento,
-    para: StatusEvento,
+    { id, timeId, de, para }: TrocaStatus,
+    autor: AutorEvento,
   ): Promise<void> {
     const { count } = await tx.evento.updateMany({
       where: { id, status: de },
@@ -78,6 +77,13 @@ export class EventosStatusService {
       acao: 'EVENTO_STATUS_ALTERADO',
       entidadeId: id,
       dados: { antes: { status: de }, depois: { status: para } },
+    })
+    this.dominio.emitirAposCommit('evento.alterado', {
+      atleticaId: autor.atleticaId,
+      eventoIds: [id],
+      timeId,
+      campos: ['status'],
+      autorId: autor.id,
     })
   }
 

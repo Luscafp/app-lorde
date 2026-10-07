@@ -1,10 +1,14 @@
+import { StatusEvento } from '../enums/evento'
 import {
+  alterarStatusSchema,
   cancelarEventoSchema,
   criarEventoSchema,
   editarEventoSchema,
   inicioNoIntervalo,
   LOCAL_EVENTO_MAX,
   OBSERVACOES_EVENTO_MAX,
+  PLACAR_MAX,
+  registrarResultadoSchema,
 } from './schemas'
 
 const TIME = '0b6f1f0e-2b7a-4d4e-9a65-1c2b3c4d5e6f'
@@ -119,5 +123,56 @@ describe('cancelarEventoSchema', () => {
     expect(cancelarEventoSchema.parse(undefined)).toEqual({})
     expect(cancelarEventoSchema.parse({})).toEqual({})
     expect(cancelarEventoSchema.safeParse({ escopo: 'ESTA' }).success).toBe(false)
+  })
+})
+
+describe('alterarStatusSchema', () => {
+  it('aceita os quatro status', () => {
+    for (const status of Object.values(StatusEvento)) {
+      expect(alterarStatusSchema.parse({ status })).toEqual({ status })
+    }
+  })
+
+  it.each([{}, { status: 'ENCERRADO' }, { status: 'AGENDADO', motivo: 'x' }])(
+    'rejeita %j',
+    (corpo) => {
+      expect(alterarStatusSchema.safeParse(corpo).success).toBe(false)
+    },
+  )
+})
+
+describe('registrarResultadoSchema', () => {
+  const placar = { placarTime: 3, placarAdversario: 1 }
+
+  it('aceita placar com e sem finalizar', () => {
+    expect(registrarResultadoSchema.parse(placar)).toEqual(placar)
+    expect(registrarResultadoSchema.parse({ ...placar, finalizar: true })).toEqual({
+      ...placar,
+      finalizar: true,
+    })
+  })
+
+  it('aceita os limites 0 e 999', () => {
+    expect(
+      registrarResultadoSchema.safeParse({ placarTime: 0, placarAdversario: PLACAR_MAX }).success,
+    ).toBe(true)
+  })
+
+  it.each([
+    ['placarTime -1', { placarTime: -1 }, 'placarTime'],
+    ['placarTime 1000', { placarTime: 1000 }, 'placarTime'],
+    ['placarTime 2.5', { placarTime: 2.5 }, 'placarTime'],
+    ['placarTime texto', { placarTime: '3' }, 'placarTime'],
+    ['placarAdversario ausente', { placarAdversario: undefined }, 'placarAdversario'],
+    ['finalizar não booleano', { finalizar: 'sim' }, 'finalizar'],
+  ])('rejeita %s', (_caso, dados, campo) => {
+    const resultado = registrarResultadoSchema.safeParse({ ...placar, ...dados })
+    expect(resultado.error?.issues.map(({ path }) => path.join('.'))).toEqual([campo])
+  })
+
+  it('rejeita resultado enviado pelo cliente (.strict())', () => {
+    expect(registrarResultadoSchema.safeParse({ ...placar, resultado: 'VITORIA' }).success).toBe(
+      false,
+    )
   })
 })

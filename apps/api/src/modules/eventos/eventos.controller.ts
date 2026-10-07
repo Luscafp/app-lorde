@@ -7,7 +7,7 @@ import {
   eventoDtoSchema,
   idParamSchema,
   Papel,
-  resultadoSchema,
+  registrarResultadoSchema,
   statusEventoAlteradoDtoSchema,
   type CriarEvento,
   type EventoCanceladoDto,
@@ -58,7 +58,7 @@ class EventoRespostaDto extends createZodDto(eventoDtoSchema) {}
 class EventoCanceladoRespostaDto extends createZodDto(eventoCanceladoDtoSchema) {}
 class AlterarStatusDto extends createZodDto(alterarStatusSchema) {}
 class StatusAlteradoRespostaDto extends createZodDto(statusEventoAlteradoDtoSchema) {}
-class ResultadoDto extends createZodDto(resultadoSchema) {}
+class ResultadoDto extends createZodDto(registrarResultadoSchema) {}
 
 const EXEMPLO: EventoDto = {
   id: '3c9a7b1e-5d2f-4e8a-9b6c-0d1e2f3a4b5c',
@@ -250,7 +250,10 @@ export class EventosController {
     description: '`VALIDATION_ERROR`: placar fora de 0–999, não inteiro, ausente ou campo extra.',
   })
   @ApiNotFoundResponse({ description: NAO_ENCONTRADO })
-  @ApiConflictResponse({ description: '`CONFLITO_STATUS`: o evento mudou desde a leitura.' })
+  @ApiConflictResponse({
+    description:
+      '`CONFLITO_STATUS`: o status mudou desde a leitura; `CONFLITO_CONCORRENTE`: o placar mudou.',
+  })
   @ApiUnprocessableEntityResponse({
     description: '`EVENTO_NAO_E_JOGO`, `EVENTO_CANCELADO` ou `EVENTO_NAO_FINALIZADO`.',
   })

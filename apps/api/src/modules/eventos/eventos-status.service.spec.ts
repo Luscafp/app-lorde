@@ -164,10 +164,17 @@ describe('EventosStatusService.alterar', () => {
 })
 
 describe('EventosStatusService.trocar', () => {
-  it('não emite evento de domínio (quem chama decide)', async () => {
+  it('audita e emite evento.alterado com campos ["status"]', async () => {
     const { servico, tx, dominio, auditoria } = criarServico()
-    await servico.trocar(tx as never, ID, 'EM_ANDAMENTO', 'FINALIZADO')
+    const troca = { id: ID, timeId: TIME, de: 'EM_ANDAMENTO', para: 'FINALIZADO' } as const
+    await servico.trocar(tx as never, troca, AUTOR)
     expect(auditoria.registrar).toHaveBeenCalledTimes(1)
-    expect(dominio.emitirAposCommit).not.toHaveBeenCalled()
+    expect(dominio.emitirAposCommit).toHaveBeenCalledWith('evento.alterado', {
+      atleticaId: AUTOR.atleticaId,
+      eventoIds: [ID],
+      timeId: TIME,
+      campos: ['status'],
+      autorId: AUTOR.id,
+    })
   })
 })
