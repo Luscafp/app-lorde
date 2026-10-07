@@ -1,4 +1,6 @@
 export { CabecalhoDia } from './cabecalho-dia'
 export { EventoCard, type EventoDoCard } from './evento-card'
+export { EventoDetalhe } from './evento-detalhe'
 export { FiltrosAgenda } from './filtros-agenda'
 export { MinhaRespostaChip } from './minha-resposta-chip'
+export { ParticipacaoAcoes } from './participacao-acoes'

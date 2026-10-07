@@ -1,4 +1,10 @@
-import { listaEventosSchema, type ListaEventos, type ListarEventosQuery } from '@atletica/shared'
+import {
+  eventoDetalheSchema,
+  listaEventosSchema,
+  type EventoDetalheDto,
+  type ListaEventos,
+  type ListarEventosQuery,
+} from '@atletica/shared'
 import { api } from '@/infra/api/cliente'
 
 export const LIMITE_PAGINA = 20
@@ -15,4 +21,8 @@ export async function listarEventos(
     sinal,
   })
   return listaEventosSchema.parse(resposta)
+}
+
+export async function buscarEvento(id: string, sinal?: AbortSignal): Promise<EventoDetalheDto> {
+  return eventoDetalheSchema.parse(await api.get(`/eventos/${id}`, { sinal }))
 }

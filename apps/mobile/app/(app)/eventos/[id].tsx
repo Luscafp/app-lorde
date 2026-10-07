@@ -1,6 +1,7 @@
-import { TelaProvisoria } from '@/components/tela-provisoria'
+import { router, useLocalSearchParams } from 'expo-router'
+import { TelaEvento } from '@/features/eventos'
 
-// Detalhe na #77.
 export default function Evento() {
-  return <TelaProvisoria titulo="Evento" />
+  const { id } = useLocalSearchParams<{ id: string }>()
+  return <TelaEvento id={id} aoGerenciar={() => router.push(`/painel/eventos/${id}`)} />
 }
