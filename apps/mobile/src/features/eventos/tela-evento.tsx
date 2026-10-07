@@ -27,7 +27,11 @@ export function TelaEvento({ id, aoGerenciar }: { id: string; aoGerenciar: () =>
                 />
               }
             >
-              <EventoDetalhe evento={evento} aoGerenciar={aoGerenciar} />
+              <EventoDetalhe
+                evento={evento}
+                aoGerenciar={aoGerenciar}
+                aoTentarNovamente={consulta.refetch}
+              />
             </ScrollView>
           )}
         </TelaDados>

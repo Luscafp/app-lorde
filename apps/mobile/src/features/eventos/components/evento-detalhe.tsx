@@ -5,20 +5,20 @@ import {
   type EventoResumoDto,
 } from '@atletica/shared'
 import { View } from 'react-native'
-import { Esqueleto } from '@/components/estado'
+import { TelaDados } from '@/components/estado'
 import { Imagem } from '@/components/imagem'
 import { Botao, Cartao, CartaoLinha, Selo, Texto } from '@/components/ui'
 import { useAtletica } from '@/features/atletica'
+import { contar, porNome } from '@/features/times/formatacao'
 import { useVePainel } from '@/infra/sessao/use-ve-painel'
 import { ehDetalhe, type EventoEmTela } from '../consultas'
-import { RESULTADO, ROTULO_TIPO, STATUS, tituloEvento } from '../rotulos'
+import { RESULTADO, ROTULO_TIPO, siglaOuNome, STATUS, tituloEvento } from '../rotulos'
 import { ParticipacaoAcoes } from './participacao-acoes'
 
 export const MENSAGEM_RESULTADO_PENDENTE = 'Resultado pendente'
 export const MENSAGEM_NINGUEM_CONFIRMOU = 'Ninguém confirmou ainda'
 
-const contar = (total: number, singular: string, plural: string) =>
-  `${total} ${total === 1 ? singular : plural}`
+type Confirmado = EventoDetalheDto['confirmados'][number]
 
 export function resumoContagem({
   confirmados,
@@ -58,7 +58,7 @@ function CartaoPlacar({ evento }: { evento: EventoResumoDto }) {
         </Texto>
         <Texto variante="titulo">{temPlacar ? `${placarTime} × ${placarAdversario}` : 'VS'}</Texto>
         <Texto variante="rotulo" className="flex-1 text-center">
-          {timeAdversario.atletica.sigla ?? timeAdversario.atletica.nome}
+          {siglaOuNome(timeAdversario.atletica)}
         </Texto>
       </View>
       {temPlacar && resultado && (
@@ -90,10 +90,10 @@ function Informacoes({ evento }: { evento: EventoEmTela }) {
   )
 }
 
-const capitaoPrimeiro = (a: { capitao: boolean; nome: string }, b: typeof a) =>
-  Number(b.capitao) - Number(a.capitao) || a.nome.localeCompare(b.nome, 'pt-BR')
+const capitaoPrimeiro = (a: Confirmado, b: Confirmado) =>
+  Number(b.capitao) - Number(a.capitao) || porNome(a, b)
 
-function QuemVai({ confirmados }: { confirmados: EventoDetalheDto['confirmados'] }) {
+function QuemVai({ confirmados }: { confirmados: Confirmado[] }) {
   const { corPrimaria } = useAtletica()
   return (
     <View className="gap-2">
@@ -119,25 +119,49 @@ function QuemVai({ confirmados }: { confirmados: EventoDetalheDto['confirmados']
   )
 }
 
-function Participacao({ evento }: { evento: EventoEmTela }) {
-  if (!ehDetalhe(evento)) return <Esqueleto variante="cartao" />
+/** Seção com estado próprio: enquanto só há o card, o detalhe pode estar carregando ou offline. */
+function Participacao({
+  evento,
+  aoTentarNovamente,
+}: {
+  evento: EventoEmTela
+  aoTentarNovamente: () => Promise<unknown>
+}) {
+  const cancelado = evento.status === StatusEvento.CANCELADO
+  const consulta = {
+    data: ehDetalhe(evento) ? evento : undefined,
+    isError: false,
+    dataUpdatedAt: 0,
+    refetch: aoTentarNovamente,
+  }
+
   return (
-    <>
-      <View className="gap-2">
-        <Texto variante="subtitulo">Participação</Texto>
-        <Texto testID="contagem">{resumoContagem(evento.contagem)}</Texto>
-        <View testID="slot-participacao">
-          <ParticipacaoAcoes evento={evento} />
+    <TelaDados consulta={consulta} esqueleto="cartao" faixaOffline={false}>
+      {(detalhe) => (
+        <View className="gap-6">
+          <View className="gap-2">
+            <Texto variante="subtitulo">Participação</Texto>
+            <Texto testID="contagem">{resumoContagem(detalhe.contagem)}</Texto>
+            {!cancelado && (
+              <View testID="slot-participacao">
+                <ParticipacaoAcoes evento={detalhe} />
+              </View>
+            )}
+          </View>
+          <QuemVai confirmados={detalhe.confirmados} />
         </View>
-      </View>
-      <QuemVai confirmados={evento.confirmados} />
-    </>
+      )}
+    </TelaDados>
   )
 }
 
-type Props = { evento: EventoEmTela; aoGerenciar: () => void }
+type Props = {
+  evento: EventoEmTela
+  aoGerenciar: () => void
+  aoTentarNovamente: () => Promise<unknown>
+}
 
-export function EventoDetalhe({ evento, aoGerenciar }: Props) {
+export function EventoDetalhe({ evento, aoGerenciar, aoTentarNovamente }: Props) {
   const vePainel = useVePainel()
   const cancelado = evento.status === StatusEvento.CANCELADO
 
@@ -148,14 +172,14 @@ export function EventoDetalhe({ evento, aoGerenciar }: Props) {
         <Texto
           variante="titulo"
           testID="titulo-evento"
-          style={cancelado ? { textDecorationLine: 'line-through' } : undefined}
+          className={cancelado ? 'line-through' : undefined}
         >
           {tituloEvento(evento)}
         </Texto>
       </View>
       <CartaoPlacar evento={evento} />
       <Informacoes evento={evento} />
-      <Participacao evento={evento} />
+      <Participacao evento={evento} aoTentarNovamente={aoTentarNovamente} />
       {vePainel && <Botao titulo="Gerenciar" variante="secundaria" onPress={aoGerenciar} />}
     </View>
   )

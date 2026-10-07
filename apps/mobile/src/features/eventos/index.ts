@@ -1,3 +1,2 @@
-export { EventoDetalhe, ParticipacaoAcoes } from './components'
-export { useEvento, type EventoEmTela } from './consultas'
+export { ParticipacaoAcoes } from './components'
 export { TelaEvento } from './tela-evento'

@@ -1,21 +1,27 @@
 import type { EventoDetalheDto, EventoResumoDto, ListaEventos, Papel } from '@atletica/shared'
-import {
-  onlineManager,
-  QueryClientProvider,
-  type InfiniteData,
-  type QueryClient,
-} from '@tanstack/react-query'
+import NetInfo from '@react-native-community/netinfo'
+import { QueryClientProvider, type InfiniteData, type QueryClient } from '@tanstack/react-query'
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import type { ReactElement, ReactNode } from 'react'
 import type { RefreshControlProps } from 'react-native'
 import { TelaEvento } from '@/features/eventos'
-import { buscarEvento } from '@/features/eventos/api'
 import { ApiErro } from '@/infra/api/api-erro'
+import { api } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { criarQueryClient } from '@/infra/query/query-client'
+import { configurarRede } from '@/infra/rede/online'
 import { useSessao } from '@/infra/sessao/store'
 
-jest.mock('@/features/eventos/api', () => ({ buscarEvento: jest.fn() }))
+jest.mock('@/infra/api/cliente', () => ({
+  ...jest.requireActual<object>('@/infra/api/cliente'),
+  api: { get: jest.fn() },
+}))
+
+const get = jest.mocked(api.get)
+const buscasDoEvento = () => get.mock.calls.filter(([caminho]) => caminho === `/eventos/${ID}`)
+const netInfo = NetInfo as unknown as { __emitir: (estado: object) => void }
+const emitirRede = (online: boolean) =>
+  act(() => netInfo.__emitir({ isConnected: online, isInternetReachable: online }))
 
 const ID = '3c9a1f0e-2b7a-4d4e-9a65-1c2b3c4d5e6f'
 const ERRO_500 = new ApiErro({ status: 500, code: 'INTERNAL_ERROR', message: 'x' })
@@ -55,8 +61,13 @@ const detalhe = (parcial: Partial<EventoDetalheDto> = {}): EventoDetalheDto => (
   serie: null,
   contagem: { confirmados: 8, recusados: 2, semResposta: 4, elenco: 14 },
   confirmados: [
-    { id: 'u1', nome: 'Bruno Lima', fotoUrl: null, capitao: false },
-    { id: 'u2', nome: 'Ana Souza', fotoUrl: null, capitao: true },
+    {
+      id: '11111111-1111-4111-8111-111111111111',
+      nome: 'Bruno Lima',
+      fotoUrl: null,
+      capitao: false,
+    },
+    { id: '22222222-2222-4222-8222-222222222222', nome: 'Ana Souza', fotoUrl: null, capitao: true },
   ],
   podeResponder: true,
   motivoBloqueioResposta: null,
@@ -80,11 +91,21 @@ function comPapel(papel: Papel) {
   })
 }
 
-beforeEach(() => {
+function cardNaAgenda() {
+  const lista: InfiniteData<ListaEventos> = {
+    pages: [{ items: [resumo()], page: 1, limit: 20, total: 1 }],
+    pageParams: [1],
+  }
+  cliente.setQueryData(chaves.eventos.lista({ periodo: 'PROXIMOS' }), lista)
+}
+
+beforeAll(() => configurarRede())
+
+beforeEach(async () => {
   jest.clearAllMocks()
   cliente = criarQueryClient()
   cliente.setDefaultOptions({ queries: { retry: false } })
-  onlineManager.setOnline(true)
+  await emitirRede(true)
   comPapel('ATLETA')
 })
 
@@ -92,8 +113,9 @@ afterEach(() => cliente.clear())
 
 describe('Detalhe do evento', () => {
   it('chips, título, informações e contagem (critério 11)', async () => {
-    jest.mocked(buscarEvento).mockResolvedValue(detalhe({ serieId: ID }))
+    get.mockResolvedValue(detalhe({ serieId: ID }))
     await renderizar()
+    expect(get).toHaveBeenCalledWith(`/eventos/${ID}`, expect.anything())
 
     expect(
       await screen.findByRole('header', { name: 'Lorde Vôlei Masculino × Atlética Medicina' }),
@@ -109,13 +131,13 @@ describe('Detalhe do evento', () => {
   })
 
   it('slot ParticipacaoAcoes renderizado vazio', async () => {
-    jest.mocked(buscarEvento).mockResolvedValue(detalhe())
+    get.mockResolvedValue(detalhe())
     await renderizar()
     expect(await screen.findByTestId('slot-participacao')).toBeEmptyElement()
   })
 
   it('"Quem vai" com capitão primeiro e selo', async () => {
-    jest.mocked(buscarEvento).mockResolvedValue(detalhe())
+    get.mockResolvedValue(detalhe())
     await renderizar()
     await screen.findByText('Quem vai')
     expect(
@@ -125,7 +147,7 @@ describe('Detalhe do evento', () => {
   })
 
   it('"Quem vai" vazio e contagem no singular', async () => {
-    jest.mocked(buscarEvento).mockResolvedValue(
+    get.mockResolvedValue(
       detalhe({
         contagem: { confirmados: 0, recusados: 1, semResposta: 1, elenco: 2 },
         confirmados: [],
@@ -137,7 +159,7 @@ describe('Detalhe do evento', () => {
   })
 
   it('cancelado: chip "Cancelado" e título riscado (critério 13)', async () => {
-    jest.mocked(buscarEvento).mockResolvedValue(
+    get.mockResolvedValue(
       detalhe({
         status: 'CANCELADO',
         podeResponder: false,
@@ -147,26 +169,22 @@ describe('Detalhe do evento', () => {
     await renderizar()
 
     expect(await screen.findByText('Cancelado')).toBeOnTheScreen()
-    expect(screen.getByTestId('titulo-evento')).toHaveStyle({ textDecorationLine: 'line-through' })
-    expect(screen.queryByRole('button', { name: /^Vou/ })).toBeNull()
+    expect(screen.getByTestId('titulo-evento').props.className).toMatch(/line-through/)
+    expect(screen.queryByTestId('slot-participacao')).toBeNull()
   })
 
   it('não cancelado: título sem risco', async () => {
-    jest.mocked(buscarEvento).mockResolvedValue(detalhe())
+    get.mockResolvedValue(detalhe())
     await renderizar()
-    expect(await screen.findByTestId('titulo-evento')).not.toHaveStyle({
-      textDecorationLine: 'line-through',
-    })
+    expect((await screen.findByTestId('titulo-evento')).props.className).not.toMatch(/line-through/)
   })
 })
 
 describe('Cartão do placar', () => {
   it('com resultado: placar e chip do resultado', async () => {
-    jest
-      .mocked(buscarEvento)
-      .mockResolvedValue(
-        detalhe({ status: 'FINALIZADO', placarTime: 3, placarAdversario: 1, resultado: 'VITORIA' }),
-      )
+    get.mockResolvedValue(
+      detalhe({ status: 'FINALIZADO', placarTime: 3, placarAdversario: 1, resultado: 'VITORIA' }),
+    )
     await renderizar()
     expect(await screen.findByText('3 × 1')).toBeOnTheScreen()
     expect(screen.getByText('Vitória')).toBeOnTheScreen()
@@ -174,14 +192,14 @@ describe('Cartão do placar', () => {
   })
 
   it('jogo FINALIZADO sem placar: "Resultado pendente"', async () => {
-    jest.mocked(buscarEvento).mockResolvedValue(detalhe({ status: 'FINALIZADO' }))
+    get.mockResolvedValue(detalhe({ status: 'FINALIZADO' }))
     await renderizar()
     expect(await screen.findByText('Resultado pendente')).toBeOnTheScreen()
     expect(screen.getByText('VS')).toBeOnTheScreen()
   })
 
   it('jogo agendado: VS sem resultado', async () => {
-    jest.mocked(buscarEvento).mockResolvedValue(detalhe())
+    get.mockResolvedValue(detalhe())
     await renderizar()
     expect(await screen.findByText('VS')).toBeOnTheScreen()
     expect(screen.getByText('AAMED')).toBeOnTheScreen()
@@ -189,7 +207,7 @@ describe('Cartão do placar', () => {
   })
 
   it('treino: sem cartão e título "Treino — <time>"', async () => {
-    jest.mocked(buscarEvento).mockResolvedValue(detalhe({ tipo: 'TREINO', timeAdversario: null }))
+    get.mockResolvedValue(detalhe({ tipo: 'TREINO', timeAdversario: null }))
     await renderizar()
     expect(
       await screen.findByRole('header', { name: 'Treino — Lorde Vôlei Masculino' }),
@@ -201,7 +219,7 @@ describe('Cartão do placar', () => {
 
 describe('Gerenciar', () => {
   it('Atleta (nível 1): não aparece', async () => {
-    jest.mocked(buscarEvento).mockResolvedValue(detalhe())
+    get.mockResolvedValue(detalhe())
     await renderizar()
     await screen.findByTestId('contagem')
     expect(screen.queryByRole('button', { name: 'Gerenciar' })).toBeNull()
@@ -211,7 +229,7 @@ describe('Gerenciar', () => {
     '%s: aparece e abre o detalhe do Painel (critério 21)',
     async (papel) => {
       comPapel(papel)
-      jest.mocked(buscarEvento).mockResolvedValue(detalhe())
+      get.mockResolvedValue(detalhe())
       const aoGerenciar = jest.fn()
       await renderizar(aoGerenciar)
 
@@ -223,13 +241,13 @@ describe('Gerenciar', () => {
 
 describe('Estados', () => {
   it('carregando: esqueleto', async () => {
-    jest.mocked(buscarEvento).mockReturnValue(new Promise(() => undefined))
+    get.mockReturnValue(new Promise(() => undefined))
     await renderizar()
     expect(screen.getByLabelText('Carregando')).toBeOnTheScreen()
   })
 
   it('erro: "Tentar novamente" refaz a consulta', async () => {
-    jest.mocked(buscarEvento).mockRejectedValueOnce(ERRO_500).mockResolvedValue(detalhe())
+    get.mockRejectedValueOnce(ERRO_500).mockResolvedValue(detalhe())
     await renderizar()
 
     expect(await screen.findByText('Não foi possível carregar.')).toBeOnTheScreen()
@@ -239,7 +257,7 @@ describe('Estados', () => {
 
   it('404: "Evento não encontrado", mesmo com cache (critério 15)', async () => {
     cliente.setQueryData(chaves.eventos.detalhe(ID), detalhe())
-    jest.mocked(buscarEvento).mockRejectedValue(ERRO_404)
+    get.mockRejectedValue(ERRO_404)
     await renderizar()
 
     expect(await screen.findByText('Evento não encontrado')).toBeOnTheScreen()
@@ -247,18 +265,18 @@ describe('Estados', () => {
   })
 
   it('offline com cache: dados e faixa "Modo offline"', async () => {
-    jest.mocked(buscarEvento).mockResolvedValue(detalhe())
+    get.mockResolvedValue(detalhe())
     await renderizar()
     await screen.findByTestId('contagem')
 
-    await act(() => onlineManager.setOnline(false))
+    await emitirRede(false)
 
     expect(screen.getByText(/^Modo offline · dados de/)).toBeOnTheScreen()
     expect(screen.getByTestId('contagem')).toBeOnTheScreen()
   })
 
   it('offline sem cache: "Sem conexão" + "Tentar novamente"', async () => {
-    onlineManager.setOnline(false)
+    await emitirRede(false)
     await renderizar()
     expect(
       await screen.findByText('Sem conexão. Conecte-se à internet para carregar os dados.'),
@@ -267,12 +285,8 @@ describe('Estados', () => {
   })
 
   it('placeholder do card da lista enquanto o detalhe carrega (RNF03)', async () => {
-    const lista: InfiniteData<ListaEventos> = {
-      pages: [{ items: [resumo()], page: 1, limit: 20, total: 1 }],
-      pageParams: [1],
-    }
-    cliente.setQueryData(chaves.eventos.lista({ periodo: 'PROXIMOS' }), lista)
-    jest.mocked(buscarEvento).mockReturnValue(new Promise(() => undefined))
+    cardNaAgenda()
+    get.mockReturnValue(new Promise(() => undefined))
     await renderizar()
 
     expect(
@@ -282,8 +296,33 @@ describe('Estados', () => {
     expect(screen.queryByTestId('contagem')).toBeNull()
   })
 
+  it('offline só com o card: seção Participação em "Sem conexão" e faixa com a data da lista', async () => {
+    cardNaAgenda()
+    await emitirRede(false)
+    await renderizar()
+
+    expect(
+      screen.getByRole('header', { name: 'Lorde Vôlei Masculino × Atlética Medicina' }),
+    ).toBeOnTheScreen()
+    expect(screen.getByText(/^Modo offline · dados de/)).toBeOnTheScreen()
+    expect(
+      screen.getByText('Sem conexão. Conecte-se à internet para carregar os dados.'),
+    ).toBeOnTheScreen()
+    expect(screen.queryByTestId('contagem')).toBeNull()
+  })
+
+  it('erro com o card na tela: "Tentar novamente" refaz a consulta', async () => {
+    cardNaAgenda()
+    get.mockRejectedValueOnce(ERRO_500).mockResolvedValue(detalhe())
+    await renderizar()
+
+    expect(await screen.findByText('Não foi possível carregar.')).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole('button', { name: 'Tentar novamente' }))
+    expect(await screen.findByTestId('contagem')).toBeOnTheScreen()
+  })
+
   it('pull-to-refresh refaz a consulta', async () => {
-    jest.mocked(buscarEvento).mockResolvedValue(detalhe())
+    get.mockResolvedValue(detalhe())
     await renderizar()
     await screen.findByTestId('contagem')
 
@@ -292,6 +331,6 @@ describe('Estados', () => {
     }
     await act(() => refreshControl.props.onRefresh?.())
 
-    expect(buscarEvento).toHaveBeenCalledTimes(2)
+    expect(buscasDoEvento()).toHaveLength(2)
   })
 })
