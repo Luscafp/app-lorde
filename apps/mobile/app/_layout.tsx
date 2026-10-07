@@ -13,11 +13,12 @@ import { carregarAtletica, paleta, ProvedorTema } from '@/features/atletica'
 import { acompanharLogoutPendente } from '@/features/auth'
 import { queryClient } from '@/infra/query/query-client'
 import { configurarRede } from '@/infra/rede/online'
-import { iniciarSentry, integracaoNavegacao } from '@/infra/sentry'
+import { iniciarSentry, iniciarSpanAbertura, integracaoNavegacao } from '@/infra/sentry'
 import { consumirDestinoAposLogin } from '@/infra/sessao/destino'
 import { useSessao } from '@/infra/sessao/store'
 
 iniciarSentry()
+iniciarSpanAbertura()
 void SplashScreen.preventAutoHideAsync()
 configurarRede()
 acompanharLogoutPendente()
