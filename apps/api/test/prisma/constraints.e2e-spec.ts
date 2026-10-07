@@ -499,6 +499,21 @@ describe('Constraints do schema (épico #3 §8.3)', () => {
       )
     })
 
+    it('placar não negativo sem a faixa (evento_placar_nao_negativo)', async () => {
+      const evento = await criarEvento(cenario, {
+        status: 'FINALIZADO',
+        placarTime: 0,
+        placarAdversario: 1,
+        resultado: 'DERROTA',
+      })
+      const violacao = prismaTeste.$transaction(async (tx) => {
+        await tx.$executeRaw`ALTER TABLE "Evento" DROP CONSTRAINT evento_placar_faixa`
+        await tx.$executeRaw`UPDATE "Evento" SET "placarTime" = -1 WHERE id = ${evento.id}::uuid`
+        throw new Error('UPDATE com placar -1 aceito')
+      })
+      await esperarViolacao(violacao, 'evento_placar_nao_negativo')
+    })
+
     it('placar até 999 em UPDATE direto (evento_placar_faixa, #73)', async () => {
       const evento = await criarEvento(cenario, {
         status: 'FINALIZADO',

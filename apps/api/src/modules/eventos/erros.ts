@@ -106,6 +106,15 @@ export function erroConflitoStatus(): ErroNegocio {
   )
 }
 
+/** O placar mudou entre a leitura e a gravação. */
+export function erroConflitoPlacar(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.CONFLICT,
+    'CONFLITO_CONCORRENTE',
+    'O placar foi alterado por outra pessoa. Recarregue e tente novamente.',
+  )
+}
+
 export function erroEventoNaoFinalizado(): ErroNegocio {
   return new ErroNegocio(
     HttpStatus.UNPROCESSABLE_ENTITY,

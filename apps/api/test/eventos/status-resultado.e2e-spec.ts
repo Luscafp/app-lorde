@@ -7,7 +7,8 @@ import {
 import request from 'supertest'
 import type { RespostaErro } from '../../src/common/erros/erro-negocio'
 import type { Evento, Time } from '../../src/generated/prisma/client'
-import { AuditoriaService } from '../../src/modules/auditoria/auditoria.service'
+import { TransacaoService } from '../../src/infra/eventos/apos-commit'
+import type { TransacaoComEscopo } from '../../src/infra/prisma/prisma.service'
 import { EventosStatusService } from '../../src/modules/eventos/eventos-status.service'
 import { EventosService } from '../../src/modules/eventos/eventos.service'
 import { aguardarOuvintes, espiarEventos, type EspiaoEventos } from '../eventos'
@@ -33,6 +34,27 @@ function barreira(total: number) {
     if (chegaram === total) liberar()
     await liberada
   }
+}
+
+/** O `updateMany` que grava o placar falha; a troca de status antes dele passa. */
+function falharNaGravacaoDoPlacar(tx: TransacaoComEscopo): TransacaoComEscopo {
+  const ligado = (alvo: object, chave: string | symbol): unknown => {
+    const valor: unknown = Reflect.get(alvo, chave)
+    return typeof valor === 'function' ? (valor as () => unknown).bind(alvo) : valor
+  }
+  const updateMany = tx.evento.updateMany.bind(tx.evento)
+  const evento = new Proxy(tx.evento, {
+    get: (alvo, chave): unknown =>
+      chave === 'updateMany'
+        ? (args: Parameters<typeof updateMany>[0]) =>
+            'placarTime' in args.data
+              ? Promise.reject(new Error('falha no placar'))
+              : updateMany(args)
+        : ligado(alvo, chave),
+  })
+  return new Proxy(tx, {
+    get: (alvo, chave): unknown => (chave === 'evento' ? evento : ligado(alvo, chave)),
+  })
 }
 
 describe('/eventos — status e resultado (#73)', () => {
@@ -409,12 +431,11 @@ describe('/eventos — status e resultado (#73)', () => {
 
     it('finalizar com falha na gravação do placar: rollback do status, sem auditoria nem evento', async () => {
       const evento = await novoJogo({ status: 'EM_ANDAMENTO' })
-      const auditoria = contexto.app.get(AuditoriaService)
-      const registrar = auditoria.registrar.bind(auditoria)
-      jest.spyOn(auditoria, 'registrar').mockImplementation(async (tx, entrada) => {
-        if (entrada.acao === 'RESULTADO_REGISTRADO') throw new Error('falha no placar')
-        return registrar(tx, entrada)
-      })
+      const transacao = contexto.app.get(TransacaoService)
+      const executar = transacao.executar.bind(transacao)
+      jest
+        .spyOn(transacao, 'executar')
+        .mockImplementation((fn) => executar((tx) => fn(falharNaGravacaoDoPlacar(tx))))
 
       const resposta = await (
         await como('DIRETOR')
