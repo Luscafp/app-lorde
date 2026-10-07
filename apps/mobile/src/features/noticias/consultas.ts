@@ -1,36 +1,21 @@
 import type { ListaNoticias } from '@atletica/shared'
-import {
-  useInfiniteQuery,
-  useQuery,
-  useQueryClient,
-  type InfiniteData,
-  type QueryClient,
-} from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { ehNaoEncontrado } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
 import { proximaPagina } from '@/infra/query/proxima-pagina'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
+import { semItemNaLista, type ListaEmCache } from '@/infra/query/sem-item'
 import { buscarNoticia, LIMITE_PAGINA, listarNoticias } from './api'
-
-type ListaEmCache = ListaNoticias | InfiniteData<ListaNoticias>
-
-/** O `total` fica como veio do servidor: a paginação não pode parar antes da hora. */
-function semNoticia(pagina: ListaNoticias, id: string): ListaNoticias {
-  const items = pagina.items.filter((item) => item.id !== id)
-  if (items.length === pagina.items.length) return pagina
-  return { ...pagina, items }
-}
 
 /** Tira a notícia de toda lista em cache: a lista completa (paginada) e a da Home (#79). */
 export function removerDasListas(cliente: QueryClient, id: string) {
-  cliente.setQueriesData<ListaEmCache>({ queryKey: chaves.noticias.todos() }, (dados) => {
-    if (!dados) return dados
-    if ('pages' in dados) {
-      return { ...dados, pages: dados.pages.map((pagina) => semNoticia(pagina, id)) }
-    }
-    if ('items' in dados) return semNoticia(dados, id)
-    return dados
-  })
+  cliente.setQueriesData<ListaEmCache<ListaNoticias>>(
+    { queryKey: chaves.noticias.todos() },
+    (dados) => {
+      if (!dados || !('pages' in dados || 'items' in dados)) return dados
+      return semItemNaLista(dados, id)
+    },
+  )
 }
 
 function esquecerDetalhe(cliente: QueryClient, id: string) {

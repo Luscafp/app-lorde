@@ -214,7 +214,7 @@ describe('Painel > Solicitações', () => {
     await fireEvent.press(screen.getByRole('tab', { name: 'Histórico' }))
 
     expect(await screen.findByText('Bruno Reis')).toBeOnTheScreen()
-    expect(screen.getByText('REJEITADA')).toBeOnTheScreen()
+    expect(screen.getByText('Rejeitada')).toBeOnTheScreen()
     expect(screen.getByText('Encerrada em 30/09/2026 15:30')).toBeOnTheScreen()
     expect(screen.getByText('por Maria Diretora')).toBeOnTheScreen()
     expect(screen.queryByRole('button', { name: 'Aceitar Bruno Reis' })).toBeNull()
@@ -234,7 +234,7 @@ describe('Painel > Solicitações', () => {
     )
   })
 
-  it('filtro por time (times próprios) vale para a lista e para o total', async () => {
+  it('filtro por time (times próprios) vale para a lista; o total segue o da atlética', async () => {
     await abrir()
 
     await fireEvent.press(await screen.findByRole('radio', { name: 'Vôlei Feminino' }))
@@ -246,12 +246,13 @@ describe('Painel > Solicitações', () => {
         expect.anything(),
       ),
     )
-    expect(api.listarSolicitacoes).toHaveBeenCalledWith(
-      { status: ['PENDENTE'], timeId: 't-fem' },
+    expect(api.listarSolicitacoes).not.toHaveBeenCalledWith(
+      expect.objectContaining({ timeId: 't-fem' }),
       1,
       expect.anything(),
       1,
     )
+    expect(screen.getByRole('tab', { name: 'Pendentes (2)' })).toBeOnTheScreen()
   })
 
   it.each([

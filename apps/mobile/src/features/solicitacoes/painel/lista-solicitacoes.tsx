@@ -5,6 +5,7 @@ import { ListaInfinita, TelaDados } from '@/components/estado'
 import { confirmar, Pilulas, Segmentos, type Opcao } from '@/components/ui'
 import { useTimesProprios } from '@/features/times'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
+import { useOnline } from '@/infra/rede/online'
 import {
   useAprovarSolicitacao,
   useRejeitarSolicitacao,
@@ -32,8 +33,8 @@ function useAcoes(): AcoesSolicitacao {
   const aprovacao = useAprovarSolicitacao()
   const rejeicao = useRejeitarSolicitacao()
   return {
-    online: aprovacao.online,
-    aceitar: ({ id }) => aprovacao.mutate(id),
+    online: useOnline(),
+    aprovar: ({ id }) => aprovacao.mutate(id),
     rejeitar: ({ id, usuario, time }: SolicitacaoPainelDto) =>
       confirmar({
         titulo: 'Rejeitar solicitação',
@@ -54,7 +55,7 @@ export function PainelSolicitacoes() {
     status: pendentes ? [StatusSolicitacao.PENDENTE] : status ? [status] : ENCERRADAS,
     timeId,
   })
-  const { data: totalPendentes } = useTotalPendentes(timeId)
+  const { data: totalPendentes } = useTotalPendentes()
   const { data: times = [] } = useTimesProprios()
   const acoes = useAcoes()
 

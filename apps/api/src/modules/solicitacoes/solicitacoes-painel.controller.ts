@@ -20,6 +20,7 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger'
 import { createZodDto } from 'nestjs-zod'
+import type { StatusAvaliacao } from '../../infra/eventos/eventos-dominio'
 import { PapelMinimo } from '../auth/decorators/papel-minimo.decorator'
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator'
 import { SolicitacoesPainelService } from './solicitacoes-painel.service'
@@ -50,7 +51,7 @@ const EXEMPLO: SolicitacaoPainelDto = {
   avaliadoPor: null,
 }
 
-const avaliada = (status: 'APROVADA' | 'REJEITADA'): SolicitacaoPainelDto => ({
+const avaliada = (status: StatusAvaliacao): SolicitacaoPainelDto => ({
   ...EXEMPLO,
   status,
   avaliadaEm: '2026-09-30T15:00:00.000Z',

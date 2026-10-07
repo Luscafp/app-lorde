@@ -65,6 +65,28 @@ function ordemDaLista(status: StatusSolicitacao[]): Prisma.Sql {
     : Prisma.sql`COALESCE(s."avaliadaEm", s."canceladaEm") DESC, s."criadaEm" DESC, s."id" DESC`
 }
 
+const ACAO_DA_AVALIACAO = {
+  APROVADA: 'SOLICITACAO_APROVADA',
+  REJEITADA: 'SOLICITACAO_REJEITADA',
+} as const satisfies Record<StatusAvaliacao, string>
+
+function auditoriaDaAvaliacao(
+  { id, timeId, usuarioId }: Avaliada,
+  status: StatusAvaliacao,
+  jaEraMembro = false,
+): EntradaAuditoria {
+  return {
+    entidade: 'SolicitacaoEntrada',
+    acao: ACAO_DA_AVALIACAO[status],
+    entidadeId: id,
+    dados: {
+      antes: { status: StatusSolicitacao.PENDENTE },
+      depois: { status },
+      contexto: { timeId, usuarioId, ...(jaEraMembro && { jaEraMembro }) },
+    },
+  }
+}
+
 /** Avaliação das solicitações de entrada pela Diretoria (épico #18 §7, UC20, issue #69). */
 @Injectable()
 export class SolicitacoesPainelService {
@@ -103,24 +125,9 @@ export class SolicitacoesPainelService {
 
       const avaliada = await this.avaliar(tx, id, StatusSolicitacao.APROVADA, avaliadorId)
       const { timeId, usuarioId } = avaliada
-      const [membro] = await tx.membroTime.createManyAndReturn({
-        data: [{ atleticaId: avaliada.atleticaId, timeId, usuarioId, solicitacaoId: id }],
-        skipDuplicates: true,
-        select: { id: true, entradaEm: true },
-      })
+      const membro = await this.adicionarAoElenco(tx, avaliada)
 
-      const entradas: EntradaAuditoria[] = [
-        {
-          entidade: 'SolicitacaoEntrada',
-          acao: 'SOLICITACAO_APROVADA',
-          entidadeId: id,
-          dados: {
-            antes: { status: StatusSolicitacao.PENDENTE },
-            depois: { status: StatusSolicitacao.APROVADA },
-            contexto: { timeId, usuarioId, ...(!membro && { jaEraMembro: true }) },
-          },
-        },
-      ]
+      const entradas = [auditoriaDaAvaliacao(avaliada, StatusSolicitacao.APROVADA, !membro)]
       if (membro) {
         entradas.push({
           entidade: 'MembroTime',
@@ -142,18 +149,25 @@ export class SolicitacoesPainelService {
   rejeitar(id: string, avaliadorId: string): Promise<SolicitacaoPainelDto> {
     return this.transacao.executar(async (tx) => {
       const avaliada = await this.avaliar(tx, id, StatusSolicitacao.REJEITADA, avaliadorId)
-      await this.auditoria.registrar(tx, {
-        entidade: 'SolicitacaoEntrada',
-        acao: 'SOLICITACAO_REJEITADA',
-        entidadeId: id,
-        dados: {
-          antes: { status: StatusSolicitacao.PENDENTE },
-          depois: { status: StatusSolicitacao.REJEITADA },
-          contexto: { timeId: avaliada.timeId, usuarioId: avaliada.usuarioId },
-        },
-      })
+      await this.auditoria.registrar(
+        tx,
+        auditoriaDaAvaliacao(avaliada, StatusSolicitacao.REJEITADA),
+      )
       return this.concluir(tx, avaliada, StatusSolicitacao.REJEITADA, avaliadorId)
     })
+  }
+
+  /** `ON CONFLICT` só no vínculo ativo (RN28): um `P2002` abortaria a transação. */
+  private async adicionarAoElenco(
+    tx: TransacaoComEscopo,
+    { id, atleticaId, timeId, usuarioId }: Avaliada,
+  ): Promise<{ id: string; entradaEm: Date } | undefined> {
+    const [membro] = await tx.$queryRaw<{ id: string; entradaEm: Date }[]>`
+      INSERT INTO "MembroTime" ("id", "atleticaId", "timeId", "usuarioId", "solicitacaoId")
+      VALUES (gen_random_uuid(), ${atleticaId}::uuid, ${timeId}::uuid, ${usuarioId}::uuid, ${id}::uuid)
+      ON CONFLICT ("timeId", "usuarioId") WHERE "saidaEm" IS NULL DO NOTHING
+      RETURNING "id", "entradaEm"`
+    return membro
   }
 
   /** Transição condicional (épico #18 §14): a releitura só escolhe o código do erro. */

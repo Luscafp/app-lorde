@@ -71,11 +71,9 @@ function criarServico(cenario: Cenario = {}) {
       }),
       findUniqueOrThrow: jest.fn(() => Promise.resolve(linhaItem(statusFinal))),
     },
-    membroTime: {
-      createManyAndReturn: jest
-        .fn()
-        .mockResolvedValue(cenario.jaEraMembro ? [] : [{ id: MEMBRO, entradaEm: ENTRADA_EM }]),
-    },
+    $queryRaw: jest
+      .fn()
+      .mockResolvedValue(cenario.jaEraMembro ? [] : [{ id: MEMBRO, entradaEm: ENTRADA_EM }]),
   }
   const db = {
     $queryRaw: jest.fn(),
@@ -123,14 +121,11 @@ describe('SolicitacoesPainelService', () => {
         where: { id: SOLICITACAO, status: 'PENDENTE' },
         data: { status: 'APROVADA', avaliadoPorId: DIRETOR },
       })
-      expect(tx.membroTime.createManyAndReturn).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: [
-            { atleticaId: ATLETICA, timeId: TIME, usuarioId: ATLETA, solicitacaoId: SOLICITACAO },
-          ],
-          skipDuplicates: true,
-        }),
+      const [sql, ...valores] = tx.$queryRaw.mock.calls[0] as [TemplateStringsArray, ...unknown[]]
+      expect(sql.join('?')).toContain(
+        'ON CONFLICT ("timeId", "usuarioId") WHERE "saidaEm" IS NULL DO NOTHING',
       )
+      expect(valores).toEqual([ATLETICA, TIME, ATLETA, SOLICITACAO])
       expect(auditoria.registrarVarios).toHaveBeenCalledWith(tx, [
         {
           entidade: 'SolicitacaoEntrada',
@@ -202,7 +197,7 @@ describe('SolicitacoesPainelService', () => {
       const { servico, tx, auditoria, eventos } = criarServico({ atual })
 
       await expect(codigoDaRejeicao(servico.aprovar(SOLICITACAO, DIRETOR))).resolves.toBe(codigo)
-      expect(tx.membroTime.createManyAndReturn).not.toHaveBeenCalled()
+      expect(tx.$queryRaw).not.toHaveBeenCalled()
       expect(auditoria.registrarVarios).not.toHaveBeenCalled()
       expect(eventos.emitirAposCommit).not.toHaveBeenCalled()
     })
@@ -223,7 +218,7 @@ describe('SolicitacoesPainelService', () => {
       await expect(servico.rejeitar(SOLICITACAO, DIRETOR)).resolves.toMatchObject({
         status: 'REJEITADA',
       })
-      expect(tx.membroTime.createManyAndReturn).not.toHaveBeenCalled()
+      expect(tx.$queryRaw).not.toHaveBeenCalled()
       expect(auditoria.registrar).toHaveBeenCalledWith(tx, {
         entidade: 'SolicitacaoEntrada',
         acao: 'SOLICITACAO_REJEITADA',

@@ -5,27 +5,47 @@ import { Botao, Selo, Texto } from '@/components/ui'
 import { paleta } from '@/features/atletica'
 import { ModalidadeIcone } from '@/features/modalidades'
 
-const COR_STATUS: Record<StatusSolicitacao, string> = {
-  PENDENTE: paleta.alerta,
-  APROVADA: paleta.sucesso,
-  REJEITADA: paleta.erro,
-  CANCELADA: paleta['texto-suave'],
+const SELO_STATUS: Record<StatusSolicitacao, { texto: string; cor: string }> = {
+  PENDENTE: { texto: 'Pendente', cor: paleta.alerta },
+  APROVADA: { texto: 'Aceita', cor: paleta.sucesso },
+  REJEITADA: { texto: 'Rejeitada', cor: paleta.erro },
+  CANCELADA: { texto: 'Cancelada', cor: paleta['texto-suave'] },
 }
 
-export type AcoesSolicitacao = {
-  online: boolean
-  aceitar: (solicitacao: SolicitacaoPainelDto) => void
-  rejeitar: (solicitacao: SolicitacaoPainelDto) => void
-}
+type Acao = (solicitacao: SolicitacaoPainelDto) => void
+
+export type AcoesSolicitacao = { online: boolean; aprovar: Acao; rejeitar: Acao }
 
 type Props = { solicitacao: SolicitacaoPainelDto; acoes?: AcoesSolicitacao }
+
+type PropsBotao = {
+  titulo: 'Aceitar' | 'Rejeitar'
+  acao: Acao
+  solicitacao: SolicitacaoPainelDto
+  online: boolean
+  variante?: 'secundaria'
+}
+
+function BotaoAvaliacao({ titulo, acao, solicitacao, online, variante }: PropsBotao) {
+  return (
+    <View className="flex-1">
+      <Botao
+        titulo={titulo}
+        variante={variante}
+        accessibilityLabel={`${titulo} ${solicitacao.usuario.nome}`}
+        disabled={!online}
+        onPress={() => acao(solicitacao)}
+      />
+    </View>
+  )
+}
 
 function Encerramento({ solicitacao }: { solicitacao: SolicitacaoPainelDto }) {
   const encerradaEm = solicitacao.avaliadaEm ?? solicitacao.canceladaEm
   return (
     <>
       <View className="flex-row">
-        <Selo texto={solicitacao.status} cor={COR_STATUS[solicitacao.status]} />
+        <Selo {...SELO_STATUS[solicitacao.status]} />
       </View>
       {encerradaEm && (
         <Texto variante="legenda">{`Encerrada em ${formatarDataHora(encerradaEm)}`}</Texto>
@@ -70,23 +90,19 @@ export function ItemSolicitacao({ solicitacao, acoes }: Props) {
       </View>
       {acoes && (
         <View className="flex-row gap-2">
-          <View className="flex-1">
-            <Botao
-              titulo="Rejeitar"
-              variante="secundaria"
-              accessibilityLabel={`Rejeitar ${usuario.nome}`}
-              disabled={!acoes.online}
-              onPress={() => acoes.rejeitar(solicitacao)}
-            />
-          </View>
-          <View className="flex-1">
-            <Botao
-              titulo="Aceitar"
-              accessibilityLabel={`Aceitar ${usuario.nome}`}
-              disabled={!acoes.online}
-              onPress={() => acoes.aceitar(solicitacao)}
-            />
-          </View>
+          <BotaoAvaliacao
+            titulo="Rejeitar"
+            variante="secundaria"
+            acao={acoes.rejeitar}
+            solicitacao={solicitacao}
+            online={acoes.online}
+          />
+          <BotaoAvaliacao
+            titulo="Aceitar"
+            acao={acoes.aprovar}
+            solicitacao={solicitacao}
+            online={acoes.online}
+          />
         </View>
       )}
     </View>
