@@ -4,9 +4,9 @@ import { EstadoVazio, TelaDados } from '@/components/estado'
 import { Texto } from '@/components/ui'
 import { useAtletica } from '@/features/atletica'
 import { ModalidadeIcone } from '@/features/modalidades'
+import { AcaoEntradaTime } from '@/features/solicitacoes'
 import { ehNaoEncontrado } from '@/infra/api/api-erro'
 import { combinarConsultas } from '@/infra/query/combinar-consultas'
-import { AcaoEntradaTime } from './acao-entrada-time'
 import { contar } from './formatacao'
 import { useElenco, useTime } from './hooks'
 import { ListaElenco } from './lista-elenco'
@@ -63,7 +63,7 @@ export function TelaTime({ timeId, aoVoltar }: { timeId: string; aoVoltar: () =>
               <CabecalhoTime time={dados} />
               <ListaElenco consulta={elenco} />
             </ScrollView>
-            <AcaoEntradaTime time={dados} />
+            <AcaoEntradaTime time={dados} aoTimeIndisponivel={aoVoltar} />
           </>
         )}
       </TelaDados>

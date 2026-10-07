@@ -3,11 +3,13 @@ import {
   listaTimesSchema,
   Papel,
   timeCreateSchema,
+  timeDetalheDtoSchema,
   timeDtoSchema,
   timeIdSchema,
   timesQuerySchema,
   timeUpdateSchema,
   type ListaTimes,
+  type TimeDetalheDto,
   type TimeDto,
 } from '@atletica/shared'
 import {
@@ -47,6 +49,7 @@ class TimeAtualizacaoDto extends createZodDto(timeUpdateSchema) {}
 class TimesQueryDto extends createZodDto(timesQuerySchema) {}
 class TimeIdDto extends createZodDto(timeIdSchema) {}
 class TimeRespostaDto extends createZodDto(timeDtoSchema) {}
+class TimeDetalheRespostaDto extends createZodDto(timeDetalheDtoSchema) {}
 class ListaTimesDto extends createZodDto(listaTimesSchema) {}
 
 const EXEMPLO: TimeDto = {
@@ -98,17 +101,22 @@ export class TimesController {
   @Get(':id')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Detalhe do time',
-    description: 'Fora da Diretoria, time inativo ou de modalidade inativa responde 404.',
+    summary: 'Detalhe do time, com a situação do usuário',
+    description:
+      'Fora da Diretoria, time inativo ou de modalidade inativa responde 404. `minhaSituacao` é ' +
+      '`null` em time adversário.',
   })
-  @ApiOkResponse({ type: TimeRespostaDto, example: EXEMPLO })
+  @ApiOkResponse({
+    type: TimeDetalheRespostaDto,
+    example: { ...EXEMPLO, minhaSituacao: { membro: true, solicitacaoPendente: null } },
+  })
   @ApiBadRequestResponse({ description: INVALIDO })
   @ApiNotFoundResponse({ description: NAO_ENCONTRADO })
   detalhar(
     @Param() { id }: TimeIdDto,
     @UsuarioAtual() usuario: UsuarioAutenticado,
-  ): Promise<TimeDto> {
-    return this.times.detalhar(id, usuario.atleticaId, ehDiretoria(usuario.papel))
+  ): Promise<TimeDetalheDto> {
+    return this.times.detalhar(id, usuario, ehDiretoria(usuario.papel))
   }
 
   @Post()

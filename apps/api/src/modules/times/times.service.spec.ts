@@ -3,6 +3,7 @@ import { codigoDaRejeicao } from '../../../test/suporte/codigo-do-erro'
 import { Prisma } from '../../generated/prisma/client'
 import type { PrismaService } from '../../infra/prisma/prisma.service'
 import type { AuditoriaService } from '../auditoria/auditoria.service'
+import type { SolicitacoesService } from '../solicitacoes/solicitacoes.service'
 import { TimesService } from './times.service'
 
 const ATUAL = 'a1a1a1a1-0000-4000-8000-000000000001'
@@ -10,6 +11,8 @@ const ADVERSARIA = 'a2a2a2a2-0000-4000-8000-000000000002'
 const ID = 'b1b1b1b1-0000-4000-8000-000000000001'
 const FUTSAL = 'c1c1c1c1-0000-4000-8000-000000000001'
 const VOLEI = 'c2c2c2c2-0000-4000-8000-000000000002'
+const EU = { id: 'u9u9u9u9-0000-4000-8000-000000000009', atleticaId: ATUAL }
+const SITUACAO = { membro: true, solicitacaoPendente: null }
 
 function linha(dados: Record<string, unknown> = {}) {
   const atleticaId = (dados.atleticaId as string | undefined) ?? ATUAL
@@ -70,11 +73,13 @@ function criarServico(cenario: Cenario = {}) {
     $transaction: jest.fn((fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
   }
   const auditoria = { registrar: jest.fn(), registrarVarios: jest.fn() }
+  const solicitacoes = { minhaSituacao: jest.fn().mockResolvedValue(SITUACAO) }
   const servico = new TimesService(
     { db } as unknown as PrismaService,
     auditoria as unknown as AuditoriaService,
+    solicitacoes as unknown as SolicitacoesService,
   )
-  return { servico, tx, db, auditoria }
+  return { servico, tx, db, auditoria, solicitacoes }
 }
 
 const PAGINA = { page: 1, limit: 20, escopo: 'PROPRIOS', incluirInativos: false } as const
@@ -140,14 +145,21 @@ describe('TimesService', () => {
   })
 
   describe('detalhar', () => {
-    it('fora da Diretoria exige time e modalidade ativos', async () => {
-      const { servico, db } = criarServico()
-      const time = await servico.detalhar(ID, ATUAL, false)
+    it('fora da Diretoria exige time e modalidade ativos; inclui minhaSituacao', async () => {
+      const { servico, db, solicitacoes } = criarServico()
+      const time = await servico.detalhar(ID, EU, false)
       expect(time).toMatchObject({
         atletica: { propria: true },
         capitao: { id: 'u1', nome: 'Ana' },
         totalMembros: 3,
+        minhaSituacao: SITUACAO,
       })
+      const [timeConsultado, usuarioId] = solicitacoes.minhaSituacao.mock.calls[0] as [
+        { id: string; atletica: { propria: boolean } },
+        string,
+      ]
+      expect(timeConsultado).toMatchObject({ id: ID, atletica: { propria: true } })
+      expect(usuarioId).toBe(EU.id)
       expect(db.time.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: ID, ativo: true, modalidade: { ativa: true } },
@@ -157,7 +169,7 @@ describe('TimesService', () => {
 
     it('inexistente → NOT_FOUND', async () => {
       const { servico } = criarServico({ atual: null })
-      await expect(codigoDaRejeicao(servico.detalhar(ID, ATUAL, true))).resolves.toBe('NOT_FOUND')
+      await expect(codigoDaRejeicao(servico.detalhar(ID, EU, true))).resolves.toBe('NOT_FOUND')
     })
   })
 

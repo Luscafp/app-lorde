@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { minhaSituacaoDtoSchema } from '../solicitacoes/dtos'
 import { respostaPaginadaSchema } from '../utils/paginacao'
 
 /** Item de `GET /times` e corpo de `GET /times/:id` (épico #16 §7). */
@@ -25,6 +26,11 @@ export const timeDtoSchema = z
 
 export const listaTimesSchema = respostaPaginadaSchema(timeDtoSchema)
 
+/** Corpo de `GET /times/:id`: acrescenta a situação do usuário (épico #18 §7). */
+export const timeDetalheDtoSchema = timeDtoSchema
+  .extend({ minhaSituacao: minhaSituacaoDtoSchema.nullable() })
+  .strict()
+
 /** Item de `GET /times/:id/elenco`: nunca traz e-mail (épico #16 §10). */
 export const membroElencoDtoSchema = z
   .object({
@@ -42,6 +48,7 @@ export const elencoDtoSchema = z
   .strict()
 
 export type TimeDto = z.infer<typeof timeDtoSchema>
+export type TimeDetalheDto = z.infer<typeof timeDetalheDtoSchema>
 export type ListaTimes = z.infer<typeof listaTimesSchema>
 export type MembroElencoDto = z.infer<typeof membroElencoDtoSchema>
 export type ElencoDto = z.infer<typeof elencoDtoSchema>
