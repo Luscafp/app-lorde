@@ -1,16 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons'
-import type { ComponentProps } from 'react'
 import { Pressable } from 'react-native'
 import { corTextoSobre, useAtletica } from '@/features/atletica'
 
-type Props = {
-  rotulo: string
-  icone?: ComponentProps<typeof Ionicons>['name']
-  onPress: () => void
-}
+type Props = { rotulo: string; onPress: () => void }
 
 /** Ação principal da tela, flutuando no canto inferior direito. */
-export function Fab({ rotulo, icone = 'add', onPress }: Props) {
+export function Fab({ rotulo, onPress }: Props) {
   const { corPrimaria } = useAtletica()
   return (
     <Pressable
@@ -20,7 +15,7 @@ export function Fab({ rotulo, icone = 'add', onPress }: Props) {
       className="absolute bottom-6 right-6 h-14 w-14 items-center justify-center rounded-full shadow-lg"
       style={{ backgroundColor: corPrimaria }}
     >
-      <Ionicons name={icone} size={28} color={corTextoSobre(corPrimaria)} />
+      <Ionicons name="add" size={28} color={corTextoSobre(corPrimaria)} />
     </Pressable>
   )
 }

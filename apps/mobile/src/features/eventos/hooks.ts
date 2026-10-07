@@ -41,7 +41,6 @@ const ERROS_DO_FORMULARIO = [
   CodigoEvento.EVENTO_COM_PARTICIPACOES,
 ]
 
-/** A #74 acrescenta `resultado`. */
 export type FiltrosEventosPainel = Pick<FiltrosEventos, 'tipo' | 'status'> & {
   periodo: PeriodoEventos
 }

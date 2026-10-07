@@ -1,15 +1,12 @@
-import Ionicons from '@expo/vector-icons/Ionicons'
 import { PeriodoEventos, type EventoResumoDto } from '@atletica/shared'
 import { View } from 'react-native'
-import { ListaInfinita, TelaDados } from '@/components/estado'
+import { TelaDados } from '@/components/estado'
 import { Segmentos, Texto, type Segmento } from '@/components/ui'
-import { paleta } from '@/features/atletica'
-import { linhasPorDia, type AbaAgenda, type FiltrosSelecionados } from './agenda'
-import { CabecalhoDia, EventoCard, FiltrosAgenda, MinhaRespostaChip } from './components'
+import { vazioEventos, type AbaAgenda, type FiltrosSelecionados } from './agenda'
+import { FiltrosAgenda, ListaEventosPorDia, MinhaRespostaChip } from './components'
 import { useEventos } from './consultas'
 
 export const MENSAGEM_SEM_EVENTOS = 'Nenhum evento agendado'
-export const MENSAGEM_SEM_EVENTOS_FILTRADOS = 'Nenhum evento para os filtros escolhidos'
 export const MENSAGEM_ERRO_AGENDA = 'Não foi possível carregar a agenda'
 
 const SEGMENTOS: readonly Segmento<AbaAgenda>[] = [
@@ -25,7 +22,6 @@ type PropsEventos = {
 
 function JogosETreinos({ filtros, aoMudarFiltros, aoAbrirEvento }: PropsEventos) {
   const consulta = useEventos({ periodo: PeriodoEventos.PROXIMOS, ...filtros })
-  const filtrado = filtros.tipo !== undefined || filtros.modalidadeId !== undefined
 
   return (
     <View className="flex-1 gap-2">
@@ -34,35 +30,17 @@ function JogosETreinos({ filtros, aoMudarFiltros, aoAbrirEvento }: PropsEventos)
         consulta={consulta}
         esqueleto="cartoes"
         vazio={(eventos) => eventos.length === 0}
-        mensagemVazio={filtrado ? MENSAGEM_SEM_EVENTOS_FILTRADOS : MENSAGEM_SEM_EVENTOS}
-        acaoVazio={
-          filtrado ? { titulo: 'Limpar filtros', onPress: () => aoMudarFiltros({}) } : undefined
-        }
+        {...vazioEventos(filtros, () => aoMudarFiltros({}), { mensagem: MENSAGEM_SEM_EVENTOS })}
         mensagemErro={MENSAGEM_ERRO_AGENDA}
       >
         {(eventos) => (
-          <ListaInfinita
+          <ListaEventosPorDia
             testID="lista-agenda"
             consulta={consulta}
-            data={linhasPorDia(eventos)}
-            keyExtractor={(linha) => linha.dia ?? linha.evento.id}
+            eventos={eventos}
             contentContainerClassName="gap-2 p-4"
-            renderItem={({ item }) =>
-              item.dia !== undefined ? (
-                <CabecalhoDia dia={item.dia} />
-              ) : (
-                <EventoCard
-                  evento={item.evento}
-                  aoAbrir={aoAbrirEvento}
-                  direita={
-                    <View className="items-end gap-1.5">
-                      <Ionicons name="chevron-forward" size={20} color={paleta['texto-suave']} />
-                      <MinhaRespostaChip evento={item.evento} />
-                    </View>
-                  }
-                />
-              )
-            }
+            aoAbrir={aoAbrirEvento}
+            abaixoDaSeta={(evento) => <MinhaRespostaChip evento={evento} />}
           />
         )}
       </TelaDados>

@@ -32,6 +32,7 @@ export function Esqueleto({ variante = 'lista' }: { variante?: VarianteEsqueleto
       accessible
       accessibilityLabel="Carregando"
       accessibilityState={{ busy: true }}
+      testID={`esqueleto-${variante}`}
       className="flex-1 gap-3 p-4"
     >
       {variante === 'lista' &&

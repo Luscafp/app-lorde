@@ -42,3 +42,22 @@ export function linhasPorDia<T extends { inicio: string }>(eventos: T[]): LinhaD
     ...doDia.map((evento) => ({ evento })),
   ])
 }
+
+export const MENSAGEM_SEM_EVENTOS_FILTRADOS = 'Nenhum evento para os filtros escolhidos'
+
+type AcaoVazio = { titulo: string; onPress: () => void }
+
+/** Com algum filtro escolhido, o vazio oferece "Limpar filtros" no lugar da ação da tela. */
+export function vazioEventos(
+  filtros: object,
+  limpar: () => void,
+  semFiltros: { mensagem: string; acao?: AcaoVazio },
+): { mensagemVazio: string; acaoVazio?: AcaoVazio } {
+  const filtrado = Object.values(filtros).some((valor) => valor !== undefined)
+  return filtrado
+    ? {
+        mensagemVazio: MENSAGEM_SEM_EVENTOS_FILTRADOS,
+        acaoVazio: { titulo: 'Limpar filtros', onPress: limpar },
+      }
+    : { mensagemVazio: semFiltros.mensagem, acaoVazio: semFiltros.acao }
+}

@@ -1,17 +1,15 @@
-import Ionicons from '@expo/vector-icons/Ionicons'
-import { PeriodoEventos, StatusEvento, type EventoResumoDto } from '@atletica/shared'
+import { PeriodoEventos } from '@atletica/shared'
 import { useState } from 'react'
 import { View } from 'react-native'
-import { ListaInfinita, TelaDados } from '@/components/estado'
-import { Fab, Pilulas, Segmentos, Selo, type Opcao, type Segmento } from '@/components/ui'
-import { paleta } from '@/features/atletica'
-import { linhasPorDia } from './agenda'
-import { CabecalhoDia, EventoCard, OPCOES_TIPO } from './components'
+import { TelaDados } from '@/components/estado'
+import { Fab, Pilulas, Segmentos, Selo, type Segmento } from '@/components/ui'
+import { vazioEventos } from './agenda'
+import { ListaEventosPorDia } from './components'
 import { useEventosPainel, type FiltrosEventosPainel } from './hooks'
+import { OPCOES_STATUS, OPCOES_TIPO } from './rotulos'
 
-export const MENSAGEM_SEM_EVENTOS_PAINEL = 'Nenhum evento cadastrado'
-export const MENSAGEM_SEM_EVENTOS_FILTRADOS_PAINEL = 'Nenhum evento para os filtros escolhidos'
-export const MENSAGEM_ERRO_EVENTOS_PAINEL = 'Não foi possível carregar os eventos'
+const MENSAGEM_SEM_EVENTOS_PAINEL = 'Nenhum evento cadastrado'
+const MENSAGEM_ERRO_EVENTOS_PAINEL = 'Não foi possível carregar os eventos'
 
 const OPCOES_PERIODO: readonly Segmento<PeriodoEventos>[] = [
   { valor: PeriodoEventos.PROXIMOS, rotulo: 'Próximos' },
@@ -19,20 +17,7 @@ const OPCOES_PERIODO: readonly Segmento<PeriodoEventos>[] = [
   { valor: PeriodoEventos.TODOS, rotulo: 'Todos' },
 ]
 
-const OPCOES_STATUS: readonly Opcao<StatusEvento>[] = [
-  { valor: undefined, rotulo: 'Todos os status' },
-  { valor: StatusEvento.AGENDADO, rotulo: 'Agendados' },
-  { valor: StatusEvento.EM_ANDAMENTO, rotulo: 'Em andamento' },
-  { valor: StatusEvento.FINALIZADO, rotulo: 'Finalizados' },
-  { valor: StatusEvento.CANCELADO, rotulo: 'Cancelados' },
-]
-
 const FILTROS_INICIAIS: FiltrosEventosPainel = { periodo: PeriodoEventos.PROXIMOS }
-
-/** A #74 acrescenta o selo "Resultado pendente". */
-function SelosPainel({ evento }: { evento: EventoResumoDto }) {
-  return evento.serieId ? <Selo texto="RECORRENTE" /> : null
-}
 
 export type NavegacaoEventos = {
   novo: () => void
@@ -42,7 +27,7 @@ export type NavegacaoEventos = {
 export function ListaEventosPainel({ ir }: { ir: NavegacaoEventos }) {
   const [filtros, setFiltros] = useState(FILTROS_INICIAIS)
   const consulta = useEventosPainel(filtros)
-  const filtrado = filtros.tipo !== undefined || filtros.status !== undefined
+  const { periodo, ...filtrosDaLista } = filtros
   const mudar = (parcial: Partial<FiltrosEventosPainel>) => setFiltros({ ...filtros, ...parcial })
 
   return (
@@ -50,8 +35,8 @@ export function ListaEventosPainel({ ir }: { ir: NavegacaoEventos }) {
       <View className="gap-2 p-4">
         <Segmentos
           opcoes={OPCOES_PERIODO}
-          valor={filtros.periodo}
-          aoMudar={(periodo) => mudar({ periodo })}
+          valor={periodo}
+          aoMudar={(novoPeriodo) => mudar({ periodo: novoPeriodo })}
         />
         <Pilulas
           rotulo="Tipo de evento"
@@ -70,37 +55,20 @@ export function ListaEventosPainel({ ir }: { ir: NavegacaoEventos }) {
         consulta={consulta}
         esqueleto="cartoes"
         vazio={(eventos) => eventos.length === 0}
-        mensagemVazio={
-          filtrado ? MENSAGEM_SEM_EVENTOS_FILTRADOS_PAINEL : MENSAGEM_SEM_EVENTOS_PAINEL
-        }
-        acaoVazio={
-          filtrado
-            ? { titulo: 'Limpar filtros', onPress: () => setFiltros({ periodo: filtros.periodo }) }
-            : { titulo: 'Novo evento', onPress: ir.novo }
-        }
+        {...vazioEventos(filtrosDaLista, () => setFiltros({ periodo }), {
+          mensagem: MENSAGEM_SEM_EVENTOS_PAINEL,
+          acao: { titulo: 'Novo evento', onPress: ir.novo },
+        })}
         mensagemErro={MENSAGEM_ERRO_EVENTOS_PAINEL}
       >
         {(eventos) => (
-          <ListaInfinita
+          <ListaEventosPorDia
             testID="lista-eventos-painel"
             consulta={consulta}
-            data={linhasPorDia(eventos)}
-            keyExtractor={(linha) => linha.dia ?? linha.evento.id}
+            eventos={eventos}
             contentContainerClassName="gap-2 px-4 pb-24"
-            renderItem={({ item }) =>
-              item.dia !== undefined ? (
-                <CabecalhoDia dia={item.dia} />
-              ) : (
-                <EventoCard
-                  evento={item.evento}
-                  aoAbrir={({ id }) => ir.abrir(id)}
-                  selos={<SelosPainel evento={item.evento} />}
-                  direita={
-                    <Ionicons name="chevron-forward" size={20} color={paleta['texto-suave']} />
-                  }
-                />
-              )
-            }
+            aoAbrir={({ id }) => ir.abrir(id)}
+            selos={(evento) => (evento.serieId ? <Selo texto="RECORRENTE" /> : null)}
           />
         )}
       </TelaDados>

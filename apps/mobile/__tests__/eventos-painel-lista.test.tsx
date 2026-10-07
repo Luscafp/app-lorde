@@ -76,6 +76,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cliente.clear()
+  jest.restoreAllMocks()
 })
 
 describe('Painel: lista de eventos', () => {
@@ -91,6 +92,31 @@ describe('Painel: lista de eventos', () => {
     expect(consultasFeitas()).toEqual([
       { filtros: { periodo: 'PROXIMOS', incluirInativos: true }, page: 1 },
     ])
+  })
+
+  it('dias de hoje e amanhã (no fuso de Fortaleza) viram "Hoje" e "Amanhã"', async () => {
+    jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-10-09T15:00:00.000Z'))
+    listarEventos.mockResolvedValue(
+      pagina([
+        evento('a', { inicio: '2030-10-09T22:00:00.000Z' }),
+        treino('b', { inicio: '2030-10-11T02:30:00.000Z' }),
+        treino('c', { inicio: '2030-10-11T12:00:00.000Z' }),
+      ]),
+    )
+    await renderizar()
+    await screen.findByText(JOGO)
+
+    expect(cabecalhos()).toEqual(['Hoje', 'Amanhã', 'sex, 11/10'])
+  })
+
+  it('puxar para atualizar refaz a consulta da 1ª página', async () => {
+    listarEventos.mockResolvedValue(pagina([evento('a')]))
+    await renderizar()
+    await screen.findByText(JOGO)
+
+    await act(() => fireEvent(screen.getByTestId('lista-eventos-painel'), 'refresh'))
+
+    await waitFor(() => expect(consultasFeitas().map(({ page }) => page)).toEqual([1, 1]))
   })
 
   it('"Passados" consulta o período e mostra os dias em ordem decrescente', async () => {
@@ -225,10 +251,11 @@ describe('Painel: lista de eventos', () => {
     expect(router.push).toHaveBeenLastCalledWith('/painel/eventos/novo')
   })
 
-  it('carregando: esqueleto', async () => {
+  it('carregando: esqueleto de cards', async () => {
     listarEventos.mockReturnValue(new Promise(() => {}))
     await renderizar()
     expect(screen.getByLabelText('Carregando')).toBeOnTheScreen()
+    expect(screen.getByTestId('esqueleto-cartoes')).toBeOnTheScreen()
   })
 
   it('erro: mensagem e "Tentar novamente"', async () => {
