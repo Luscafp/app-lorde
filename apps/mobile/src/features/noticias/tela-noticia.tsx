@@ -1,7 +1,8 @@
 import { View } from 'react-native'
 import { EstadoVazio, TelaDados } from '@/components/estado'
+import { ehNaoEncontrado } from '@/infra/api/api-erro'
 import { NoticiaDetalhe } from './components'
-import { ehNaoEncontrada, useNoticia } from './consultas'
+import { useNoticia } from './consultas'
 
 export const MENSAGEM_INDISPONIVEL = 'Esta notícia não está mais disponível'
 
@@ -11,7 +12,7 @@ export function TelaNoticia({ id }: { id: string }) {
 
   return (
     <View className="flex-1 bg-fundo">
-      {ehNaoEncontrada(consulta.error) ? (
+      {ehNaoEncontrado(consulta.error) ? (
         <EstadoVazio mensagem={MENSAGEM_INDISPONIVEL} />
       ) : (
         <TelaDados consulta={consulta} esqueleto="detalhe">

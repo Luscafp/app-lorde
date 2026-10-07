@@ -8,13 +8,17 @@ import { FaixaOffline } from './faixa-offline'
 
 export const MENSAGEM_SEM_CONEXAO = 'Sem conexão. Conecte-se à internet para carregar os dados.'
 
-type Consulta<T> = Pick<UseQueryResult<T>, 'data' | 'isError' | 'refetch' | 'dataUpdatedAt'>
+type Consulta<T> = Pick<UseQueryResult<T>, 'data' | 'isError' | 'dataUpdatedAt'> & {
+  refetch: () => Promise<unknown>
+}
 
 type Props<T> = {
   consulta: Consulta<T>
   vazio?: (dados: T) => boolean
   mensagemVazio?: string
   esqueleto?: VarianteEsqueleto
+  /** Desligada nas seções de uma tela que já mostra a faixa. */
+  faixaOffline?: boolean
   children: (dados: T) => ReactNode
 }
 
@@ -30,6 +34,7 @@ export function TelaDados<T>({
   vazio,
   mensagemVazio = 'Nada por aqui ainda.',
   esqueleto,
+  faixaOffline = true,
   children,
 }: Props<T>) {
   const conectado = useConectado()
@@ -52,7 +57,7 @@ export function TelaDados<T>({
 
   return (
     <View className="flex-1">
-      {!conectado && <FaixaOffline atualizadoEm={consulta.dataUpdatedAt} />}
+      {!conectado && faixaOffline && <FaixaOffline atualizadoEm={consulta.dataUpdatedAt} />}
       {vazio?.(data) ? <EstadoVazio mensagem={mensagemVazio} /> : children(data)}
     </View>
   )

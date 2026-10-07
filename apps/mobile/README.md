@@ -200,13 +200,13 @@ const { mutate, isPending, online } = useAcaoOnline({
 
 ## Estados de tela — `src/components/estado`
 
-| Componente                                                              | Uso                                                                                      |
-| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `Esqueleto({ variante? })`                                              | `lista` (padrão), `cartao`, `detalhe`                                                    |
-| `EstadoVazio({ mensagem, acao? })`                                      | `acao = { titulo, onPress }`                                                             |
-| `EstadoErro({ mensagem?, onTentarNovamente })`                          | padrão "Não foi possível carregar." + "Tentar novamente"                                 |
-| `FaixaOffline({ atualizadoEm? })`                                       | "Modo offline · dados de dd/mm/aaaa HH:mm" (America/Fortaleza); sem data: "Modo offline" |
-| `TelaDados({ consulta, vazio?, mensagemVazio?, esqueleto?, children })` | escolhe o estado da tela a partir da consulta                                            |
+| Componente                                                                             | Uso                                                                                                                |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `Esqueleto({ variante? })`                                                             | `lista` (padrão), `cartao`, `detalhe`                                                                              |
+| `EstadoVazio({ mensagem, acao? })`                                                     | `acao = { titulo, onPress }`                                                                                       |
+| `EstadoErro({ mensagem?, onTentarNovamente })`                                         | padrão "Não foi possível carregar." + "Tentar novamente"                                                           |
+| `FaixaOffline({ atualizadoEm? })`                                                      | "Modo offline · dados de dd/mm/aaaa HH:mm" (America/Fortaleza); sem data: "Modo offline"                           |
+| `TelaDados({ consulta, vazio?, mensagemVazio?, esqueleto?, faixaOffline?, children })` | escolhe o estado da tela a partir da consulta; `faixaOffline={false}` nas seções de uma tela que já mostra a faixa |
 
 ```tsx
 const consulta = useQuery({ queryKey: chaves.eventos.lista(filtro), queryFn })
