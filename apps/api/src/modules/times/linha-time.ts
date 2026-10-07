@@ -1,5 +1,6 @@
 import type { TimeDto } from '@atletica/shared'
 import type { Prisma } from '../../generated/prisma/client'
+import { ELENCO_ATUAL } from './membro'
 
 export const CAMPOS_TIME = {
   id: true,
@@ -10,7 +11,7 @@ export const CAMPOS_TIME = {
   modalidade: { select: { id: true, nome: true, icone: true } },
   atletica: { select: { id: true, nome: true, sigla: true } },
   capitao: { select: { id: true, nome: true } },
-  _count: { select: { membros: { where: { saidaEm: null } } } },
+  _count: { select: { membros: { where: ELENCO_ATUAL } } },
 } as const satisfies Prisma.TimeSelect
 
 export type LinhaTime = Prisma.TimeGetPayload<{ select: typeof CAMPOS_TIME }>

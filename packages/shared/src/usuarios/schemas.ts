@@ -49,12 +49,16 @@ export const atualizarPerfilSchema = z.object({ nome: nomeSchema }).strict()
 /** O formato `usuarios/{usuarioId}/perfil/{uuid}.{ext}` é conferido na API (`validarKey`). */
 export const atualizarFotoSchema = z.object({ fotoKey: z.string().max(300) }).strict()
 
+/** Senha existente, conferida na API: sem a regra de força da `senhaSchema`. */
+const senhaConfirmacaoSchema = (vazia: string) =>
+  z
+    .string()
+    .min(1, { error: vazia })
+    .max(SENHA_MAX, { error: `A senha deve ter no máximo ${SENHA_MAX} caracteres.` })
+
 export const alterarSenhaSchema = z
   .object({
-    senhaAtual: z
-      .string()
-      .min(1, { error: 'Informe a senha atual.' })
-      .max(SENHA_MAX, { error: `A senha deve ter no máximo ${SENHA_MAX} caracteres.` }),
+    senhaAtual: senhaConfirmacaoSchema('Informe a senha atual.'),
     novaSenha: senhaSchema,
   })
   .strict()
@@ -67,6 +71,10 @@ export const alterarSenhaFormSchema = alterarSenhaSchema
     error: 'As senhas não conferem.',
   })
 
+export const excluirContaSchema = z
+  .object({ senha: senhaConfirmacaoSchema('Informe a senha.') })
+  .strict()
+
 export type ListarUsuariosQuery = z.infer<typeof listarUsuariosQuerySchema>
 export type FiltrosUsuarios = Omit<z.input<typeof listarUsuariosQuerySchema>, 'page' | 'limit'>
 export type AlterarSituacao = z.infer<typeof alterarSituacaoSchema>
@@ -75,3 +83,4 @@ export type AtualizarPerfil = z.infer<typeof atualizarPerfilSchema>
 export type AtualizarFoto = z.infer<typeof atualizarFotoSchema>
 export type AlterarSenha = z.infer<typeof alterarSenhaSchema>
 export type AlterarSenhaForm = z.infer<typeof alterarSenhaFormSchema>
+export type ExcluirConta = z.infer<typeof excluirContaSchema>

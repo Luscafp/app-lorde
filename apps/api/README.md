@@ -321,6 +321,15 @@ Perfil do usuário autenticado (UC10, UC11, #13). Só `@UsuarioAtual()`, sem `:i
 - Senha: 5 senhas atuais erradas em 15 min por usuário (`SENHA_CONFIRMACAO_FALHA`, chave `usuarioId`, o mesmo contador da #12). A troca revoga as outras sessões com `TROCA_SENHA` (`exceto` = sessão do token) e emite `usuario.sessaoEncerrada` só com as revogadas. `SENHA_INCORRETA` é 400 para o app não tentar o refresh.
 - Sem auditoria (convenções §7).
 
+### Exclusão de conta (`DELETE /me/conta`, `ContaService`)
+
+`{ senha }` → `204` (UC13, RN33, #12); `400 SENHA_INCORRETA` (campo `senha`), `409 ULTIMO_ADMINISTRADOR`, `429` (mesmo contador de `PUT /me/senha`).
+
+- Uma transação (`TransacaoService.executar`). A senha é conferida antes (`ConfirmacaoSenhaService`, o mesmo de `PUT /me/senha`); dentro dela, a conta é travada (`FOR UPDATE`) e os vínculos de todas as atléticas são lidos por SQL, porque `semEscopo` não participa da transação. O trabalho de cada atlética roda em `executarComAtletica`.
+- Ordem: `bloquearPapeis` + `ehUltimoAdministrador` (mensagem própria da exclusão) em cada atlética onde a conta é Administrador ativo → `ElencoService.encerrarVinculo` por time (`EXCLUSAO_CONTA`), solicitações `PENDENTE` → `CANCELADA`, vínculos → `ATLETA`/inativos, auditoria `CONTA_EXCLUIDA` (uma por atlética, `{ antes: { papel }, depois: null, contexto: { timeIds } }`) → anonimização da conta → `revogarTodas(CONTA_EXCLUIDA)`.
+- Anonimização: nome `Usuário excluído`, e-mail `excluido+<id>@anonimo.invalid` (libera o original para novo cadastro), `senhaHash = '!'`, sem foto, `ativo = false`, `excluidoEm`. Apaga códigos de verificação, preferências, dispositivos push e as tentativas de login/recuperação do e-mail original. Ficam `AceiteTermos`, participações passadas e autorias.
+- Após o commit: `usuario.sessaoEncerrada` com todas as sessões revogadas e remoção da foto no R2 (`UploadsService.apagar`; falha gera `logger.error` + Sentry, sem afetar a resposta).
+
 ### `regras-papel.ts` (usado por #12 e #28)
 
 ```ts

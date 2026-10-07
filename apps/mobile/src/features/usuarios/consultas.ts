@@ -9,15 +9,16 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { toast } from '@/components/ui/toast'
 import { CodigoApi, type ApiErro } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
+import { proximaPagina } from '@/infra/query/proxima-pagina'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
-import { alterarPapel, alterarSituacao, buscarUsuario, LIMITE_PAGINA, listarUsuarios } from './api'
+import { alterarPapel, alterarSituacao, buscarUsuario, listarUsuarios } from './api'
 
 export function useListaUsuarios(filtros: FiltrosUsuarios) {
   return useInfiniteQuery({
     queryKey: chaves.usuarios.lista(filtros),
     queryFn: ({ pageParam, signal }) => listarUsuarios(filtros, pageParam, signal),
     initialPageParam: 1,
-    getNextPageParam: ({ page, total }) => (page * LIMITE_PAGINA < total ? page + 1 : undefined),
+    getNextPageParam: proximaPagina,
   })
 }
 

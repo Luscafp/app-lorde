@@ -1,6 +1,6 @@
 import { ROTULO_PAPEL, type Papel } from '@atletica/shared'
 import { HttpStatus } from '@nestjs/common'
-import { ErroNegocio } from '../../common/erros/erro-negocio'
+import { erroDeCampo, ErroNegocio } from '../../common/erros/erro-negocio'
 
 export const MENSAGEM_NIVEL_INSUFICIENTE =
   'Só é possível alterar usuários de nível de acesso inferior ao seu.'
@@ -50,6 +50,14 @@ export function erroUltimoAdministrador(): ErroNegocio {
   )
 }
 
+export function erroUltimoAdministradorExclusao(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.CONFLICT,
+    'ULTIMO_ADMINISTRADOR',
+    'Você é o único Administrador. Conceda o cargo a outra pessoa antes de excluir sua conta.',
+  )
+}
+
 export function erroSubstituicaoNecessaria(ocupante: string, cargo: Papel): ErroNegocio {
   return new ErroNegocio(
     HttpStatus.CONFLICT,
@@ -75,14 +83,19 @@ export function erroConflitoConcorrente(): ErroNegocio {
   )
 }
 
-const SENHA_INCORRETA = 'Senha atual incorreta.'
 const SENHA_IGUAL_ATUAL = 'A nova senha deve ser diferente da atual.'
 
+/** Campo do corpo que leva a senha conferida: troca de senha (#13) ou exclusão de conta (#12). */
+export type CampoSenha = 'senhaAtual' | 'senha'
+
+const SENHA_INCORRETA: Readonly<Record<CampoSenha, string>> = {
+  senhaAtual: 'Senha atual incorreta.',
+  senha: 'Senha incorreta.',
+}
+
 /** 400, e não 401: um 401 dispararia o refresh e o logout do app (issue #13 §7.5). */
-export function erroSenhaIncorreta(): ErroNegocio {
-  return new ErroNegocio(HttpStatus.BAD_REQUEST, 'SENHA_INCORRETA', SENHA_INCORRETA, [
-    { field: 'senhaAtual', message: SENHA_INCORRETA },
-  ])
+export function erroSenhaIncorreta(campo: CampoSenha): ErroNegocio {
+  return erroDeCampo(HttpStatus.BAD_REQUEST, 'SENHA_INCORRETA', campo, SENHA_INCORRETA[campo])
 }
 
 export function erroSenhaIgualAtual(): ErroNegocio {

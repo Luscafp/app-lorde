@@ -2,6 +2,7 @@ import {
   alterarSenhaSchema,
   atualizarFotoSchema,
   atualizarPerfilSchema,
+  excluirContaSchema,
   fotoAtualizadaSchema,
   perfilSchema,
   type FotoAtualizada,
@@ -21,6 +22,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBody,
+  ApiConflictResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
@@ -33,11 +35,15 @@ import { RESPOSTA_LIMITE_EXCEDIDO } from '../../common/swagger/respostas'
 import { emMinutos } from '../../common/tempo'
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator'
 import type { UsuarioAutenticado } from '../auth/tipos'
-import { LIMITE_SENHA_ATUAL, PerfilService } from './perfil.service'
+import { ContaService } from './conta.service'
+import { LIMITE_SENHA_CONFIRMACAO } from './confirmacao-senha.service'
+import { erroUltimoAdministradorExclusao } from './erros'
+import { PerfilService } from './perfil.service'
 
 class AtualizarPerfilDto extends createZodDto(atualizarPerfilSchema) {}
 class AtualizarFotoDto extends createZodDto(atualizarFotoSchema) {}
 class AlterarSenhaDto extends createZodDto(alterarSenhaSchema) {}
+class ExcluirContaDto extends createZodDto(excluirContaSchema) {}
 class PerfilDto extends createZodDto(perfilSchema) {}
 class FotoAtualizadaDto extends createZodDto(fotoAtualizadaSchema) {}
 
@@ -77,7 +83,10 @@ const DESCRICAO_FOTO =
 @ApiTags('Perfil')
 @Controller('me')
 export class MeController {
-  constructor(private readonly perfil: PerfilService) {}
+  constructor(
+    private readonly perfil: PerfilService,
+    private readonly conta: ContaService,
+  ) {}
 
   @Get()
   @Header('Cache-Control', 'no-store')
@@ -155,12 +164,43 @@ export class MeController {
   })
   @ApiTooManyRequestsResponse({
     ...RESPOSTA_LIMITE_EXCEDIDO,
-    description: `${LIMITE_SENHA_ATUAL.maximo} senhas atuais erradas em ${emMinutos(LIMITE_SENHA_ATUAL.janelaMs)} min.`,
+    description: `${LIMITE_SENHA_CONFIRMACAO.maximo} senhas atuais erradas em ${emMinutos(LIMITE_SENHA_CONFIRMACAO.janelaMs)} min.`,
   })
   alterarSenha(
     @Body() dados: AlterarSenhaDto,
     @UsuarioAtual() usuario: UsuarioAutenticado,
   ): Promise<void> {
     return this.perfil.alterarSenha(usuario, dados)
+  }
+
+  @Delete('conta')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Exclui a própria conta, confirmando a senha (UC13, RN33)',
+    description:
+      'Anonimiza os dados pessoais, encerra os vínculos com times e atléticas, cancela as ' +
+      'solicitações pendentes e revoga todas as sessões (`CONTA_EXCLUIDA`). O histórico de ' +
+      'presenças e resultados fica com "Usuário excluído". Irreversível.\n\n' +
+      '| HTTP | code | Quando |\n|---|---|---|\n' +
+      '| 400 | `VALIDATION_ERROR` | corpo diferente de `{ senha }` |\n' +
+      '| 400 | `SENHA_INCORRETA` | senha errada (conta para o limite) |\n' +
+      '| 409 | `ULTIMO_ADMINISTRADOR` | único Administrador ativo de alguma atlética (RN08) |\n' +
+      '| 429 | `RATE_LIMITED` | limite de senhas erradas |',
+  })
+  @ApiBody({ type: ExcluirContaDto, examples: { senha: { value: { senha: 'lorde2026' } } } })
+  @ApiNoContentResponse({ description: 'Conta excluída e sessões revogadas.' })
+  @ApiBadRequestResponse({ description: '`VALIDATION_ERROR` ou `SENHA_INCORRETA`.' })
+  @ApiConflictResponse({
+    description: `\`ULTIMO_ADMINISTRADOR\`: "${erroUltimoAdministradorExclusao().message}"`,
+  })
+  @ApiTooManyRequestsResponse({
+    ...RESPOSTA_LIMITE_EXCEDIDO,
+    description: `${LIMITE_SENHA_CONFIRMACAO.maximo} senhas erradas em ${emMinutos(LIMITE_SENHA_CONFIRMACAO.janelaMs)} min (mesmo contador de \`PUT /me/senha\`).`,
+  })
+  excluirConta(
+    @Body() { senha }: ExcluirContaDto,
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+  ): Promise<void> {
+    return this.conta.excluir(usuario.id, senha)
   }
 }

@@ -1,11 +1,14 @@
 import { z } from 'zod'
-import { TipoEvento } from '../enums/evento'
+import { StatusEvento, TipoEvento } from '../enums/evento'
+import { paginacaoQuerySchema } from '../utils/paginacao'
+import { booleanoQuerySchema } from '../utils/query'
 
 export const LOCAL_EVENTO_MIN = 2
 export const LOCAL_EVENTO_MAX = 120
 export const OBSERVACOES_EVENTO_MAX = 500
 export const DIAS_PASSADO_EVENTO = 365
 export const DIAS_FUTURO_EVENTO = 730
+export const PLACAR_MAX = 999
 
 const DIA_MS = 24 * 60 * 60 * 1000
 
@@ -88,6 +91,80 @@ export const editarEventoSchema = z
 /** Corpo vazio; a #20 acrescenta `escopo`. */
 export const cancelarEventoSchema = z.object({}).strict().default({})
 
+/** Semântica no épico #22 §3 (RN18); limites de dia calculados no servidor. */
+export const PeriodoEventos = {
+  PROXIMOS: 'PROXIMOS',
+  PASSADOS: 'PASSADOS',
+  TODOS: 'TODOS',
+} as const
+
+export type PeriodoEventos = (typeof PeriodoEventos)[keyof typeof PeriodoEventos]
+
+/** Só jogos `FINALIZADO`: `PENDENTE` = sem resultado (#21, #23). */
+export const FiltroResultado = {
+  PENDENTE: 'PENDENTE',
+  REGISTRADO: 'REGISTRADO',
+} as const
+
+export type FiltroResultado = (typeof FiltroResultado)[keyof typeof FiltroResultado]
+
+const STATUS_EVENTO = new Set<string>(Object.values(StatusEvento))
+
+function ehStatusEvento(valor: string): valor is StatusEvento {
+  return STATUS_EVENTO.has(valor)
+}
+
+const statusListaSchema = z
+  .string({ error: 'Informe os status separados por vírgula.' })
+  .transform((valor, ctx) => {
+    const lista = [...new Set(valor.split(',').map((status) => status.trim()))]
+    if (lista.every(ehStatusEvento)) return lista
+    ctx.issues.push({ code: 'custom', message: 'Status inválido.', input: valor })
+    return z.NEVER
+  })
+
+/** Query de `GET /eventos` (épico #22 §7). */
+export const listarEventosQuerySchema = paginacaoQuerySchema
+  .extend({
+    periodo: z
+      .enum(PeriodoEventos, { error: 'Use PROXIMOS, PASSADOS ou TODOS.' })
+      .default(PeriodoEventos.PROXIMOS),
+    tipo: z.enum(TipoEvento, { error: 'Use JOGO ou TREINO.' }).optional(),
+    modalidadeId: z.uuid({ error: 'Modalidade inválida.' }).optional(),
+    timeId: z.uuid({ error: 'Time inválido.' }).optional(),
+    status: statusListaSchema.optional(),
+    resultado: z.enum(FiltroResultado, { error: 'Use PENDENTE ou REGISTRADO.' }).optional(),
+    serieId: z.uuid({ error: 'Série inválida.' }).optional(),
+    aPartirDe: z.iso.datetime({ offset: true, error: 'Data inválida.' }).optional(),
+    confirmadoPorMim: booleanoQuerySchema,
+    incluirInativos: booleanoQuerySchema,
+    ordem: z.enum(['asc', 'desc'], { error: 'Use asc ou desc.' }).optional(),
+  })
+  .strict()
+
+export const alterarStatusSchema = z
+  .object({ status: z.enum(StatusEvento, { error: 'Escolha um status válido.' }) })
+  .strict()
+
+const placarSchema = z
+  .number({ error: 'Informe o placar.' })
+  .int({ error: 'O placar deve ser um número inteiro.' })
+  .min(0, { error: `O placar deve estar entre 0 e ${PLACAR_MAX}.` })
+  .max(PLACAR_MAX, { error: `O placar deve estar entre 0 e ${PLACAR_MAX}.` })
+
+/** `resultado` nunca vem do cliente; `finalizar` finaliza o jogo na mesma transação (UC17 A1). */
+export const registrarResultadoSchema = z
+  .object({
+    placarTime: placarSchema,
+    placarAdversario: placarSchema,
+    finalizar: z.boolean().optional(),
+  })
+  .strict()
+
 export type CriarEvento = z.infer<typeof criarEventoSchema>
 export type EditarEvento = z.infer<typeof editarEventoSchema>
 export type CriarEventoForm = z.input<typeof criarEventoSchema>
+export type ListarEventosQuery = z.infer<typeof listarEventosQuerySchema>
+export type AlterarStatus = z.infer<typeof alterarStatusSchema>
+export type RegistrarResultado = z.infer<typeof registrarResultadoSchema>
+export type RegistrarResultadoForm = z.input<typeof registrarResultadoSchema>

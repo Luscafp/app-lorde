@@ -1,6 +1,5 @@
-import { TelaProvisoria } from '@/components/tela-provisoria'
+import { ExcluirConta } from '@/features/perfil'
 
-// Fluxo de exclusão na #12.
-export default function ExcluirConta() {
-  return <TelaProvisoria titulo="Excluir conta" />
+export default function TelaExcluirConta() {
+  return <ExcluirConta />
 }

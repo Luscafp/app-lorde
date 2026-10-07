@@ -18,12 +18,21 @@ function versaoInstalada(): string {
   return build ? `${versao} (build ${build})` : versao
 }
 
-/** Identifica o OTA para o suporte; o canal só aparece fora de produção. */
-function atualizacaoInstalada(): string | null {
-  const id = Updates.updateId?.slice(0, 8)
-  if (!id) return null
-  const canal = Updates.channel
-  return canal && canal !== AMBIENTE_PRODUCAO ? `Atualização ${id} · ${canal}` : `Atualização ${id}`
+/** Identifica o binário e o OTA para o suporte; o canal só aparece fora de produção. */
+function itensAplicativo(): PropsItemConfiguracao[] {
+  const { runtimeVersion, updateId, isEmbeddedLaunch, channel } = Updates
+  const itens: PropsItemConfiguracao[] = [
+    { icone: 'phone-portrait-outline', rotulo: 'Versão', valorDireita: versaoInstalada() },
+  ]
+  if (runtimeVersion) {
+    itens.push({ icone: 'hardware-chip-outline', rotulo: 'Runtime', valorDireita: runtimeVersion })
+  }
+  const atualizacao = isEmbeddedLaunch || !updateId ? 'embutido' : updateId.slice(0, 8)
+  itens.push({ icone: 'cloud-download-outline', rotulo: 'Atualização', valorDireita: atualizacao })
+  if (channel && channel !== AMBIENTE_PRODUCAO) {
+    itens.push({ icone: 'git-branch-outline', rotulo: 'Canal', valorDireita: channel })
+  }
+  return itens
 }
 
 /** Só monta `mailto:` com e-mail válido: um cadastro errado não abre esquemas arbitrários. */
@@ -71,7 +80,6 @@ function DadosAtletica({ atletica }: { atletica: AtleticaPublica }) {
 
 export function TelaSobre() {
   const consulta = useConsultaAtletica()
-  const atualizacao = atualizacaoInstalada()
 
   return (
     <ScrollView contentContainerClassName="flex-grow gap-6 pb-4">
@@ -84,18 +92,8 @@ export function TelaSobre() {
           )}
         </TelaDados>
       </View>
-      <View className="gap-1 px-4">
-        <SecaoConfiguracoes
-          titulo="Aplicativo"
-          itens={[
-            { icone: 'phone-portrait-outline', rotulo: 'Versão', valorDireita: versaoInstalada() },
-          ]}
-        />
-        {atualizacao && (
-          <Texto variante="legenda" className="px-1 text-xs">
-            {atualizacao}
-          </Texto>
-        )}
+      <View className="px-4">
+        <SecaoConfiguracoes titulo="Aplicativo" itens={itensAplicativo()} />
       </View>
     </ScrollView>
   )

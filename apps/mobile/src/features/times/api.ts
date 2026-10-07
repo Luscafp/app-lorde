@@ -37,10 +37,6 @@ export async function buscarTime(id: string, sinal?: AbortSignal): Promise<TimeD
   return timeDtoSchema.parse(await api.get(`/times/${id}`, { sinal }))
 }
 
-export async function buscarElenco(id: string, sinal?: AbortSignal): Promise<ElencoDto> {
-  return elencoDtoSchema.parse(await api.get(`/times/${id}/elenco`, { sinal }))
-}
-
 export async function criarTime(dados: TimeCriacao): Promise<TimeDto> {
   return timeDtoSchema.parse(await api.post('/times', dados))
 }
@@ -51,6 +47,18 @@ export async function atualizarTime(id: string, dados: TimeAtualizacao): Promise
 
 export async function excluirTime(id: string): Promise<void> {
   await api.delete(`/times/${id}`)
+}
+
+export async function buscarElenco(timeId: string, sinal?: AbortSignal): Promise<ElencoDto> {
+  return elencoDtoSchema.parse(await api.get(`/times/${timeId}/elenco`, { sinal }))
+}
+
+export async function definirCapitao(timeId: string, usuarioId: string | null): Promise<TimeDto> {
+  return timeDtoSchema.parse(await api.put(`/times/${timeId}/capitao`, { usuarioId }))
+}
+
+export async function removerMembro(timeId: string, usuarioId: string): Promise<void> {
+  await api.delete(`/times/${timeId}/elenco/${usuarioId}`)
 }
 
 export async function listarAtleticasAdversarias(

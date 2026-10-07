@@ -47,12 +47,10 @@ export function erroAdversarioEmTreino(): ErroNegocio {
   return erroDeCampo(HttpStatus.BAD_REQUEST, 'VALIDATION_ERROR', 'timeAdversarioId', mensagem)
 }
 
-export function erroEventoCancelado(): ErroNegocio {
-  return new ErroNegocio(
-    HttpStatus.UNPROCESSABLE_ENTITY,
-    'EVENTO_CANCELADO',
-    'Evento cancelado não pode ser editado.',
-  )
+export function erroEventoCancelado(
+  mensagem = 'Evento cancelado não pode ser editado.',
+): ErroNegocio {
+  return new ErroNegocio(HttpStatus.UNPROCESSABLE_ENTITY, 'EVENTO_CANCELADO', mensagem)
 }
 
 export function erroEventoFinalizado(mensagem: string): ErroNegocio {
@@ -85,5 +83,50 @@ export function erroEventoComDependencias(details: DetalheErro[]): ErroNegocio {
     'EVENTO_COM_DEPENDENCIAS',
     'Este evento tem respostas, presenças ou resultado. Cancele-o em vez de excluir.',
     details,
+  )
+}
+
+/** Fora de `TRANSICOES_STATUS` ou guarda violada; `details` traz `de → para` (épico #21 §7). */
+export function erroTransicaoInvalida(
+  de: StatusEvento,
+  para: StatusEvento,
+  motivo = 'Essa mudança de status não é permitida.',
+): ErroNegocio {
+  return new ErroNegocio(HttpStatus.UNPROCESSABLE_ENTITY, 'TRANSICAO_INVALIDA', motivo, [
+    { field: 'status', message: `${de} → ${para} não é permitido` },
+  ])
+}
+
+/** A atualização condicional não achou o evento no estado lido. */
+export function erroConflitoStatus(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.CONFLICT,
+    'CONFLITO_STATUS',
+    'O evento foi alterado por outra pessoa. Recarregue e tente novamente.',
+  )
+}
+
+/** O placar mudou entre a leitura e a gravação. */
+export function erroConflitoPlacar(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.CONFLICT,
+    'CONFLITO_CONCORRENTE',
+    'O placar foi alterado por outra pessoa. Recarregue e tente novamente.',
+  )
+}
+
+export function erroEventoNaoFinalizado(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.UNPROCESSABLE_ENTITY,
+    'EVENTO_NAO_FINALIZADO',
+    'Finalize o jogo para registrar o resultado.',
+  )
+}
+
+export function erroEventoNaoEJogo(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.UNPROCESSABLE_ENTITY,
+    'EVENTO_NAO_E_JOGO',
+    'Treino não tem placar.',
   )
 }

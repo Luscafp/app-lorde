@@ -66,6 +66,6 @@ export const api = {
     requisitar<T>(caminho, { ...opcoes, metodo: 'PUT', corpo }),
   patch: <T>(caminho: string, corpo?: unknown, opcoes?: OpcoesSemMetodo) =>
     requisitar<T>(caminho, { ...opcoes, metodo: 'PATCH', corpo }),
-  delete: <T>(caminho: string, opcoes?: OpcoesSemMetodo) =>
+  delete: <T>(caminho: string, opcoes?: Omit<OpcoesRequisicao, 'metodo'>) =>
     requisitar<T>(caminho, { ...opcoes, metodo: 'DELETE' }),
 }

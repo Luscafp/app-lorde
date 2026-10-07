@@ -32,6 +32,7 @@ export const chaves = {
   painel: {
     todos: () => ['painel'] as const,
     noticias: {
+      todos: () => ['painel', 'noticias'] as const,
       lista: (f: Filtros) => ['painel', 'noticias', 'lista', f] as const,
       detalhe: (id: string) => ['painel', 'noticias', 'detalhe', id] as const,
     },

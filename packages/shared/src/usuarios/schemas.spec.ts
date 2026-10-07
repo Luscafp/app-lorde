@@ -5,6 +5,7 @@ import {
   alterarSituacaoSchema,
   atualizarFotoSchema,
   atualizarPerfilSchema,
+  excluirContaSchema,
   listarUsuariosQuerySchema,
 } from './schemas'
 
@@ -115,5 +116,20 @@ describe('alterarSenhaSchema', () => {
       confirmarSenha: 'novaSenha8',
     })
     expect(campos(resultado)).toEqual(['confirmarSenha'])
+  })
+})
+
+describe('excluirContaSchema', () => {
+  it('aceita só a senha', () => {
+    expect(excluirContaSchema.parse({ senha: 'lorde2026' })).toEqual({ senha: 'lorde2026' })
+  })
+
+  it('exige a senha e rejeita campo extra', () => {
+    expect(campos(excluirContaSchema.safeParse({ senha: '' }))).toEqual(['senha'])
+    expect(excluirContaSchema.safeParse({ senha: 'x', usuarioId: 'y' }).success).toBe(false)
+  })
+
+  it('limita a senha a 128 caracteres', () => {
+    expect(campos(excluirContaSchema.safeParse({ senha: 'a'.repeat(129) }))).toEqual(['senha'])
   })
 })

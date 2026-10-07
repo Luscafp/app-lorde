@@ -1,5 +1,6 @@
 export { AcaoEntradaTime } from './acao-entrada-time'
 export { CartaoTime } from './cartao-time'
+export { ElencoPainel } from './elenco-painel'
 export { FormAtleticaAdversaria, SheetAtleticaAdversaria } from './form-atletica-adversaria'
 export { FormTime } from './form-time'
 export {
@@ -8,8 +9,10 @@ export {
   useAtualizarTime,
   useCriarAtleticaAdversaria,
   useCriarTime,
+  useDefinirCapitao,
   useElenco,
   useExcluirTime,
+  useRemoverMembro,
   useTime,
   useTimes,
   useTimesProprios,

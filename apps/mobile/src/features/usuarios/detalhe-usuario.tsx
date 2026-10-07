@@ -1,11 +1,10 @@
 import { formatarData, ROTULO_PAPEL, SituacaoUsuario, type UsuarioDetalhe } from '@atletica/shared'
 import { ScrollView, View } from 'react-native'
 import { TelaDados } from '@/components/estado'
-import { Botao, Cartao, Selo, Texto } from '@/components/ui'
+import { Botao, Cartao, confirmar, Selo, Texto } from '@/components/ui'
 import { paleta } from '@/features/atletica'
 import { AlterarCargo } from './alterar-cargo'
 import { Avatar } from './componentes'
-import { confirmar } from './confirmar'
 import { useAlterarSituacao, useUsuario } from './consultas'
 
 function confirmarSituacao(usuario: UsuarioDetalhe, aoConfirmar: () => void) {

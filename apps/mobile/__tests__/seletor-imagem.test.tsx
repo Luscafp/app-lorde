@@ -120,6 +120,44 @@ describe('SeletorImagem', () => {
     expect(imagemExibida().source.uri).toBe(URI_ESCOLHIDA)
   })
 
+  it('onMudarImagem recebe a imagem atual, a escolhida e null ao remover', async () => {
+    const onMudarImagem = jest.fn()
+    await renderizar(
+      <SeletorImagem
+        finalidade="NOTICIA"
+        formato="retangulo"
+        valorAtualUrl={URL_ATUAL}
+        onChange={jest.fn()}
+        onMudarImagem={onMudarImagem}
+      />,
+    )
+    expect(onMudarImagem).toHaveBeenLastCalledWith(URL_ATUAL)
+
+    await escolherDaGaleria()
+    await waitFor(() => expect(onMudarImagem).toHaveBeenLastCalledWith(URI_ESCOLHIDA))
+    await waitFor(() => expect(envios).toHaveLength(1))
+    await act(() => ultimoEnvio().concluir())
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Remover' }))
+    expect(onMudarImagem).toHaveBeenLastCalledWith(null)
+  })
+
+  it('mensagemImagemInvalida substitui o erro de tamanho', async () => {
+    comprimirFalso.mockRejectedValue(new ErroImagem(MENSAGEM_IMAGEM_GRANDE))
+    await renderizar(
+      <SeletorImagem
+        finalidade="NOTICIA"
+        formato="retangulo"
+        mensagemImagemInvalida="Capa inválida"
+        onChange={jest.fn()}
+      />,
+    )
+    await escolherDaGaleria()
+
+    expect(await screen.findByText('Capa inválida')).toBeOnTheScreen()
+    expect(screen.queryByText(MENSAGEM_IMAGEM_GRANDE)).toBeNull()
+  })
+
   it('erro no envio → mensagem e "Tentar novamente", que pede novo presign', async () => {
     const onChange = jest.fn()
     await renderizar(<SeletorImagem finalidade="PERFIL" formato="circulo" onChange={onChange} />)

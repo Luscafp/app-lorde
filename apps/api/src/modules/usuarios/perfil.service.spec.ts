@@ -6,6 +6,7 @@ import type { SenhaService } from '../../infra/senha/senha.service'
 import type { RateLimitService } from '../auth/rate-limit.service'
 import type { SessaoService } from '../auth/sessao.service'
 import type { UploadsService } from '../uploads/uploads.service'
+import { ConfirmacaoSenhaService } from './confirmacao-senha.service'
 import { montarPerfil, PerfilService, type DadosPerfil } from './perfil.service'
 
 const callbacksAposCommit: (() => unknown)[] = []
@@ -69,12 +70,17 @@ function criarServico({ fotoKey = null as string | null, senhaConfere = true } =
   const limites = { verificar: jest.fn().mockResolvedValue(5), registrar: jest.fn() }
   const sessoes = { revogarTodas: jest.fn().mockResolvedValue(['outra-sessao']) }
   const eventos = { emitirAposCommit: jest.fn() }
+  const prisma = { db } as unknown as PrismaService
   const servico = new PerfilService(
-    { db } as unknown as PrismaService,
+    prisma,
     transacao as unknown as TransacaoService,
     uploads as unknown as UploadsService,
     senhas as unknown as SenhaService,
-    limites as unknown as RateLimitService,
+    new ConfirmacaoSenhaService(
+      prisma,
+      senhas as unknown as SenhaService,
+      limites as unknown as RateLimitService,
+    ),
     sessoes as unknown as SessaoService,
     eventos as unknown as EventosDominioService,
   )
