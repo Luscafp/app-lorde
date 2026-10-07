@@ -1,4 +1,5 @@
 export * from './dtos'
+export * from './participacao'
 export * from './resultado'
 export * from './schemas'
 export * from './status'

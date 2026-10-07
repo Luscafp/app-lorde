@@ -1,4 +1,4 @@
-import type { EventoDto } from '@atletica/shared'
+import type { EventoDto, EventoResumoDto } from '@atletica/shared'
 import type { Prisma } from '../../generated/prisma/client'
 import { naoExcluido } from '../../infra/prisma/nao-excluido'
 import type { TransacaoComEscopo } from '../../infra/prisma/prisma.service'
@@ -45,6 +45,14 @@ export function auditaveis(evento: LinhaEvento) {
     placarAdversario,
     resultado,
   }
+}
+
+export type EventoResumoBase = Omit<EventoResumoDto, 'souMembro' | 'minhaParticipacao'>
+
+/** Campos do item de `GET /eventos`, sem os dados do usuário. */
+export function paraEventoResumo(dto: EventoDto): EventoResumoBase {
+  const { observacoes: _o, criadoEm: _c, atualizadoEm: _a, ...resumo } = dto
+  return resumo
 }
 
 export function paraDto(evento: LinhaEvento): EventoDto {

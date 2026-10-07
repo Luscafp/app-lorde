@@ -16,6 +16,7 @@ import {
   erroTimeNaoEncontrado,
 } from './erros'
 import { CAMPOS_TIME, paraDto, VISIVEL_PARA_TODOS } from './linha-time'
+import { CAMPOS_MEMBRO, ELENCO_ATUAL, identidadeMembro } from './membro'
 
 export const MotivoSaida = {
   REMOVIDO_PELA_DIRETORIA: 'REMOVIDO_PELA_DIRETORIA',
@@ -44,12 +45,10 @@ export interface VinculoEncerrado {
   participacoesRemovidas: number
 }
 
-const NOME_USUARIO_EXCLUIDO = 'Usuário excluído'
-
 const ordemAlfabetica = new Intl.Collator('pt-BR', { sensitivity: 'base' })
 
 function vinculoAtivo(timeId: string, usuarioId: string) {
-  return { timeId, usuarioId, saidaEm: null }
+  return { timeId, usuarioId, ...ELENCO_ATUAL }
 }
 
 function capitaoPrimeiroDepoisNome(a: MembroElencoDto, b: MembroElencoDto): number {
@@ -83,23 +82,16 @@ export class ElencoService {
     garantirProprio(time)
 
     const membros = await this.prisma.db.membroTime.findMany({
-      where: { timeId, saidaEm: null },
-      select: {
-        entradaEm: true,
-        usuario: { select: { id: true, nome: true, fotoKey: true, excluidoEm: true } },
-      },
+      where: { timeId, ...ELENCO_ATUAL },
+      select: { entradaEm: true, usuario: { select: CAMPOS_MEMBRO } },
     })
     const items = membros
-      .map(({ entradaEm, usuario }) => {
-        const excluido = usuario.excluidoEm !== null
-        return {
-          usuarioId: usuario.id,
-          nome: excluido ? NOME_USUARIO_EXCLUIDO : usuario.nome,
-          fotoUrl: excluido ? null : this.uploads.urlPublica(usuario.fotoKey),
-          entradaEm: entradaEm.toISOString(),
-          capitao: usuario.id === time.capitaoId,
-        }
-      })
+      .map(({ entradaEm, usuario }) => ({
+        usuarioId: usuario.id,
+        ...identidadeMembro(usuario, this.uploads),
+        entradaEm: entradaEm.toISOString(),
+        capitao: usuario.id === time.capitaoId,
+      }))
       .sort(capitaoPrimeiroDepoisNome)
     return { items, total: items.length }
   }

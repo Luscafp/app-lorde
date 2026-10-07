@@ -4,20 +4,26 @@ import {
   criarEventoSchema,
   editarEventoSchema,
   eventoCanceladoDtoSchema,
+  eventoDetalheSchema,
   eventoDtoSchema,
   idParamSchema,
+  listaEventosSchema,
+  listarEventosQuerySchema,
   Papel,
   registrarResultadoSchema,
   statusEventoAlteradoDtoSchema,
   type CriarEvento,
   type EventoCanceladoDto,
+  type EventoDetalheDto,
   type EventoDto,
+  type ListaEventos,
   type StatusEventoAlteradoDto,
 } from '@atletica/shared'
 import {
   Body,
   Controller,
   Delete,
+  Get,
   Header,
   HttpCode,
   HttpStatus,
@@ -25,6 +31,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
 } from '@nestjs/common'
 import {
   ApiBadRequestResponse,
@@ -44,8 +51,10 @@ import { createZodDto } from 'nestjs-zod'
 import { PapelMinimo } from '../auth/decorators/papel-minimo.decorator'
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator'
 import type { UsuarioAutenticado } from '../auth/tipos'
+import { EventosLeituraService } from './eventos-leitura.service'
 import { EventosStatusService } from './eventos-status.service'
 import { EventosService } from './eventos.service'
+import { paraEventoResumo } from './linha-evento'
 import { ResultadoService } from './resultado.service'
 
 /** União discriminada não é tipável como classe; o pipe valida pelo schema e devolve `CriarEvento`. */
@@ -56,6 +65,9 @@ class CancelarEventoDto extends createZodDto(cancelarEventoSchema) {}
 class EventoIdDto extends createZodDto(idParamSchema) {}
 class EventoRespostaDto extends createZodDto(eventoDtoSchema) {}
 class EventoCanceladoRespostaDto extends createZodDto(eventoCanceladoDtoSchema) {}
+class ListarEventosQueryDto extends createZodDto(listarEventosQuerySchema) {}
+class ListaEventosDto extends createZodDto(listaEventosSchema) {}
+class EventoDetalheRespostaDto extends createZodDto(eventoDetalheSchema) {}
 class AlterarStatusDto extends createZodDto(alterarStatusSchema) {}
 class StatusAlteradoRespostaDto extends createZodDto(statusEventoAlteradoDtoSchema) {}
 class ResultadoDto extends createZodDto(registrarResultadoSchema) {}
@@ -86,7 +98,39 @@ const EXEMPLO: EventoDto = {
   atualizadoEm: '2026-09-30T14:00:00.000Z',
 }
 
+const EXEMPLO_LISTA: ListaEventos = {
+  items: [
+    {
+      ...paraEventoResumo(EXEMPLO),
+      souMembro: true,
+      minhaParticipacao: { confirmado: true, respondidoEm: '2026-10-01T12:00:00.000Z' },
+    },
+  ],
+  page: 1,
+  limit: 20,
+  total: 45,
+}
+
+const EXEMPLO_DETALHE: EventoDetalheDto = {
+  ...EXEMPLO,
+  serie: null,
+  contagem: { confirmados: 8, recusados: 2, semResposta: 4, elenco: 14 },
+  confirmados: [
+    {
+      id: 'c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f',
+      nome: 'Ana Souza',
+      fotoUrl: 'https://img.exemplo.com/usuarios/c2d3e4f5/perfil/foto.jpg',
+      capitao: true,
+    },
+  ],
+  souMembro: true,
+  minhaParticipacao: { confirmado: true, respondidoEm: '2026-10-01T12:00:00.000Z' },
+  podeResponder: true,
+  motivoBloqueioResposta: null,
+}
+
 const NAO_AUTENTICADO = '`UNAUTHENTICATED` ou `TOKEN_EXPIRED`.'
+const SEM_PERMISSAO = '`FORBIDDEN`: papel insuficiente.'
 const NAO_ENCONTRADO = '`NOT_FOUND`: evento inexistente, excluído ou de outra atlética.'
 const INVALIDO =
   '`VALIDATION_ERROR`: corpo inválido, campo extra (ex.: `status`, placar), id não-UUID, ' +
@@ -97,17 +141,60 @@ const TIMES_INVALIDOS =
 
 @ApiTags('Eventos')
 @ApiUnauthorizedResponse({ description: NAO_AUTENTICADO })
-@ApiForbiddenResponse({ description: '`FORBIDDEN`: papel insuficiente.' })
 @Controller('eventos')
 export class EventosController {
   constructor(
     private readonly eventos: EventosService,
     private readonly eventosStatus: EventosStatusService,
     private readonly resultados: ResultadoService,
+    private readonly leitura: EventosLeituraService,
   ) {}
+
+  @Get()
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Lista jogos e treinos com filtros e paginação (qualquer papel)',
+    description:
+      '`periodo`: `PROXIMOS` (padrão) = em andamento, ou agendado/cancelado a partir de 00:00 de ' +
+      'hoje em America/Fortaleza (RN18); `PASSADOS` = o restante; `TODOS`. Ordem padrão: ' +
+      '`inicio` crescente em `PROXIMOS`, decrescente nos demais. `modalidadeId` filtra pela ' +
+      'modalidade do time (RN19). `status` aceita lista separada por vírgula. `resultado` ' +
+      'restringe a jogos `FINALIZADO`. `confirmadoPorMim` usa o usuário do token. Eventos de ' +
+      'time ou modalidade inativos só aparecem com `incluirInativos=true` para DIRETOR ou acima.',
+  })
+  @ApiOkResponse({ type: ListaEventosDto, example: EXEMPLO_LISTA })
+  @ApiBadRequestResponse({
+    description: '`VALIDATION_ERROR`: parâmetro inválido ou desconhecido, `limit` fora de 1–50.',
+  })
+  listar(
+    @Query() query: ListarEventosQueryDto,
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+  ): Promise<ListaEventos> {
+    return this.leitura.listar(query, usuario)
+  }
+
+  @Get(':id')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Detalhe do evento com contagem do elenco atual e a participação do usuário',
+    description:
+      '`contagem` e `confirmados` ("Quem vai") consideram só o elenco atual do time. ' +
+      '`podeResponder` (RN30) e `motivoBloqueioResposta` (`NAO_MEMBRO_DO_ELENCO`, ' +
+      '`EVENTO_CANCELADO`, `EVENTO_NAO_AGENDADO`, `EVENTO_JA_INICIADO`) usam o relógio do servidor.',
+  })
+  @ApiOkResponse({ type: EventoDetalheRespostaDto, example: EXEMPLO_DETALHE })
+  @ApiBadRequestResponse({ description: '`VALIDATION_ERROR`: id não-UUID.' })
+  @ApiNotFoundResponse({ description: NAO_ENCONTRADO })
+  detalhar(
+    @Param() { id }: EventoIdDto,
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+  ): Promise<EventoDetalheDto> {
+    return this.leitura.detalhar(id, usuario)
+  }
 
   @Post()
   @PapelMinimo(Papel.DIRETOR)
+  @ApiForbiddenResponse({ description: SEM_PERMISSAO })
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'Cadastra um Jogo ou Treino avulso',
@@ -145,6 +232,7 @@ export class EventosController {
 
   @Patch(':id')
   @PapelMinimo(Papel.DIRETOR)
+  @ApiForbiddenResponse({ description: SEM_PERMISSAO })
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'Edita data, local, observações e times (ao menos um campo)',
@@ -169,6 +257,7 @@ export class EventosController {
 
   @Post(':id/cancelar')
   @PapelMinimo(Papel.DIRETOR)
+  @ApiForbiddenResponse({ description: SEM_PERMISSAO })
   @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
@@ -193,6 +282,7 @@ export class EventosController {
 
   @Patch(':id/status')
   @PapelMinimo(Papel.DIRETOR)
+  @ApiForbiddenResponse({ description: SEM_PERMISSAO })
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'Altera o status pela máquina de estados',
@@ -222,6 +312,7 @@ export class EventosController {
 
   @Put(':id/resultado')
   @PapelMinimo(Papel.DIRETOR)
+  @ApiForbiddenResponse({ description: SEM_PERMISSAO })
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'Registra ou corrige o placar de um jogo',
@@ -267,6 +358,7 @@ export class EventosController {
 
   @Delete(':id')
   @PapelMinimo(Papel.PRESIDENTE)
+  @ApiForbiddenResponse({ description: SEM_PERMISSAO })
   @HttpCode(HttpStatus.NO_CONTENT)
   @Header('Cache-Control', 'no-store')
   @ApiOperation({

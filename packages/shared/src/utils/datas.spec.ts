@@ -4,6 +4,7 @@ import {
   formatarDataHora,
   formatarHora,
   FUSO_PADRAO,
+  inicioDoDiaLocal,
   localParaUtc,
 } from './datas'
 
@@ -116,5 +117,16 @@ describe('localParaUtc', () => {
     ['', ''],
   ])('lança erro para %p %p', (data, hora) => {
     expect(() => localParaUtc(data, hora)).toThrow('inválida')
+  })
+})
+
+describe('inicioDoDiaLocal', () => {
+  it.each([
+    ['meio do dia', '2026-10-07T15:00:00.000Z', '2026-10-07T03:00:00.000Z'],
+    ['00:00 local em ponto', '2026-10-07T03:00:00.000Z', '2026-10-07T03:00:00.000Z'],
+    ['01:00 UTC = 22:00 do dia anterior', '2026-10-07T01:00:00.000Z', '2026-10-06T03:00:00.000Z'],
+    ['23:59 local', '2026-10-08T02:59:59.999Z', '2026-10-07T03:00:00.000Z'],
+  ])('%s', (_caso, agora, esperado) => {
+    expect(inicioDoDiaLocal(agora).toISOString()).toBe(esperado)
   })
 })
