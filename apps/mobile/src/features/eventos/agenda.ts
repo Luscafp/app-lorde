@@ -1,8 +1,9 @@
 import { chaveDiaLocal, TipoEvento } from '@atletica/shared'
 import { z } from 'zod'
+import type { FiltrosEventos } from './api'
 
 export type AbaAgenda = 'eventos' | 'placar'
-export type FiltrosAgenda = { tipo?: TipoEvento; modalidadeId?: string }
+export type FiltrosSelecionados = Pick<FiltrosEventos, 'tipo' | 'modalidadeId'>
 export type ParametrosAgenda = { aba?: string; tipo?: string; modalidadeId?: string }
 export type Dia<T> = { dia: string; eventos: T[] }
 
@@ -12,7 +13,7 @@ const idSchema = z.uuid()
 /** Parâmetro inválido na URL (deep link antigo, digitado) vale como "sem filtro". */
 export function lerParametros({ aba, tipo, modalidadeId }: ParametrosAgenda): {
   aba: AbaAgenda
-  filtros: FiltrosAgenda
+  filtros: FiltrosSelecionados
 } {
   return {
     aba: aba === 'placar' ? 'placar' : 'eventos',

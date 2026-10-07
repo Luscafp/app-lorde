@@ -1,5 +1,10 @@
-export { lerParametros, type AbaAgenda, type FiltrosAgenda, type ParametrosAgenda } from './agenda'
+export {
+  lerParametros,
+  type AbaAgenda,
+  type FiltrosSelecionados,
+  type ParametrosAgenda,
+} from './agenda'
 export { CabecalhoDia, EventoCard, MinhaRespostaChip, type EventoDoCard } from './components'
-export { eventoEmCache, useEventos } from './consultas'
+export { useEventos } from './consultas'
 export { tituloEvento } from './formatacao'
 export { TelaAgenda } from './tela-agenda'

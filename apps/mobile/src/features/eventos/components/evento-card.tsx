@@ -13,7 +13,7 @@ export type EventoDoCard = Pick<
 
 const ROTULO_TIPO = { [TipoEvento.JOGO]: 'JOGO', [TipoEvento.TREINO]: 'TREINO' } as const
 
-/** Agendado é o estado normal e fica sem selo (RN14). */
+/** Chips do card no épico #22 §6: agendado é o estado normal e fica sem selo. */
 const SELO_STATUS: Partial<Record<StatusEvento, { texto: string; cor: string }>> = {
   [StatusEvento.EM_ANDAMENTO]: { texto: 'EM ANDAMENTO', cor: paleta.sucesso },
   [StatusEvento.FINALIZADO]: { texto: 'FINALIZADO', cor: paleta['texto-suave'] },

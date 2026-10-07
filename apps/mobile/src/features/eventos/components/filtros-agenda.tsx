@@ -2,7 +2,7 @@ import { TipoEvento } from '@atletica/shared'
 import { View } from 'react-native'
 import { Pilulas, type Opcao } from '@/components/ui'
 import { useModalidades } from '@/features/modalidades'
-import type { FiltrosAgenda as Filtros } from '../agenda'
+import type { FiltrosSelecionados } from '../agenda'
 
 const OPCOES_TIPO: readonly Opcao<TipoEvento>[] = [
   { valor: undefined, rotulo: 'Todos' },
@@ -10,7 +10,7 @@ const OPCOES_TIPO: readonly Opcao<TipoEvento>[] = [
   { valor: TipoEvento.TREINO, rotulo: 'Treinos' },
 ]
 
-type Props = { filtros: Filtros; aoMudar: (filtros: Filtros) => void }
+type Props = { filtros: FiltrosSelecionados; aoMudar: (filtros: FiltrosSelecionados) => void }
 
 /** Sem modalidades (carregando ou erro) fica só "Todas": a lista não depende delas. */
 export function FiltrosAgenda({ filtros, aoMudar }: Props) {

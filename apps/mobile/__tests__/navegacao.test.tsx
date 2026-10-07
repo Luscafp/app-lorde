@@ -173,6 +173,25 @@ describe('navegação', () => {
     listarEventos.mockRestore()
   })
 
+  it('"Limpar filtros" tira os filtros da URL e consulta sem eles (#76)', async () => {
+    const listarEventos = jest
+      .spyOn(apiEventos, 'listarEventos')
+      .mockResolvedValue({ items: [], page: 1, limit: 20, total: 0 })
+    await comSessaoSalva('ATLETA')
+    await abrir('/agenda?tipo=JOGO')
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Limpar filtros' }))
+    await waitFor(() =>
+      expect(listarEventos).toHaveBeenLastCalledWith(
+        { periodo: 'PROXIMOS', tipo: undefined, modalidadeId: undefined },
+        1,
+        expect.anything(),
+      ),
+    )
+    expect(await screen.findByText('Nenhum evento agendado')).toBeOnTheScreen()
+    listarEventos.mockRestore()
+  })
+
   it('deep link /painel de ATLETA redireciona ao Início', async () => {
     await comSessaoSalva('ATLETA')
     const caminho = await abrir('/painel')

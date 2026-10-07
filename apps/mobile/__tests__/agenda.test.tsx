@@ -1,23 +1,28 @@
 import type { EventoResumoDto, ListaEventos, Modalidade } from '@atletica/shared'
-import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
+import {
+  onlineManager,
+  QueryClientProvider,
+  type InfiniteData,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { useState, type ReactElement, type ReactNode } from 'react'
 import { StyleSheet, type StyleProp, type TextStyle } from 'react-native'
 import {
   EventoCard,
-  eventoEmCache,
   lerParametros,
   MinhaRespostaChip,
   TelaAgenda,
   tituloEvento,
   type AbaAgenda,
-  type FiltrosAgenda,
+  type FiltrosSelecionados,
 } from '@/features/eventos'
 import { agruparPorDia } from '@/features/eventos/agenda'
 import * as apiEventos from '@/features/eventos/api'
 import { rotuloDia } from '@/features/eventos/formatacao'
 import * as apiModalidades from '@/features/modalidades/api'
 import { ApiErro } from '@/infra/api/cliente'
+import { chaves } from '@/infra/query/chaves'
 import { criarQueryClient } from '@/infra/query/query-client'
 
 jest.mock('@/features/eventos/api', () => ({ LIMITE_PAGINA: 20, listarEventos: jest.fn() }))
@@ -77,7 +82,13 @@ const aoAbrirEvento = jest.fn()
 const aoMudarAba = jest.fn()
 
 /** Como a rota: filtros controlados de fora. */
-function Agenda({ inicial = {}, aba = 'eventos' }: { inicial?: FiltrosAgenda; aba?: AbaAgenda }) {
+function Agenda({
+  inicial = {},
+  aba = 'eventos',
+}: {
+  inicial?: FiltrosSelecionados
+  aba?: AbaAgenda
+}) {
   const [filtros, setFiltros] = useState(inicial)
   return (
     <TelaAgenda
@@ -247,7 +258,12 @@ describe('Aba Agenda', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: /^Treino — Lorde Vôlei/ }))
     expect(aoAbrirEvento).toHaveBeenCalledWith(segundo)
-    expect(eventoEmCache(cliente, 'b')).toEqual(segundo)
+    const listas = cliente.getQueriesData<InfiniteData<ListaEventos>>({
+      queryKey: chaves.eventos.todos(),
+    })
+    expect(
+      listas.flatMap(([, dados]) => dados?.pages.flatMap(({ items }) => items) ?? []),
+    ).toContainEqual(segundo)
   })
 
   it('filtros de tipo e modalidade combinados vão para a API (critérios 3 e 4)', async () => {
