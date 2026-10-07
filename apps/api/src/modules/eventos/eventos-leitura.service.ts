@@ -13,6 +13,8 @@ import type { Prisma } from '../../generated/prisma/client'
 import { naoExcluido } from '../../infra/prisma/nao-excluido'
 import { PrismaService } from '../../infra/prisma/prisma.service'
 import type { UsuarioAutenticado } from '../auth/tipos'
+import { VISIVEL_PARA_TODOS } from '../times/linha-time'
+import { CAMPOS_MEMBRO, ELENCO_ATUAL, identidadeMembro } from '../times/membro'
 import { UploadsService } from '../uploads/uploads.service'
 import { erroEventoNaoEncontrado } from './erros'
 import { CAMPOS_EVENTO, paraEventoDto, paraEventoResumo } from './evento-dto'
@@ -25,8 +27,6 @@ const CAMPOS_DETALHE = {
     select: { id: true, diasSemana: true, horario: true, dataInicio: true, dataFim: true },
   },
 } as const satisfies Prisma.EventoSelect
-
-const ELENCO_ATUAL = { saidaEm: null } as const
 
 type Leitor = Pick<UsuarioAutenticado, 'id' | 'papel'>
 
@@ -66,7 +66,7 @@ function filtros(query: ListarEventosQuery, leitor: Leitor, agora: Date): Prisma
     condicoes.push({ participacoes: { some: { usuarioId: leitor.id, confirmado: true } } })
   }
   if (!(query.incluirInativos && temNivelMinimo(leitor.papel, Papel.DIRETOR))) {
-    condicoes.push({ time: { ativo: true, modalidade: { ativa: true } } })
+    condicoes.push({ time: VISIVEL_PARA_TODOS })
   }
   return { AND: condicoes }
 }
@@ -111,13 +111,13 @@ export class EventosLeituraService {
       }),
     ])
     const meusTimes = new Set(membros.map(({ timeId }) => timeId))
-    const minhas = new Map(participacoes.map((linha) => [linha.eventoId, linha]))
+    const participacaoPorEvento = new Map(participacoes.map((linha) => [linha.eventoId, linha]))
 
     return {
       items: eventos.map((evento): EventoResumoDto => ({
         ...paraEventoResumo(paraEventoDto(evento)),
         souMembro: meusTimes.has(evento.timeId),
-        minhaParticipacao: minhaParticipacao(minhas.get(evento.id)),
+        minhaParticipacao: minhaParticipacao(participacaoPorEvento.get(evento.id)),
       })),
       page,
       limit,
@@ -144,7 +144,7 @@ export class EventosLeituraService {
       }),
       this.prisma.db.participacao.findMany({
         where: { eventoId: id, confirmado: true, ...doElenco },
-        select: { usuario: { select: { id: true, nome: true, fotoKey: true } } },
+        select: { usuario: { select: CAMPOS_MEMBRO } },
         orderBy: [{ usuario: { nome: 'asc' } }, { usuarioId: 'asc' }],
       }),
       this.prisma.db.participacao.findUnique({
@@ -158,8 +158,8 @@ export class EventosLeituraService {
 
     const contar = (confirmado: boolean) =>
       respostas.find((grupo) => grupo.confirmado === confirmado)?._count._all ?? 0
-    const vao = contar(true)
-    const naoVao = contar(false)
+    const totalConfirmados = contar(true)
+    const totalRecusados = contar(false)
     const { capitaoId, ...time } = evento.time
     const { serie } = evento
 
@@ -172,11 +172,15 @@ export class EventosLeituraService {
         dataInicio: dataLocal(serie.dataInicio),
         dataFim: dataLocal(serie.dataFim),
       },
-      contagem: { confirmados: vao, recusados: naoVao, semResposta: elenco - vao - naoVao, elenco },
+      contagem: {
+        confirmados: totalConfirmados,
+        recusados: totalRecusados,
+        semResposta: elenco - totalConfirmados - totalRecusados,
+        elenco,
+      },
       confirmados: confirmados.map(({ usuario }) => ({
         id: usuario.id,
-        nome: usuario.nome,
-        fotoUrl: this.uploads.urlPublica(usuario.fotoKey),
+        ...identidadeMembro(usuario, this.uploads),
         capitao: usuario.id === capitaoId,
       })),
       souMembro,

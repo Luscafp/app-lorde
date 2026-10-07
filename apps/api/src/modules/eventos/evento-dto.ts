@@ -1,4 +1,4 @@
-import type { EventoDto } from '@atletica/shared'
+import type { EventoDto, EventoResumoDto } from '@atletica/shared'
 import type { Prisma } from '../../generated/prisma/client'
 
 export const CAMPOS_EVENTO = {
@@ -26,7 +26,7 @@ export const CAMPOS_EVENTO = {
 
 export type LinhaEvento = Prisma.EventoGetPayload<{ select: typeof CAMPOS_EVENTO }>
 
-export type EventoResumoBase = Omit<EventoDto, 'observacoes' | 'criadoEm' | 'atualizadoEm'>
+export type EventoResumoBase = Omit<EventoResumoDto, 'souMembro' | 'minhaParticipacao'>
 
 /** Campos do item de `GET /eventos`, sem os dados do usuário. */
 export function paraEventoResumo(dto: EventoDto): EventoResumoBase {

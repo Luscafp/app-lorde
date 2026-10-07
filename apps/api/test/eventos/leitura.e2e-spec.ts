@@ -523,6 +523,23 @@ describe('/eventos — leitura (#75)', () => {
       ])
     })
 
+    it('usuário excluído aparece em "Quem vai" como "Usuário excluído" sem foto', async () => {
+      const eu = await usuario()
+      const excluido = await usuario()
+      for (const membro of [eu, excluido]) await adicionarMembro(time, membro)
+      await prismaTeste.usuario.update({
+        where: { id: excluido.id },
+        data: { fotoKey: 'usuarios/x/perfil/f.jpg', excluidoEm: new Date() },
+      })
+      const evento = await treino()
+      await criarParticipacoes(evento, [{ usuarioId: excluido.id, confirmado: true }])
+
+      const detalhe = eventoDetalheSchema.parse((await (await como(eu)).detalhar(evento.id)).body)
+      expect(detalhe.confirmados).toEqual([
+        { id: excluido.id, nome: 'Usuário excluído', fotoUrl: null, capitao: false },
+      ])
+    })
+
     it('cancelado: podeResponder = false e EVENTO_CANCELADO (critério 13)', async () => {
       const eu = await usuario()
       await adicionarMembro(time, eu)
