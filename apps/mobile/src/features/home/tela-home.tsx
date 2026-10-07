@@ -13,7 +13,7 @@ import { HomeHeader } from './home-header'
 import { SecaoProximosEventos } from './secao-proximos-eventos'
 import { SecaoUltimasNoticias } from './secao-ultimas-noticias'
 
-export type NavegacaoHome = {
+type NavegacaoHome = {
   aoAbrirAgenda: (aba: AbaAgenda) => void
   aoAbrirTimes: () => void
   aoAbrirNoticias: () => void
@@ -22,23 +22,20 @@ export type NavegacaoHome = {
   aoAbrirPerfil: () => void
 }
 
-/** Uma faixa para a tela: data da seção em cache mais antiga. */
-function datasEmCache(consultas: { data: unknown; dataUpdatedAt: number }[]) {
-  return consultas.filter(({ data }) => data !== undefined).map((c) => c.dataUpdatedAt)
-}
-
 export function TelaHome(navegacao: NavegacaoHome) {
   const eventos = useProximosEventos()
   const noticias = useUltimasNoticias()
   const secoes = combinarConsultas([eventos, noticias])
   const online = useOnline()
-  const datas = datasEmCache([eventos, noticias])
+  const emCache = [eventos, noticias].filter(({ data }) => data !== undefined)
 
   useMarcarHomePronta(!eventos.isPending && !noticias.isPending)
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: paleta.fundo }}>
-      {!online && datas.length > 0 && <FaixaOffline atualizadoEm={Math.min(...datas)} />}
+      {!online && emCache.length > 0 && (
+        <FaixaOffline atualizadoEm={combinarConsultas(emCache).dataUpdatedAt} />
+      )}
       <ScrollView
         testID="home"
         contentContainerClassName="gap-6 p-4"

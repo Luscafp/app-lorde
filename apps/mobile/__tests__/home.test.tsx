@@ -89,6 +89,10 @@ const navegacao = {
 
 const abrirHome = () => renderizar(<TelaHome {...navegacao} />)
 
+const refreshControl = () =>
+  (screen.getByTestId('home').props as { refreshControl: ReactElement<RefreshControlProps> })
+    .refreshControl
+
 beforeEach(() => {
   cliente = criarQueryClient()
   cliente.setDefaultOptions({ queries: { retry: false } })
@@ -129,7 +133,11 @@ describe('Home', () => {
     noticiasApi.mockReturnValue(new Promise(() => {}))
     await abrirHome()
 
-    expect(eventosApi).toHaveBeenCalledWith({ periodo: 'PROXIMOS' }, 1, expect.anything(), 5)
+    expect(eventosApi).toHaveBeenCalledWith(
+      { periodo: 'PROXIMOS' },
+      { page: 1, limit: 5 },
+      expect.anything(),
+    )
     expect(noticiasApi).toHaveBeenCalledWith({ page: 1, limit: 3 }, expect.anything())
     expect(
       cliente.getQueryState(chaves.eventos.lista({ periodo: 'PROXIMOS', limit: 5 })),
@@ -138,8 +146,8 @@ describe('Home', () => {
     expect(screen.getAllByLabelText('Carregando')).toHaveLength(2)
   })
 
-  it('mostra os eventos recebidos (no máximo 5) e o card abre o evento (critérios 2 e 6)', async () => {
-    eventosApi.mockResolvedValue(listaEventos(['a', 'b', 'c', 'd', 'e'].map((id) => evento(id))))
+  it('no máximo 5 eventos e o card abre o evento (critérios 2 e 6)', async () => {
+    eventosApi.mockResolvedValue(listaEventos([...'abcdefgh'].map((id) => evento(id))))
     await abrirHome()
 
     expect(await screen.findAllByRole('button', { name: /^Treino — Time / })).toHaveLength(5)
@@ -151,6 +159,16 @@ describe('Home', () => {
     eventosApi.mockResolvedValue(listaEventos([evento('a', { souMembro: true })]))
     await abrirHome()
     expect(await screen.findByText('RESPONDER')).toBeOnTheScreen()
+  })
+
+  it('no máximo 3 notícias, com título e data dd/mm/aaaa (critério 7)', async () => {
+    noticiasApi.mockResolvedValue(listaNoticias(['n1', 'n2', 'n3', 'n4'].map(noticia)))
+    await abrirHome()
+
+    const cards = await screen.findAllByRole('button', {
+      name: /^Notícia n\d, \d{2}\/\d{2}\/\d{4}$/,
+    })
+    expect(cards).toHaveLength(3)
   })
 
   it('notícia tocada abre o detalhe', async () => {
@@ -179,6 +197,15 @@ describe('Home', () => {
     expect(await screen.findByText('Treino — Time a')).toBeOnTheScreen()
     expect(eventosApi).toHaveBeenCalledTimes(2)
     expect(noticiasApi).toHaveBeenCalledTimes(1)
+  })
+
+  it('"Tentar novamente" numa seção não liga o indicador do pull-to-refresh', async () => {
+    eventosApi.mockRejectedValueOnce(falha()).mockReturnValue(new Promise(() => {}))
+    await abrirHome()
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Tentar novamente' }))
+    expect(eventosApi).toHaveBeenCalledTimes(2)
+    expect(refreshControl().props.refreshing).toBe(false)
   })
 
   it('notícias falham e eventos não: "Tentar novamente" refaz só as notícias', async () => {
@@ -223,10 +250,7 @@ describe('Home', () => {
     await screen.findByText('Notícia n1')
     await screen.findByText('Treino — Time a')
 
-    const { refreshControl } = screen.getByTestId('home').props as {
-      refreshControl: ReactElement<RefreshControlProps>
-    }
-    await act(() => refreshControl.props.onRefresh?.())
+    await act(() => refreshControl().props.onRefresh?.())
 
     await waitFor(() => expect(eventosApi).toHaveBeenCalledTimes(2))
     expect(noticiasApi).toHaveBeenCalledTimes(2)

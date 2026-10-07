@@ -58,20 +58,20 @@ export function useEvento(id: string) {
 export function useEventos(filtros: FiltrosEventos) {
   return useInfiniteQuery({
     queryKey: chaves.eventos.lista({ ...filtros, limit: LIMITE_PAGINA }),
-    queryFn: ({ pageParam, signal }) => listarEventos(filtros, pageParam, signal),
+    queryFn: ({ pageParam, signal }) => listarEventos(filtros, { page: pageParam }, signal),
     initialPageParam: 1,
     getNextPageParam: proximaPagina,
     select: ({ pages }) => juntarPaginas(pages),
   })
 }
 
-export const LIMITE_PROXIMOS_HOME = 5
+const LIMITE_PROXIMOS = 5
 
 export function useProximosEventos() {
   const filtros = { periodo: PeriodoEventos.PROXIMOS }
   return useQuery({
-    queryKey: chaves.eventos.lista({ ...filtros, limit: LIMITE_PROXIMOS_HOME }),
-    queryFn: ({ signal }) => listarEventos(filtros, 1, signal, LIMITE_PROXIMOS_HOME),
-    select: ({ items }) => items,
+    queryKey: chaves.eventos.lista({ ...filtros, limit: LIMITE_PROXIMOS }),
+    queryFn: ({ signal }) => listarEventos(filtros, { page: 1, limit: LIMITE_PROXIMOS }, signal),
+    select: ({ items }) => items.slice(0, LIMITE_PROXIMOS),
   })
 }

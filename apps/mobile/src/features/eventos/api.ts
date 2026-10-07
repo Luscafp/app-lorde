@@ -19,9 +19,8 @@ export type FiltrosEventos = Partial<Omit<ListarEventosQuery, 'page' | 'limit' |
 
 export async function listarEventos(
   filtros: FiltrosEventos,
-  page: number,
+  { page, limit = LIMITE_PAGINA }: { page: number; limit?: number },
   sinal?: AbortSignal,
-  limit = LIMITE_PAGINA,
 ): Promise<ListaEventos> {
   const resposta = await api.get('/eventos', {
     consulta: { ...filtros, page, limit },

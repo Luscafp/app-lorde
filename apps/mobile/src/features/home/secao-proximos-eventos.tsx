@@ -7,7 +7,7 @@ import { paleta } from '@/features/atletica'
 import { EventoCard, MENSAGEM_SEM_EVENTOS, MinhaRespostaChip } from '@/features/eventos'
 import { CabecalhoSecao } from './cabecalho-secao'
 
-export const MENSAGEM_ERRO_EVENTOS = 'Não foi possível carregar os eventos'
+const MENSAGEM_ERRO_EVENTOS = 'Não foi possível carregar os eventos'
 
 type Props = {
   consulta: UseQueryResult<EventoResumoDto[]>
@@ -24,7 +24,7 @@ export function SecaoProximosEventos({ consulta, aoVerAgenda, aoAbrirEvento }: P
       />
       <TelaDados
         consulta={consulta}
-        esqueleto="cartoes"
+        esqueleto={{ variante: 'cartoes', quantidade: 3 }}
         faixaOffline={false}
         vazio={(eventos) => eventos.length === 0}
         mensagemVazio={MENSAGEM_SEM_EVENTOS}

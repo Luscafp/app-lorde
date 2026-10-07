@@ -51,13 +51,13 @@ export function useNoticias() {
   })
 }
 
-export const LIMITE_ULTIMAS_HOME = 3
+const LIMITE_ULTIMAS = 3
 
 export function useUltimasNoticias() {
   return useQuery({
-    queryKey: chaves.noticias.lista({ limit: LIMITE_ULTIMAS_HOME }),
-    queryFn: ({ signal }) => listarNoticias({ page: 1, limit: LIMITE_ULTIMAS_HOME }, signal),
-    select: ({ items }) => items,
+    queryKey: chaves.noticias.lista({ limit: LIMITE_ULTIMAS }),
+    queryFn: ({ signal }) => listarNoticias({ page: 1, limit: LIMITE_ULTIMAS }, signal),
+    select: ({ items }) => items.slice(0, LIMITE_ULTIMAS),
   })
 }
 

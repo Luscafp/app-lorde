@@ -1,26 +1,18 @@
-import { Pressable, Text, View } from 'react-native'
-import { Imagem, iniciais } from '@/components/imagem'
+import { Pressable, View } from 'react-native'
+import { Imagem } from '@/components/imagem'
 import { Texto } from '@/components/ui'
-import { corTextoSobre, useAtletica } from '@/features/atletica'
+import { useAtletica } from '@/features/atletica'
 import { useSessao } from '@/infra/sessao/store'
 
 function LogoAtletica() {
-  const { nome, sigla, logoUrl, corPrimaria } = useAtletica()
+  const { nome, sigla, logoUrl } = useAtletica()
   return (
     <Imagem
       uri={logoUrl}
+      nome={nome}
+      textoFallback={sigla}
       rotulo={`Logo da ${nome}`}
       className="h-12 w-12 rounded-xl"
-      fallback={
-        <View
-          className="flex-1 items-center justify-center"
-          style={{ backgroundColor: corPrimaria }}
-        >
-          <Text className="font-semibold" style={{ color: corTextoSobre(corPrimaria) }}>
-            {sigla ?? iniciais(nome)}
-          </Text>
-        </View>
-      }
     />
   )
 }

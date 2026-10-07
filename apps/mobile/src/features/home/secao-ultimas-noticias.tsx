@@ -5,7 +5,7 @@ import { TelaDados } from '@/components/estado'
 import { MENSAGEM_SEM_NOTICIAS, NoticiaCard } from '@/features/noticias'
 import { CabecalhoSecao } from './cabecalho-secao'
 
-export const MENSAGEM_ERRO_NOTICIAS = 'Não foi possível carregar as notícias'
+const MENSAGEM_ERRO_NOTICIAS = 'Não foi possível carregar as notícias'
 
 type Props = {
   consulta: UseQueryResult<NoticiaResumoDto[]>
@@ -22,7 +22,7 @@ export function SecaoUltimasNoticias({ consulta, aoVerTodas, aoAbrirNoticia }: P
       />
       <TelaDados
         consulta={consulta}
-        esqueleto="cartao"
+        esqueleto="cartoes-capa"
         faixaOffline={false}
         vazio={(noticias) => noticias.length === 0}
         mensagemVazio={MENSAGEM_SEM_NOTICIAS}

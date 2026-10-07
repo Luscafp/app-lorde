@@ -164,7 +164,7 @@ describe('navegação', () => {
     const card = await screen.findByRole('button', { name: /^Treino — Futsal Masculino/ })
     expect(listarEventos).toHaveBeenCalledWith(
       { periodo: 'PROXIMOS', tipo: 'TREINO', modalidadeId: undefined },
-      1,
+      { page: 1 },
       expect.anything(),
     )
 
@@ -184,7 +184,7 @@ describe('navegação', () => {
     await waitFor(() =>
       expect(listarEventos).toHaveBeenLastCalledWith(
         { periodo: 'PROXIMOS', tipo: undefined, modalidadeId: undefined },
-        1,
+        { page: 1 },
         expect.anything(),
       ),
     )
