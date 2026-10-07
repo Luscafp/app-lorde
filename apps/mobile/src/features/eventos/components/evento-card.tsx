@@ -23,10 +23,12 @@ const SELO_STATUS: Partial<Record<StatusEvento, { texto: string; cor: string }>>
 type Props<T extends EventoDoCard> = {
   evento: T
   aoAbrir: (evento: T) => void
+  /** Selos depois do status (ex.: "RECORRENTE" no Painel). */
+  selos?: ReactNode
   direita?: ReactNode
 }
 
-export function EventoCard<T extends EventoDoCard>({ evento, aoAbrir, direita }: Props<T>) {
+export function EventoCard<T extends EventoDoCard>({ evento, aoAbrir, selos, direita }: Props<T>) {
   const { corPrimaria, corSecundaria } = useAtletica()
   const titulo = tituloEvento(evento)
   const quando = `${formatarDataHora(evento.inicio)} · ${evento.local}`
@@ -52,6 +54,7 @@ export function EventoCard<T extends EventoDoCard>({ evento, aoAbrir, direita }:
             <Selo texto={ROTULO_TIPO[evento.tipo]} cor={corTipo} />
             <Selo texto={evento.modalidade.nome} />
             {status && <Selo texto={status.texto} cor={status.cor} />}
+            {selos}
           </View>
           <Texto
             className="font-semibold"

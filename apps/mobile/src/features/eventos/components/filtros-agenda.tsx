@@ -4,7 +4,7 @@ import { Pilulas, type Opcao } from '@/components/ui'
 import { useModalidades } from '@/features/modalidades'
 import type { FiltrosSelecionados } from '../agenda'
 
-const OPCOES_TIPO: readonly Opcao<TipoEvento>[] = [
+export const OPCOES_TIPO: readonly Opcao<TipoEvento>[] = [
   { valor: undefined, rotulo: 'Todos' },
   { valor: TipoEvento.JOGO, rotulo: 'Jogos' },
   { valor: TipoEvento.TREINO, rotulo: 'Treinos' },

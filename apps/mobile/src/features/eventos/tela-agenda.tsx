@@ -4,7 +4,7 @@ import { View } from 'react-native'
 import { ListaInfinita, TelaDados } from '@/components/estado'
 import { Segmentos, Texto, type Segmento } from '@/components/ui'
 import { paleta } from '@/features/atletica'
-import { agruparPorDia, type AbaAgenda, type FiltrosSelecionados } from './agenda'
+import { linhasPorDia, type AbaAgenda, type FiltrosSelecionados } from './agenda'
 import { CabecalhoDia, EventoCard, FiltrosAgenda, MinhaRespostaChip } from './components'
 import { useEventos } from './consultas'
 
@@ -16,15 +16,6 @@ const SEGMENTOS: readonly Segmento<AbaAgenda>[] = [
   { valor: 'eventos', rotulo: 'Jogos e treinos' },
   { valor: 'placar', rotulo: 'Placar' },
 ]
-
-type Linha = { dia: string; evento?: undefined } | { dia?: undefined; evento: EventoResumoDto }
-
-function linhas(eventos: EventoResumoDto[]): Linha[] {
-  return agruparPorDia(eventos).flatMap(({ dia, eventos: doDia }) => [
-    { dia },
-    ...doDia.map((evento) => ({ evento })),
-  ])
-}
 
 type PropsEventos = {
   filtros: FiltrosSelecionados
@@ -53,7 +44,7 @@ function JogosETreinos({ filtros, aoMudarFiltros, aoAbrirEvento }: PropsEventos)
           <ListaInfinita
             testID="lista-agenda"
             consulta={consulta}
-            data={linhas(eventos)}
+            data={linhasPorDia(eventos)}
             keyExtractor={(linha) => linha.dia ?? linha.evento.id}
             contentContainerClassName="gap-2 p-4"
             renderItem={({ item }) =>
