@@ -15,6 +15,7 @@ export default function LayoutApp() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(abas)" />
+      <Stack.Screen name="eventos/[id]" options={{ ...comCabecalho, title: 'Evento' }} />
       <Stack.Screen name="noticias/index" options={{ ...comCabecalho, title: 'Notícias' }} />
       <Stack.Screen name="noticias/[id]" options={{ ...comCabecalho, title: 'Notícia' }} />
     </Stack>

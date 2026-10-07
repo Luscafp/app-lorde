@@ -5,7 +5,8 @@ import * as SecureStore from 'expo-secure-store'
 import { renderRouter, screen } from 'expo-router/testing-library'
 import * as rotaApp from '../app/(app)/_layout'
 import LayoutAbas from '../app/(app)/(abas)/_layout'
-import Agenda from '../app/(app)/(abas)/agenda'
+import * as rotaAgenda from '../app/(app)/(abas)/agenda/_layout'
+import Agenda from '../app/(app)/(abas)/agenda/index'
 import Inicio from '../app/(app)/(abas)/index'
 import LayoutPainel from '../app/(app)/(abas)/painel/_layout'
 import Painel from '../app/(app)/(abas)/painel/index'
@@ -14,12 +15,14 @@ import Perfil from '../app/(app)/(abas)/perfil/index'
 import Time from '../app/(app)/(abas)/times/[timeId]'
 import * as rotaTimes from '../app/(app)/(abas)/times/_layout'
 import Times from '../app/(app)/(abas)/times/index'
+import Evento from '../app/(app)/eventos/[id]'
 import * as rotaPublica from '../app/(publico)/_layout'
 import Cadastro from '../app/(publico)/cadastro'
 import Login from '../app/(publico)/login'
 import { redirectSystemPath } from '../app/+native-intent'
 import PaginaNaoEncontrada from '../app/+not-found'
 import LayoutRaiz from '../app/_layout'
+import * as apiEventos from '@/features/eventos/api'
 import * as apiTimes from '@/features/times/api'
 import { ApiErro } from '@/infra/api/cliente'
 import { consumirDestinoAposLogin } from '@/infra/sessao/destino'
@@ -39,7 +42,9 @@ const rotas = {
   '(app)/_layout': rotaApp,
   '(app)/(abas)/_layout': LayoutAbas,
   '(app)/(abas)/index': Inicio,
-  '(app)/(abas)/agenda': Agenda,
+  '(app)/(abas)/agenda/_layout': rotaAgenda,
+  '(app)/(abas)/agenda/index': Agenda,
+  '(app)/eventos/[id]': Evento,
   '(app)/(abas)/times/_layout': rotaTimes,
   '(app)/(abas)/times/index': Times,
   '(app)/(abas)/times/[timeId]': Time,
@@ -131,6 +136,41 @@ describe('navegação', () => {
     expect(buscarTime).toHaveBeenCalledWith('b2a1c3d4', expect.anything())
     expect(screen.queryByText('Página não encontrada')).toBeNull()
     buscarTime.mockRestore()
+  })
+
+  it('deep link /agenda com filtros consulta a API com eles e o card abre /eventos/:id (#76)', async () => {
+    const evento = {
+      id: 'e1',
+      tipo: 'TREINO' as const,
+      status: 'AGENDADO' as const,
+      inicio: '2030-10-09T22:00:00.000Z',
+      local: 'Ginásio',
+      serieId: null,
+      time: { id: 't1', nome: 'Futsal Masculino' },
+      modalidade: { id: 'm1', nome: 'Futsal', icone: 'soccer' },
+      timeAdversario: null,
+      placarTime: null,
+      placarAdversario: null,
+      resultado: null,
+      souMembro: false,
+      minhaParticipacao: null,
+    }
+    const listarEventos = jest
+      .spyOn(apiEventos, 'listarEventos')
+      .mockResolvedValue({ items: [evento], page: 1, limit: 20, total: 1 })
+    await comSessaoSalva('ATLETA')
+    const caminho = await abrir('/agenda?tipo=TREINO&modalidadeId=nao-uuid')
+
+    const card = await screen.findByRole('button', { name: /^Treino — Futsal Masculino/ })
+    expect(listarEventos).toHaveBeenCalledWith(
+      { periodo: 'PROXIMOS', tipo: 'TREINO', modalidadeId: undefined },
+      1,
+      expect.anything(),
+    )
+
+    await fireEvent.press(card)
+    await waitFor(() => expect(caminho()).toBe('/eventos/e1'))
+    listarEventos.mockRestore()
   })
 
   it('deep link /painel de ATLETA redireciona ao Início', async () => {
