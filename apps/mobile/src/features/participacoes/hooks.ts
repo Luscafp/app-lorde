@@ -87,7 +87,8 @@ export function useResponderParticipacao(eventoId: string) {
 export function useMeusProximosEventos() {
   return useQuery({
     queryKey: chaves.eventos.lista({ ...FILTROS_MEUS_PROXIMOS, limit: LIMITE_MEUS_PROXIMOS }),
-    queryFn: ({ signal }) => listarEventos(FILTROS_MEUS_PROXIMOS, 1, signal, LIMITE_MEUS_PROXIMOS),
+    queryFn: ({ signal }) =>
+      listarEventos(FILTROS_MEUS_PROXIMOS, { page: 1, limit: LIMITE_MEUS_PROXIMOS }, signal),
     select: ({ items }) => items,
   })
 }

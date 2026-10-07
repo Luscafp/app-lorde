@@ -243,9 +243,8 @@ describe('Meus próximos eventos (#24)', () => {
     expect(await screen.findByText(/Quadra A/)).toBeOnTheScreen()
     expect(listarEventos).toHaveBeenCalledWith(
       { periodo: 'PROXIMOS', confirmadoPorMim: true },
-      1,
+      { page: 1, limit: 5 },
       expect.anything(),
-      5,
     )
     const consultas = cliente.getQueryCache().findAll({ queryKey: chaves.eventos.todos() })
     expect(consultas.map(({ queryKey }) => queryKey)).toEqual([

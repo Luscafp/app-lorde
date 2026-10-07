@@ -153,7 +153,7 @@ describe('login', () => {
     await preencher('Senha', 'senha2026')
     await fireEvent.press(botao('Entrar'))
 
-    expect(await screen.findByRole('header', { name: 'Início' })).toBeOnTheScreen()
+    expect(await screen.findByRole('button', { name: 'Abrir perfil' })).toBeOnTheScreen()
     expect(caminho()).toBe('/')
     expect(chamadasPara('/auth/login')).toEqual([{ email: 'ana@exemplo.com', senha: 'senha2026' }])
     const { accessToken, refreshToken, accessTokenExpiraEm, usuario } = useSessao.getState()
@@ -292,7 +292,7 @@ describe('cadastro', () => {
     await fireEvent.press(screen.getByRole('checkbox'))
     await fireEvent.press(botao('Criar conta'))
 
-    expect(await screen.findByRole('header', { name: 'Início' })).toBeOnTheScreen()
+    expect(await screen.findByRole('button', { name: 'Abrir perfil' })).toBeOnTheScreen()
     expect(caminho()).toBe('/')
     expect(chamadasPara('/auth/cadastro')).toEqual([
       {

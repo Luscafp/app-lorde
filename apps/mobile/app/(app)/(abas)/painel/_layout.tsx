@@ -15,6 +15,7 @@ export default function LayoutPainel() {
       }}
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="eventos/index" options={{ title: 'Eventos' }} />
       <Stack.Screen name="eventos/novo" options={{ title: 'Novo evento' }} />
       <Stack.Screen name="eventos/[id]/index" options={{ title: 'Evento' }} />
       <Stack.Screen name="eventos/[id]/editar" options={{ title: 'Editar evento' }} />
@@ -24,6 +25,7 @@ export default function LayoutPainel() {
       <Stack.Screen name="noticias/index" options={{ title: 'Notícias' }} />
       <Stack.Screen name="noticias/nova" options={{ title: 'Nova notícia' }} />
       <Stack.Screen name="noticias/[id]/index" options={{ title: 'Editar notícia' }} />
+      <Stack.Screen name="solicitacoes/index" options={{ title: 'Solicitações' }} />
       <Stack.Screen name="times/index" options={{ title: 'Times' }} />
       <Stack.Screen name="times/novo" options={{ title: 'Novo time' }} />
       <Stack.Screen name="times/[id]/editar" options={{ title: 'Editar time' }} />
