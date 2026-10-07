@@ -25,7 +25,3 @@ export const RESULTADO: Record<Resultado, Rotulo> = {
 type AtleticaAdversaria = NonNullable<EventoResumoDto['timeAdversario']>['atletica']
 
 export const siglaOuNome = ({ sigla, nome }: AtleticaAdversaria) => sigla ?? nome
-
-export function tituloEvento({ time, timeAdversario }: EventoResumoDto): string {
-  return timeAdversario ? `${time.nome} × ${timeAdversario.atletica.nome}` : `Treino — ${time.nome}`
-}

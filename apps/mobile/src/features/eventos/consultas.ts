@@ -1,12 +1,15 @@
 import type { EventoDetalheDto, EventoResumoDto, ListaEventos } from '@atletica/shared'
 import {
+  useInfiniteQuery,
   useQuery,
   useQueryClient,
   type InfiniteData,
   type QueryClient,
 } from '@tanstack/react-query'
 import { chaves } from '@/infra/query/chaves'
-import { buscarEvento } from './api'
+import { juntarPaginas } from '@/infra/query/juntar-paginas'
+import { proximaPagina } from '@/infra/query/proxima-pagina'
+import { buscarEvento, LIMITE_PAGINA, listarEventos, type FiltrosEventos } from './api'
 
 /** O resumo do card abre a tela na hora (RNF03); contagem e "Quem vai" chegam com o detalhe. */
 export type EventoEmTela = EventoResumoDto | EventoDetalheDto
@@ -44,4 +47,15 @@ export function useEvento(id: string) {
   })
   if (!consulta.isPlaceholderData) return consulta
   return { ...consulta, dataUpdatedAt: card?.atualizadoEm ?? 0 }
+}
+
+/** `limit` na chave separa a lista paginada das listas curtas (Home, #79) com os mesmos filtros. */
+export function useEventos(filtros: FiltrosEventos) {
+  return useInfiniteQuery({
+    queryKey: chaves.eventos.lista({ ...filtros, limit: LIMITE_PAGINA }),
+    queryFn: ({ pageParam, signal }) => listarEventos(filtros, pageParam, signal),
+    initialPageParam: 1,
+    getNextPageParam: proximaPagina,
+    select: ({ pages }) => juntarPaginas(pages),
+  })
 }

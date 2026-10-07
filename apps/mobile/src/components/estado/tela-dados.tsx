@@ -16,6 +16,8 @@ type Props<T> = {
   consulta: Consulta<T>
   vazio?: (dados: T) => boolean
   mensagemVazio?: string
+  acaoVazio?: { titulo: string; onPress: () => void }
+  mensagemErro?: string
   esqueleto?: VarianteEsqueleto
   /** Desligada nas seções de uma tela que já mostra a faixa. */
   faixaOffline?: boolean
@@ -33,6 +35,8 @@ export function TelaDados<T>({
   consulta,
   vazio,
   mensagemVazio = 'Nada por aqui ainda.',
+  acaoVazio,
+  mensagemErro,
   esqueleto,
   faixaOffline = true,
   children,
@@ -51,14 +55,16 @@ export function TelaDados<T>({
         />
       )
     }
-    if (consulta.isError) return <EstadoErro onTentarNovamente={tentarNovamente} />
+    if (consulta.isError) {
+      return <EstadoErro mensagem={mensagemErro} onTentarNovamente={tentarNovamente} />
+    }
     return <Esqueleto variante={esqueleto} />
   }
 
   return (
     <View className="flex-1">
       {!conectado && faixaOffline && <FaixaOffline atualizadoEm={consulta.dataUpdatedAt} />}
-      {vazio?.(data) ? <EstadoVazio mensagem={mensagemVazio} /> : children(data)}
+      {vazio?.(data) ? <EstadoVazio mensagem={mensagemVazio} acao={acaoVazio} /> : children(data)}
     </View>
   )
 }
