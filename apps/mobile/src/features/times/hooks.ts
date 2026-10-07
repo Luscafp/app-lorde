@@ -10,7 +10,7 @@ import {
 } from '@atletica/shared'
 import { useInfiniteQuery, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { useProximosEventos } from '@/features/eventos/consultas'
+import { useProximosEventos } from '@/features/eventos'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
@@ -116,7 +116,7 @@ export function useElenco(timeId: string) {
   })
 }
 
-export const LIMITE_PROXIMOS_TREINOS = 5
+const LIMITE_PROXIMOS_TREINOS = 5
 
 /** Período padrão da API: futuros em ordem crescente, cancelados inclusos até a data (RN18). */
 export function useProximosTreinos(timeId: string) {

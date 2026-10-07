@@ -24,8 +24,7 @@ type Props<T extends EventoDoCard> = {
   evento: T
   aoAbrir: (evento: T) => void
   direita?: ReactNode
-  /** Substitui a data e hora padrão (`dd/mm/aaaa HH:mm`); o local é acrescentado. */
-  data?: string
+  rotuloData?: string
   selos?: ReactNode
 }
 
@@ -33,12 +32,12 @@ export function EventoCard<T extends EventoDoCard>({
   evento,
   aoAbrir,
   direita,
-  data = formatarDataHora(evento.inicio),
+  rotuloData = formatarDataHora(evento.inicio),
   selos,
 }: Props<T>) {
   const { corPrimaria, corSecundaria } = useAtletica()
   const titulo = tituloEvento(evento)
-  const quando = `${data} · ${evento.local}`
+  const quando = `${rotuloData} · ${evento.local}`
   const cancelado = evento.status === StatusEvento.CANCELADO
   const status = SELO_STATUS[evento.status]
   const corTipo = evento.tipo === TipoEvento.JOGO ? corPrimaria : corSecundaria

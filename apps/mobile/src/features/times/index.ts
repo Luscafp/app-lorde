@@ -11,7 +11,6 @@ export {
   useDefinirCapitao,
   useElenco,
   useExcluirTime,
-  useProximosTreinos,
   useRemoverMembro,
   useTime,
   useTimes,
@@ -23,4 +22,4 @@ export { ListaModalidadesTimes } from './lista-modalidades-times'
 export { ListaTimesPainel, type NavegacaoTimes } from './lista-times-painel'
 export { OpcaoRadio } from './opcao-radio'
 export { BuscaAdversaria, type AtleticaEscolhida } from './seletor-atletica'
-export { TelaTime } from './tela-time'
+export { TelaTime, type NavegacaoTime } from './tela-time'

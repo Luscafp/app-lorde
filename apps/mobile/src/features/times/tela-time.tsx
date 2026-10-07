@@ -3,7 +3,7 @@ import { RefreshControl, ScrollView, View } from 'react-native'
 import { EstadoVazio, TelaDados } from '@/components/estado'
 import { Texto } from '@/components/ui'
 import { useAtletica } from '@/features/atletica'
-import type { FiltrosSelecionados } from '@/features/eventos/agenda'
+import type { FiltrosSelecionados } from '@/features/eventos'
 import { ModalidadeIcone } from '@/features/modalidades'
 import { AcaoEntradaTime } from '@/features/solicitacoes'
 import { ehNaoEncontrado } from '@/infra/api/api-erro'
@@ -31,12 +31,13 @@ function CabecalhoTime({ time }: { time: TimeDto }) {
   )
 }
 
-type Props = {
-  timeId: string
+export type NavegacaoTime = {
   aoVoltar: () => void
   aoAbrirEvento: (id: string) => void
   aoVerAgenda: (filtros: FiltrosSelecionados) => void
 }
+
+type Props = NavegacaoTime & { timeId: string }
 
 export function TelaTime({ timeId, aoVoltar, aoAbrirEvento, aoVerAgenda }: Props) {
   const time = useTime(timeId)
@@ -74,7 +75,7 @@ export function TelaTime({ timeId, aoVoltar, aoAbrirEvento, aoVerAgenda }: Props
               <ListaElenco consulta={elenco} />
               <ProximosTreinos
                 consulta={treinos}
-                aoAbrirTreino={({ id }) => aoAbrirEvento(id)}
+                aoAbrirTreino={aoAbrirEvento}
                 aoVerAgenda={() =>
                   aoVerAgenda({ tipo: TipoEvento.TREINO, modalidadeId: dados.modalidade.id })
                 }

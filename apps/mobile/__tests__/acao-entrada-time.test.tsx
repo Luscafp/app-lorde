@@ -3,20 +3,20 @@ import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { Alert, type AlertButton } from 'react-native'
 import { toast } from '@/components/ui/toast'
+import * as apiEventos from '@/features/eventos/api'
 import * as apiSolicitacoes from '@/features/solicitacoes/api'
 import { TelaTime } from '@/features/times'
 import * as apiTimes from '@/features/times/api'
 import { ApiErro } from '@/infra/api/cliente'
 import { criarQueryClient } from '@/infra/query/query-client'
+import { paginaEventos } from '../test-utils/eventos'
 
 jest.mock('@/components/ui/toast', () => ({
   toast: { sucesso: jest.fn(), erro: jest.fn(), info: jest.fn() },
 }))
 jest.mock('@/features/times/api')
 jest.mock('@/features/solicitacoes/api')
-jest.mock('@/features/eventos/api', () => ({
-  listarEventos: jest.fn(() => Promise.resolve({ items: [], page: 1, limit: 5, total: 0 })),
-}))
+jest.mock('@/features/eventos/api')
 
 const apiTime = jest.mocked(apiTimes)
 const api = jest.mocked(apiSolicitacoes)
@@ -85,6 +85,7 @@ beforeEach(() => {
   cliente.setDefaultOptions({ queries: { retry: false } })
   onlineManager.setOnline(true)
   apiTime.buscarElenco.mockResolvedValue({ items: [], total: 0 })
+  jest.mocked(apiEventos.listarEventos).mockResolvedValue(paginaEventos([]))
 })
 
 afterEach(() => cliente.clear())

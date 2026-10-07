@@ -60,10 +60,11 @@ export function useEventos(filtros: FiltrosEventos) {
   })
 }
 
-/** Lista curta sem paginação (treinos do time, Home): só a primeira página. */
+/** Lista curta sem paginação: só a primeira página, com no máximo `limit` itens. */
 export function useProximosEventos(filtros: FiltrosEventos, limit: number) {
   return useQuery({
     queryKey: chaves.eventos.lista({ ...filtros, limit }),
     queryFn: ({ signal }) => listarEventos(filtros, 1, signal, limit),
+    select: (lista) => ({ ...lista, items: lista.items.slice(0, limit) }),
   })
 }

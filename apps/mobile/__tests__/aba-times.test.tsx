@@ -12,12 +12,18 @@ import type { RefreshControlProps } from 'react-native'
 import { features } from '@/config/features'
 import * as apiEventos from '@/features/eventos/api'
 import * as apiModalidades from '@/features/modalidades/api'
-import { ListaModalidadesTimes, TelaTime, useTimesProprios } from '@/features/times'
+import {
+  ListaModalidadesTimes,
+  TelaTime,
+  useTimesProprios,
+  type NavegacaoTime,
+} from '@/features/times'
 import * as apiTimes from '@/features/times/api'
 import { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { criarQueryClient } from '@/infra/query/query-client'
 import { useSessao } from '@/infra/sessao/store'
+import { eventoResumo } from '../test-utils/eventos'
 
 jest.mock('@/features/eventos/api', () => ({ LIMITE_PAGINA: 20, listarEventos: jest.fn() }))
 jest.mock('@/features/modalidades/api')
@@ -68,23 +74,15 @@ const pagina = <T,>(items: T[], page = 1, total = items.length) => ({
   total,
 })
 
-const treino = (id: string, parcial: Partial<EventoResumoDto> = {}): EventoResumoDto => ({
-  id,
-  tipo: 'TREINO',
-  status: 'AGENDADO',
-  inicio: '2030-10-02T22:00:00.000Z',
-  local: 'Ginásio UFMA',
-  serieId: null,
-  time: { id: MASCULINO.id, nome: MASCULINO.nome },
-  modalidade: MASCULINO.modalidade,
-  timeAdversario: null,
-  placarTime: null,
-  placarAdversario: null,
-  resultado: null,
-  souMembro: true,
-  minhaParticipacao: null,
-  ...parcial,
-})
+const treino = (id: string, parcial: Partial<EventoResumoDto> = {}) =>
+  eventoResumo(id, {
+    inicio: '2030-10-02T22:00:00.000Z',
+    local: 'Ginásio UFMA',
+    time: { id: MASCULINO.id, nome: MASCULINO.nome },
+    modalidade: MASCULINO.modalidade,
+    souMembro: true,
+    ...parcial,
+  })
 
 const ERRO_500 = new ApiErro({ status: 500, code: 'INTERNAL_ERROR', message: 'x' })
 const ERRO_404 = new ApiErro({ status: 404, code: 'NOT_FOUND', message: 'x' })
@@ -97,7 +95,11 @@ function Provedor({ children }: { children: ReactNode }) {
 
 const renderizar = (elemento: ReactNode) => render(<Provedor>{elemento}</Provedor>)
 
-const navegacao = { aoVoltar: jest.fn(), aoAbrirEvento: jest.fn(), aoVerAgenda: jest.fn() }
+const navegacao = {
+  aoVoltar: jest.fn(),
+  aoAbrirEvento: jest.fn(),
+  aoVerAgenda: jest.fn(),
+} satisfies NavegacaoTime
 const renderizarTime = (timeId = 't-masc') =>
   renderizar(<TelaTime timeId={timeId} {...navegacao} />)
 
@@ -400,6 +402,18 @@ describe('ProximosTreinos (#67)', () => {
     expect(screen.getByRole('link', { name: 'Ver na agenda' })).toBeOnTheScreen()
   })
 
+  it('nunca mostra mais de 5 treinos', async () => {
+    const dias = ['01', '02', '03', '04', '05', '06']
+    listarEventos.mockResolvedValue(
+      pagina(dias.map((dia) => treino(`e${dia}`, { inicio: `2030-10-${dia}T22:00:00.000Z` }))),
+    )
+    await renderizarTime()
+
+    await screen.findByText('Ter · 01/10/2030 · 19:00 · Ginásio UFMA')
+    expect(legendas()).toHaveLength(5)
+    expect(screen.queryByText('Dom · 06/10/2030 · 19:00 · Ginásio UFMA')).toBeNull()
+  })
+
   it('treino à 00:00 UTC aparece às 21:00 do dia anterior em America/Fortaleza', async () => {
     listarEventos.mockResolvedValue(pagina([treino('e1', { inicio: '2026-10-02T00:00:00.000Z' })]))
     await renderizarTime()
@@ -456,6 +470,20 @@ describe('ProximosTreinos (#67)', () => {
     expect(screen.getByText('Ana Souza')).toBeOnTheScreen()
     await fireEvent.press(screen.getByRole('button', { name: 'Tentar novamente' }))
     expect(await screen.findByText('Qua · 02/10/2030 · 19:00 · Ginásio UFMA')).toBeOnTheScreen()
+  })
+
+  it('offline mostra os treinos do cache sem consultar a API', async () => {
+    listarEventos.mockResolvedValue(pagina([treino('e1')]))
+    const { unmount } = await renderizarTime()
+    await screen.findByText('Qua · 02/10/2030 · 19:00 · Ginásio UFMA')
+    await unmount()
+
+    onlineManager.setOnline(false)
+    await renderizarTime()
+
+    expect(await screen.findByText('Qua · 02/10/2030 · 19:00 · Ginásio UFMA')).toBeOnTheScreen()
+    expect(screen.getAllByText(/^Modo offline · dados de/)).toHaveLength(1)
+    expect(listarEventos).toHaveBeenCalledTimes(1)
   })
 
   it('não existe feature flag de treinos do time', () => {

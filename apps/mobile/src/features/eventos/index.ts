@@ -13,8 +13,8 @@ export {
   ParticipacaoAcoes,
   type EventoDoCard,
 } from './components'
-export { useEventos } from './consultas'
-export { tituloEvento } from './formatacao'
+export { useEventos, useProximosEventos } from './consultas'
+export { rotuloInicio, tituloEvento } from './formatacao'
 export { useEventoPainel } from './hooks'
 export { TelaAgenda } from './tela-agenda'
 export { TelaEvento } from './tela-evento'

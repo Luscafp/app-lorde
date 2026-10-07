@@ -1,4 +1,4 @@
-import type { EventoResumoDto, ListaEventos } from '@atletica/shared'
+import type { ListaEventos } from '@atletica/shared'
 import type { UseQueryResult } from '@tanstack/react-query'
 import { Pressable, View } from 'react-native'
 import { TelaDados } from '@/components/estado'
@@ -11,7 +11,7 @@ export const MENSAGEM_ERRO_TREINOS = 'Não foi possível carregar os treinos'
 
 type Props = {
   consulta: UseQueryResult<ListaEventos>
-  aoAbrirTreino: (treino: EventoResumoDto) => void
+  aoAbrirTreino: (id: string) => void
   aoVerAgenda: () => void
 }
 

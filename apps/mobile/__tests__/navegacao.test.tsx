@@ -33,6 +33,7 @@ import {
   useSessao,
   type DadosSessao,
 } from '@/infra/sessao/store'
+import { eventoResumo, paginaEventos } from '../test-utils/eventos'
 
 const rotas = {
   _layout: LayoutRaiz,
@@ -159,29 +160,13 @@ describe('navegação', () => {
       }),
       jest.spyOn(apiTimes, 'buscarElenco').mockResolvedValue({ items: [], total: 0 }),
     ]
-    const listarEventos = jest.spyOn(apiEventos, 'listarEventos').mockResolvedValue({
-      items: [
-        {
-          id: 'e1',
-          tipo: 'TREINO',
-          status: 'AGENDADO',
-          inicio: '2030-10-09T22:00:00.000Z',
-          local: 'Ginásio',
-          serieId: null,
-          time: { id: timeId, nome: 'Futsal Masculino' },
-          modalidade,
-          timeAdversario: null,
-          placarTime: null,
-          placarAdversario: null,
-          resultado: null,
-          souMembro: false,
-          minhaParticipacao: null,
-        },
-      ],
-      page: 1,
-      limit: 5,
-      total: 1,
-    })
+    const listarEventos = jest
+      .spyOn(apiEventos, 'listarEventos')
+      .mockResolvedValue(
+        paginaEventos([
+          eventoResumo('e1', { time: { id: timeId, nome: 'Futsal Masculino' }, modalidade }),
+        ]),
+      )
     await comSessaoSalva('ATLETA')
     const caminho = await abrir(`/times/${timeId}`)
 
@@ -202,25 +187,9 @@ describe('navegação', () => {
   })
 
   it('deep link /agenda com filtros consulta a API com eles e o card abre /eventos/:id (#76)', async () => {
-    const evento = {
-      id: 'e1',
-      tipo: 'TREINO' as const,
-      status: 'AGENDADO' as const,
-      inicio: '2030-10-09T22:00:00.000Z',
-      local: 'Ginásio',
-      serieId: null,
-      time: { id: 't1', nome: 'Futsal Masculino' },
-      modalidade: { id: 'm1', nome: 'Futsal', icone: 'soccer' },
-      timeAdversario: null,
-      placarTime: null,
-      placarAdversario: null,
-      resultado: null,
-      souMembro: false,
-      minhaParticipacao: null,
-    }
     const listarEventos = jest
       .spyOn(apiEventos, 'listarEventos')
-      .mockResolvedValue({ items: [evento], page: 1, limit: 20, total: 1 })
+      .mockResolvedValue(paginaEventos([eventoResumo('e1')], 20))
     await comSessaoSalva('ATLETA')
     const caminho = await abrir('/agenda?tipo=TREINO&modalidadeId=nao-uuid')
 
