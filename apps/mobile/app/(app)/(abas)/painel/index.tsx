@@ -41,6 +41,12 @@ export default function Painel() {
     <ScrollView className="flex-1 bg-fundo" contentContainerClassName="gap-4 p-4">
       <Texto variante="titulo">Painel</Texto>
       <ItemPainel
+        titulo="Notícias"
+        descricao="Criar, publicar e despublicar notícias"
+        icone="newspaper-outline"
+        href="/painel/noticias"
+      />
+      <ItemPainel
         titulo="Times e modalidades"
         descricao="Times, adversários e modalidades"
         icone="trophy-outline"

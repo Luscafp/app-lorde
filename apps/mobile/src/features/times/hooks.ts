@@ -6,22 +6,25 @@ import type {
   TimeCriacao,
   TimeDto,
 } from '@atletica/shared'
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
+import { proximaPagina } from '@/infra/query/proxima-pagina'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import { useValorAtrasado } from '@/infra/use-valor-atrasado'
 import {
   atualizarAtleticaAdversaria,
   atualizarTime,
+  buscarElenco,
   buscarTime,
   criarAtleticaAdversaria,
   criarTime,
+  definirCapitao,
   excluirTime,
-  LIMITE_PAGINA,
   listarAtleticasAdversarias,
   listarTimes,
+  removerMembro,
   type FiltrosTimes,
 } from './api'
 
@@ -34,9 +37,6 @@ const ERROS_DO_TIME = [
 ]
 const ERROS_DA_ATLETICA = ['VALIDATION_ERROR', 'ATLETICA_DUPLICADA']
 const ATRASO_BUSCA_MS = 300
-
-const proximaPagina = ({ page, total }: { page: number; total: number }) =>
-  page * LIMITE_PAGINA < total ? page + 1 : undefined
 
 export function useTimes(filtros: FiltrosTimes) {
   return useInfiniteQuery({
@@ -72,13 +72,41 @@ export function useBuscaAdversarias() {
 }
 
 /** Times mostram a sigla da adversária e adversárias contam times: uma escrita invalida os dois. */
-function useInvalidar() {
+function useInvalidar(
+  prefixos: readonly QueryKey[] = [chaves.times.todos(), chaves.painel.adversarias.todos()],
+) {
   const cliente = useQueryClient()
-  return () =>
-    Promise.all([
-      cliente.invalidateQueries({ queryKey: chaves.times.todos() }),
-      cliente.invalidateQueries({ queryKey: chaves.painel.adversarias.todos() }),
-    ])
+  return () => Promise.all(prefixos.map((queryKey) => cliente.invalidateQueries({ queryKey })))
+}
+
+export function useElenco(timeId: string) {
+  return useQuery({
+    queryKey: chaves.times.elenco(timeId),
+    queryFn: ({ signal }) => buscarElenco(timeId, signal),
+  })
+}
+
+const ERROS_DE_ELENCO_DESATUALIZADO = ['CAPITAO_FORA_DO_ELENCO', 'MEMBRO_NAO_ENCONTRADO']
+
+/** O membro pode ter saído por outro diretor: o toast global avisa e o elenco é recarregado. */
+function useAcaoDeElenco<TData, TVariables>(mutationFn: (variaveis: TVariables) => Promise<TData>) {
+  const invalidar = useInvalidar([chaves.times.todos()])
+  return useAcaoOnline<TData, ApiErro, TVariables>({
+    mutationFn,
+    onSuccess: invalidar,
+    onError: (erro) => {
+      if (ERROS_DE_ELENCO_DESATUALIZADO.includes(erro.code)) void invalidar()
+    },
+  })
+}
+
+/** `null` remove a capitania. */
+export function useDefinirCapitao(timeId: string) {
+  return useAcaoDeElenco((usuarioId: string | null) => definirCapitao(timeId, usuarioId))
+}
+
+export function useRemoverMembro(timeId: string) {
+  return useAcaoDeElenco((usuarioId: string) => removerMembro(timeId, usuarioId))
 }
 
 /** Os erros de campo ficam com o formulário. */

@@ -171,11 +171,17 @@ jobs:
       - name: Testes
         if: steps.filtro.outputs.mobile == 'true'
         run: pnpm --filter mobile test
+      - name: Configuração dos três ambientes (expo config)
+        if: steps.filtro.outputs.mobile == 'true'
+        run: pnpm --filter mobile config:verificar
       # Alerta sobre dependências incompatíveis com o SDK do Expo; não bloqueia o PR.
       - name: expo-doctor (não bloqueante)
         if: steps.filtro.outputs.mobile == 'true'
         continue-on-error: true
         working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_AMBIENTE: development
+          EXPO_PUBLIC_API_URL: http://localhost:3000/api/v1
         run: npx --yes expo-doctor
 
   shared:

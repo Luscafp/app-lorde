@@ -17,7 +17,7 @@ import { VISIVEL_PARA_TODOS } from '../times/linha-time'
 import { CAMPOS_MEMBRO, ELENCO_ATUAL, identidadeMembro } from '../times/membro'
 import { UploadsService } from '../uploads/uploads.service'
 import { erroEventoNaoEncontrado } from './erros'
-import { CAMPOS_EVENTO, paraEventoDto, paraEventoResumo } from './evento-dto'
+import { CAMPOS_EVENTO, paraDto, paraEventoResumo } from './linha-evento'
 import { filtroPeriodo, ordemPadrao } from './periodo'
 
 const CAMPOS_DETALHE = {
@@ -115,7 +115,7 @@ export class EventosLeituraService {
 
     return {
       items: eventos.map((evento): EventoResumoDto => ({
-        ...paraEventoResumo(paraEventoDto(evento)),
+        ...paraEventoResumo(paraDto(evento)),
         souMembro: meusTimes.has(evento.timeId),
         minhaParticipacao: minhaParticipacao(participacaoPorEvento.get(evento.id)),
       })),
@@ -164,7 +164,7 @@ export class EventosLeituraService {
     const { serie } = evento
 
     return {
-      ...paraEventoDto({ ...evento, time }),
+      ...paraDto({ ...evento, time }),
       serie: serie && {
         id: serie.id,
         diasSemana: serie.diasSemana,

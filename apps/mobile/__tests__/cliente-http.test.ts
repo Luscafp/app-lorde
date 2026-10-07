@@ -132,6 +132,16 @@ describe('requisição', () => {
     await expect(api.delete('/eventos/1')).resolves.toBeUndefined()
   })
 
+  it('DELETE envia corpo JSON quando informado', async () => {
+    fetchMock.mockResolvedValue(resposta(204))
+
+    await api.delete('/me/conta', { corpo: { senha: 'lorde2026' } })
+
+    const [{ init }] = chamadas() as [Chamada]
+    expect(init.method).toBe('DELETE')
+    expect(init.body).toBe(JSON.stringify({ senha: 'lorde2026' }))
+  })
+
   it('converte o corpo de erro em ApiErro', async () => {
     fetchMock.mockResolvedValue(
       resposta(

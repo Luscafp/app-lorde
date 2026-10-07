@@ -97,9 +97,19 @@ export const eventoDetalheSchema = eventoDtoSchema
   })
   .strict()
 
+/** Resposta de `PATCH /eventos/:id/status`; sem mudança, `statusAnterior` = `status`. */
+export const statusEventoAlteradoDtoSchema = z
+  .object({
+    id: z.uuid(),
+    status: z.enum(StatusEvento),
+    statusAnterior: z.enum(StatusEvento),
+  })
+  .strict()
+
 export type EventoDto = z.infer<typeof eventoDtoSchema>
 export type EventoCanceladoDto = z.infer<typeof eventoCanceladoDtoSchema>
 export type MinhaParticipacao = z.infer<typeof minhaParticipacaoSchema>
 export type EventoResumoDto = z.infer<typeof eventoResumoSchema>
 export type ListaEventos = z.infer<typeof listaEventosSchema>
 export type EventoDetalheDto = z.infer<typeof eventoDetalheSchema>
+export type StatusEventoAlteradoDto = z.infer<typeof statusEventoAlteradoDtoSchema>

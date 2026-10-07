@@ -117,10 +117,15 @@ export class UploadsService {
     return key === null ? null : `${this.basePublica}/${key}`
   }
 
+  /** Rejeita em falha; quem precisa reportar o erro trata. */
+  async apagar(key: string): Promise<void> {
+    await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }))
+  }
+
   /** Melhor esforço: a falha só gera `warn` e o objeto é recolhido pela limpeza de órfãos (#56). */
   async remover(key: string): Promise<void> {
     try {
-      await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }))
+      await this.apagar(key)
     } catch (erro) {
       this.logger.warn({ err: erro, key }, 'Falha ao remover imagem do R2')
     }

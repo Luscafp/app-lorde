@@ -1,5 +1,8 @@
 import type { EventoDto, EventoResumoDto } from '@atletica/shared'
 import type { Prisma } from '../../generated/prisma/client'
+import { naoExcluido } from '../../infra/prisma/nao-excluido'
+import type { TransacaoComEscopo } from '../../infra/prisma/prisma.service'
+import { erroEventoNaoEncontrado } from './erros'
 
 export const CAMPOS_EVENTO = {
   id: true,
@@ -26,6 +29,24 @@ export const CAMPOS_EVENTO = {
 
 export type LinhaEvento = Prisma.EventoGetPayload<{ select: typeof CAMPOS_EVENTO }>
 
+export function auditaveis(evento: LinhaEvento) {
+  const { tipo, status, timeId, timeAdversarioId, serieId, inicio, local, observacoes } = evento
+  const { placarTime, placarAdversario, resultado } = evento
+  return {
+    tipo,
+    status,
+    timeId,
+    timeAdversarioId,
+    serieId,
+    inicio,
+    local,
+    observacoes,
+    placarTime,
+    placarAdversario,
+    resultado,
+  }
+}
+
 export type EventoResumoBase = Omit<EventoResumoDto, 'souMembro' | 'minhaParticipacao'>
 
 /** Campos do item de `GET /eventos`, sem os dados do usuário. */
@@ -34,7 +55,7 @@ export function paraEventoResumo(dto: EventoDto): EventoResumoBase {
   return resumo
 }
 
-export function paraEventoDto(evento: LinhaEvento): EventoDto {
+export function paraDto(evento: LinhaEvento): EventoDto {
   const { modalidade, ...time } = evento.time
   return {
     id: evento.id,
@@ -53,4 +74,14 @@ export function paraEventoDto(evento: LinhaEvento): EventoDto {
     criadoEm: evento.criadoEm.toISOString(),
     atualizadoEm: evento.atualizadoEm.toISOString(),
   }
+}
+
+/** Evento não excluído da atlética do contexto, ou 404. */
+export async function buscarEvento(tx: TransacaoComEscopo, id: string): Promise<LinhaEvento> {
+  const evento = await tx.evento.findFirst({
+    where: { id, ...naoExcluido },
+    select: CAMPOS_EVENTO,
+  })
+  if (!evento) throw erroEventoNaoEncontrado()
+  return evento
 }

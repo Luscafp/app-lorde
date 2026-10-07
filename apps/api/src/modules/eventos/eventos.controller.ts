@@ -1,4 +1,5 @@
 import {
+  alterarStatusSchema,
   cancelarEventoSchema,
   criarEventoSchema,
   editarEventoSchema,
@@ -9,11 +10,14 @@ import {
   listaEventosSchema,
   listarEventosQuerySchema,
   Papel,
+  registrarResultadoSchema,
+  statusEventoAlteradoDtoSchema,
   type CriarEvento,
   type EventoCanceladoDto,
   type EventoDetalheDto,
   type EventoDto,
   type ListaEventos,
+  type StatusEventoAlteradoDto,
 } from '@atletica/shared'
 import {
   Body,
@@ -26,6 +30,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common'
 import {
@@ -46,9 +51,11 @@ import { createZodDto } from 'nestjs-zod'
 import { PapelMinimo } from '../auth/decorators/papel-minimo.decorator'
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator'
 import type { UsuarioAutenticado } from '../auth/tipos'
-import { paraEventoResumo } from './evento-dto'
 import { EventosLeituraService } from './eventos-leitura.service'
+import { EventosStatusService } from './eventos-status.service'
 import { EventosService } from './eventos.service'
+import { paraEventoResumo } from './linha-evento'
+import { ResultadoService } from './resultado.service'
 
 /** União discriminada não é tipável como classe; o pipe valida pelo schema e devolve `CriarEvento`. */
 const CriarEventoDtoBase: new () => object = createZodDto(criarEventoSchema)
@@ -61,6 +68,9 @@ class EventoCanceladoRespostaDto extends createZodDto(eventoCanceladoDtoSchema) 
 class ListarEventosQueryDto extends createZodDto(listarEventosQuerySchema) {}
 class ListaEventosDto extends createZodDto(listaEventosSchema) {}
 class EventoDetalheRespostaDto extends createZodDto(eventoDetalheSchema) {}
+class AlterarStatusDto extends createZodDto(alterarStatusSchema) {}
+class StatusAlteradoRespostaDto extends createZodDto(statusEventoAlteradoDtoSchema) {}
+class ResultadoDto extends createZodDto(registrarResultadoSchema) {}
 
 const EXEMPLO: EventoDto = {
   id: '3c9a7b1e-5d2f-4e8a-9b6c-0d1e2f3a4b5c',
@@ -135,6 +145,8 @@ const TIMES_INVALIDOS =
 export class EventosController {
   constructor(
     private readonly eventos: EventosService,
+    private readonly eventosStatus: EventosStatusService,
+    private readonly resultados: ResultadoService,
     private readonly leitura: EventosLeituraService,
   ) {}
 
@@ -266,6 +278,82 @@ export class EventosController {
     @UsuarioAtual() usuario: UsuarioAutenticado,
   ): Promise<EventoCanceladoDto> {
     return this.eventos.cancelarPorId(id, usuario)
+  }
+
+  @Patch(':id/status')
+  @PapelMinimo(Papel.DIRETOR)
+  @ApiForbiddenResponse({ description: SEM_PERMISSAO })
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Altera o status pela máquina de estados',
+    description:
+      'Mesmo status: 200 sem alteração. `EM_ANDAMENTO → AGENDADO` exige o evento sem presença; ' +
+      '`FINALIZADO → EM_ANDAMENTO` exige o jogo sem resultado; `CANCELADO` é terminal. ' +
+      'Destino `CANCELADO` executa o cancelamento de `POST /eventos/:id/cancelar`.',
+  })
+  @ApiBody({ type: AlterarStatusDto, examples: { finalizar: { value: { status: 'FINALIZADO' } } } })
+  @ApiOkResponse({
+    type: StatusAlteradoRespostaDto,
+    example: { id: EXEMPLO.id, status: 'FINALIZADO', statusAnterior: 'EM_ANDAMENTO' },
+  })
+  @ApiBadRequestResponse({ description: '`VALIDATION_ERROR`: status desconhecido ou campo extra.' })
+  @ApiNotFoundResponse({ description: NAO_ENCONTRADO })
+  @ApiConflictResponse({ description: '`CONFLITO_STATUS`: o status mudou desde a leitura.' })
+  @ApiUnprocessableEntityResponse({
+    description: '`TRANSICAO_INVALIDA`, com `details` em `status` no formato `DE → PARA`.',
+  })
+  alterarStatus(
+    @Param() { id }: EventoIdDto,
+    @Body() { status }: AlterarStatusDto,
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+  ): Promise<StatusEventoAlteradoDto> {
+    return this.eventosStatus.alterar(id, status, usuario)
+  }
+
+  @Put(':id/resultado')
+  @PapelMinimo(Papel.DIRETOR)
+  @ApiForbiddenResponse({ description: SEM_PERMISSAO })
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Registra ou corrige o placar de um jogo',
+    description:
+      'O `resultado` é calculado no servidor (RN17). O jogo precisa estar `FINALIZADO`, ou ' +
+      '`finalizar: true` o finaliza na mesma transação (UC17 A1). Mesmo placar: 200 sem alteração.',
+  })
+  @ApiBody({
+    type: ResultadoDto,
+    examples: {
+      registrar: { value: { placarTime: 3, placarAdversario: 1 } },
+      finalizarERegistrar: { value: { placarTime: 3, placarAdversario: 1, finalizar: true } },
+    },
+  })
+  @ApiOkResponse({
+    type: EventoRespostaDto,
+    example: {
+      ...EXEMPLO,
+      status: 'FINALIZADO',
+      placarTime: 3,
+      placarAdversario: 1,
+      resultado: 'VITORIA',
+    },
+  })
+  @ApiBadRequestResponse({
+    description: '`VALIDATION_ERROR`: placar fora de 0–999, não inteiro, ausente ou campo extra.',
+  })
+  @ApiNotFoundResponse({ description: NAO_ENCONTRADO })
+  @ApiConflictResponse({
+    description:
+      '`CONFLITO_STATUS`: o status mudou desde a leitura; `CONFLITO_CONCORRENTE`: o placar mudou.',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: '`EVENTO_NAO_E_JOGO`, `EVENTO_CANCELADO` ou `EVENTO_NAO_FINALIZADO`.',
+  })
+  registrarResultado(
+    @Param() { id }: EventoIdDto,
+    @Body() dados: ResultadoDto,
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+  ): Promise<EventoDto> {
+    return this.resultados.registrar(id, dados, usuario)
   }
 
   @Delete(':id')

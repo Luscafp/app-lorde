@@ -1,11 +1,13 @@
 import {
   atleticaAdversariaDtoSchema,
+  elencoDtoSchema,
   listaAtleticasAdversariasSchema,
   listaTimesSchema,
   timeDtoSchema,
   type AtleticaAdversaria,
   type AtleticaAdversariaAtualizacao,
   type AtleticaAdversariaCriacao,
+  type ElencoDto,
   type ListaAtleticasAdversarias,
   type ListaTimes,
   type TimeAtualizacao,
@@ -45,6 +47,18 @@ export async function atualizarTime(id: string, dados: TimeAtualizacao): Promise
 
 export async function excluirTime(id: string): Promise<void> {
   await api.delete(`/times/${id}`)
+}
+
+export async function buscarElenco(timeId: string, sinal?: AbortSignal): Promise<ElencoDto> {
+  return elencoDtoSchema.parse(await api.get(`/times/${timeId}/elenco`, { sinal }))
+}
+
+export async function definirCapitao(timeId: string, usuarioId: string | null): Promise<TimeDto> {
+  return timeDtoSchema.parse(await api.put(`/times/${timeId}/capitao`, { usuarioId }))
+}
+
+export async function removerMembro(timeId: string, usuarioId: string): Promise<void> {
+  await api.delete(`/times/${timeId}/elenco/${usuarioId}`)
 }
 
 export async function listarAtleticasAdversarias(

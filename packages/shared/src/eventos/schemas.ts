@@ -8,6 +8,7 @@ export const LOCAL_EVENTO_MAX = 120
 export const OBSERVACOES_EVENTO_MAX = 500
 export const DIAS_PASSADO_EVENTO = 365
 export const DIAS_FUTURO_EVENTO = 730
+export const PLACAR_MAX = 999
 
 const DIA_MS = 24 * 60 * 60 * 1000
 
@@ -141,7 +142,29 @@ export const listarEventosQuerySchema = paginacaoQuerySchema
   })
   .strict()
 
+export const alterarStatusSchema = z
+  .object({ status: z.enum(StatusEvento, { error: 'Escolha um status válido.' }) })
+  .strict()
+
+const placarSchema = z
+  .number({ error: 'Informe o placar.' })
+  .int({ error: 'O placar deve ser um número inteiro.' })
+  .min(0, { error: `O placar deve estar entre 0 e ${PLACAR_MAX}.` })
+  .max(PLACAR_MAX, { error: `O placar deve estar entre 0 e ${PLACAR_MAX}.` })
+
+/** `resultado` nunca vem do cliente; `finalizar` finaliza o jogo na mesma transação (UC17 A1). */
+export const registrarResultadoSchema = z
+  .object({
+    placarTime: placarSchema,
+    placarAdversario: placarSchema,
+    finalizar: z.boolean().optional(),
+  })
+  .strict()
+
 export type CriarEvento = z.infer<typeof criarEventoSchema>
 export type EditarEvento = z.infer<typeof editarEventoSchema>
 export type CriarEventoForm = z.input<typeof criarEventoSchema>
 export type ListarEventosQuery = z.infer<typeof listarEventosQuerySchema>
+export type AlterarStatus = z.infer<typeof alterarStatusSchema>
+export type RegistrarResultado = z.infer<typeof registrarResultadoSchema>
+export type RegistrarResultadoForm = z.input<typeof registrarResultadoSchema>
