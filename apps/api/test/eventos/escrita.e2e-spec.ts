@@ -516,7 +516,7 @@ describe('/eventos — escrita (#70)', () => {
 
     it('campo no corpo → 400', async () => {
       const evento = await novoTreino()
-      const resposta = await (await como('DIRETOR')).cancelar(evento.id, { escopo: 'ESTA' })
+      const resposta = await (await como('DIRETOR')).cancelar(evento.id, { motivo: 'chuva' })
       expect(resposta.status).toBe(400)
     })
 

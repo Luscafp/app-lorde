@@ -610,9 +610,23 @@ Jogos e treinos avulsos (épico #19; escrita da #70). Schemas (`criarEventoSchem
 | `POST /eventos/:id/cancelar` | DIRETOR      | `200 { eventoIds, status: 'CANCELADO' }`; `422 EVENTO_FINALIZADO`/`EVENTO_JA_CANCELADO`                                                       |
 | `DELETE /eventos/:id`        | PRESIDENTE   | `204`; com participação ou resultado → `409 EVENTO_COM_DEPENDENCIAS` (`details` em `participacoes`/`resultado`)                               |
 
-As regras que dependem do banco ficam no `EventosValidator`, chamado dentro da transação. `EventosService.cancelar(tx, eventoIds, usuario)` cancela, na transação de quem chama, os eventos `AGENDADO`/`EM_ANDAMENTO`, audita um `EVENTO_CANCELADO` por evento e devolve os ids afetados; quem chama emite `evento.cancelado` uma vez (reutilizado pela #20 e pela #73). Auditoria: `EVENTO_CRIADO`, `EVENTO_ALTERADO` (só campos alterados), `EVENTO_CANCELADO`, `EVENTO_EXCLUIDO`. Eventos de domínio após o commit: `evento.criado`, `evento.alterado` (só se `inicio` ou `local` mudaram) e `evento.cancelado`; a exclusão não emite.
+As regras que dependem do banco ficam no `EventosValidator`, chamado dentro da transação. `EventosService.cancelar(tx, eventoIds, usuario, { statusAtual?, contexto? })` cancela, na transação de quem chama, os eventos `AGENDADO`/`EM_ANDAMENTO`, audita um `EVENTO_CANCELADO` por evento e devolve os ids afetados; quem chama emite `evento.cancelado` uma vez (reutilizado pela #20 e pela #73). Auditoria: `EVENTO_CRIADO`, `EVENTO_ALTERADO` (só campos alterados), `EVENTO_CANCELADO`, `EVENTO_EXCLUIDO`. Eventos de domínio após o commit: `evento.criado`, `evento.alterado` (só se `inicio` ou `local` mudaram) e `evento.cancelado`; a exclusão não emite.
 
 Fábricas (`test/fabricas/eventos.ts`): `criarEvento({ atleticaId, ...campos, participantes? })` (TREINO por padrão, `AGENDADO` amanhã; cria time, adversário da mesma modalidade e autor quando faltam; valores informados, inclusive `null`, vão direto ao banco), `criarJogo`, `criarTreino` e `criarParticipacoes(evento, [{ usuarioId, confirmado?, presente? }])`.
+
+### Treino recorrente (`SeriesRecorrenciaService`, #20)
+
+As mesmas rotas, sem rotas novas. `recorrenciaSchema` e `gerarDatasSerie` ficam em `@atletica/shared` (`eventos/recorrencia.ts`) e são usados pela API e pela prévia do app.
+
+| Rota                                                          | Resposta                                                                                                                                         |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /eventos` com `recorrencia` (no lugar de `inicio`)      | `201 { serie, totalOcorrencias, primeiraOcorrencia, ultimaOcorrencia }`; `422 SERIE_SEM_OCORRENCIAS`; Jogo, início no passado ou > 6 meses → 400 |
+| `PATCH /eventos/:id` com `escopo: 'ESTA_E_SEGUINTES'`         | `200 { eventoIds, serieId, serieDividida }`; só `horario`, `local`, `observacoes`; avulso → `422 EVENTO_SEM_SERIE`                               |
+| `POST /eventos/:id/cancelar` com `escopo: 'ESTA_E_SEGUINTES'` | `200 { eventoIds, status: 'CANCELADO' }`; série sem `AGENDADO` restante recebe `canceladaEm`                                                     |
+
+- **Geração síncrona**: as ocorrências (até 185) são gravadas na mesma transação da série, com um `createManyAndReturn`, e a resposta já traz o total. Diverge da seção 8.1 do documento de requisitos, que previa a fila pg-boss; a decisão aguarda aprovação do PO (#97) e, até lá, vale a geração síncrona (justificativa na #20 §14).
+- **Divisão**: mudar o `horario` a partir de uma ocorrência que não é a 1ª cria uma nova série a partir do dia dela, move para ela as ocorrências seguintes (qualquer status) e encerra a original na véspera (`SERIE_DIVIDIDA`). A partir da 1ª, a série em vigor é atualizada (`SERIE_ALTERADA`).
+- Auditoria: uma `SERIE_CRIADA` por série (não uma por ocorrência); `EVENTO_ALTERADO`/`EVENTO_CANCELADO` por ocorrência com `contexto: { serieId, escopo }`. Um único `evento.criado` (com `serieId`), `evento.alterado` ou `evento.cancelado` por operação.
 
 ## Senhas (`src/infra/senha`)
 

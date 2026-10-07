@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { StatusEvento, TipoEvento } from '../enums/evento'
+import { EscopoOcorrencia } from './escopo'
 import { paginacaoQuerySchema } from '../utils/paginacao'
 import { booleanoQuerySchema } from '../utils/query'
 
@@ -78,6 +79,7 @@ export const criarEventoSchema = z.discriminatedUnion(
 /** `tipo`, `status` e placar não são editáveis aqui; `timeAdversarioId` só vale para Jogo. */
 export const editarEventoSchema = z
   .object({
+    escopo: z.literal(EscopoOcorrencia.ESTA),
     inicio: inicioEventoSchema,
     local: localEventoSchema,
     observacoes: observacoesEventoSchema,
@@ -86,10 +88,17 @@ export const editarEventoSchema = z
   })
   .partial()
   .strict()
-  .refine((dados) => Object.keys(dados).length > 0, { error: 'Informe ao menos um campo.' })
+  .refine(({ escopo: _escopo, ...campos }) => Object.keys(campos).length > 0, {
+    error: 'Informe ao menos um campo.',
+  })
 
-/** Corpo vazio; a #20 acrescenta `escopo`. */
-export const cancelarEventoSchema = z.object({}).strict().default({})
+/** Sem `escopo` (ou `ESTA`), cancela só o evento. */
+export const cancelarEventoSchema = z
+  .object({
+    escopo: z.enum(EscopoOcorrencia, { error: 'Use ESTA ou ESTA_E_SEGUINTES.' }).optional(),
+  })
+  .strict()
+  .default({})
 
 /** Semântica no épico #22 §3 (RN18); limites de dia calculados no servidor. */
 export const PeriodoEventos = {
@@ -163,6 +172,7 @@ export const registrarResultadoSchema = z
 
 export type CriarEvento = z.infer<typeof criarEventoSchema>
 export type EditarEvento = z.infer<typeof editarEventoSchema>
+export type CancelarEvento = z.infer<typeof cancelarEventoSchema>
 export type CriarEventoForm = z.input<typeof criarEventoSchema>
 export type ListarEventosQuery = z.infer<typeof listarEventosQuerySchema>
 export type AlterarStatus = z.infer<typeof alterarStatusSchema>

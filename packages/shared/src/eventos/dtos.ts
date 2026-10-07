@@ -43,6 +43,36 @@ export const eventoCanceladoDtoSchema = z
   })
   .strict()
 
+const ocorrenciaSchema = z.object({ id: z.uuid(), inicio: z.iso.datetime() }).strict()
+
+/** Resposta de `POST /eventos` com `recorrencia` (#20). */
+export const serieCriadaDtoSchema = z
+  .object({
+    serie: z
+      .object({
+        id: z.uuid(),
+        timeId: z.uuid(),
+        diasSemana: z.array(z.number().int()),
+        horario: z.string(),
+        dataInicio: z.iso.date(),
+        dataFim: z.iso.date(),
+      })
+      .strict(),
+    totalOcorrencias: z.number().int(),
+    primeiraOcorrencia: ocorrenciaSchema,
+    ultimaOcorrencia: ocorrenciaSchema,
+  })
+  .strict()
+
+/** Resposta de `PATCH /eventos/:id` com `escopo = ESTA_E_SEGUINTES`. */
+export const ocorrenciasAlteradasDtoSchema = z
+  .object({
+    eventoIds: z.array(z.uuid()),
+    serieId: z.uuid(),
+    serieDividida: z.boolean(),
+  })
+  .strict()
+
 /** Resposta do usuário do token; `null` sem resposta. */
 export const minhaParticipacaoSchema = z
   .object({ confirmado: z.boolean(), respondidoEm: z.iso.datetime() })
@@ -108,6 +138,8 @@ export const statusEventoAlteradoDtoSchema = z
 
 export type EventoDto = z.infer<typeof eventoDtoSchema>
 export type EventoCanceladoDto = z.infer<typeof eventoCanceladoDtoSchema>
+export type SerieCriadaDto = z.infer<typeof serieCriadaDtoSchema>
+export type OcorrenciasAlteradasDto = z.infer<typeof ocorrenciasAlteradasDtoSchema>
 export type MinhaParticipacao = z.infer<typeof minhaParticipacaoSchema>
 export type EventoResumoDto = z.infer<typeof eventoResumoSchema>
 export type ListaEventos = z.infer<typeof listaEventosSchema>

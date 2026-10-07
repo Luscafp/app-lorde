@@ -140,7 +140,7 @@ describe('EventosStatusService.alterar', () => {
       status: 'CANCELADO',
       statusAnterior: 'EM_ANDAMENTO',
     })
-    expect(eventos.cancelar).toHaveBeenCalledWith(tx, [ID], AUTOR, 'EM_ANDAMENTO')
+    expect(eventos.cancelar).toHaveBeenCalledWith(tx, [ID], AUTOR, { statusAtual: 'EM_ANDAMENTO' })
     expect(tx.evento.updateMany).not.toHaveBeenCalled()
     expect(auditoria.registrar).not.toHaveBeenCalled()
     expect(dominio.emitirAposCommit).toHaveBeenCalledWith('evento.cancelado', {

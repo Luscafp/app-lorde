@@ -115,7 +115,9 @@ export class EventosStatusService {
     evento: EventoLido,
     autor: AutorEvento,
   ): Promise<void> {
-    const eventoIds = await this.eventos.cancelar(tx, [id], autor, evento.status)
+    const eventoIds = await this.eventos.cancelar(tx, [id], autor, {
+      statusAtual: evento.status,
+    })
     if (eventoIds.length === 0) throw erroConflitoStatus()
 
     this.dominio.emitirAposCommit('evento.cancelado', {

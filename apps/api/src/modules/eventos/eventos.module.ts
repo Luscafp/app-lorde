@@ -6,6 +6,7 @@ import { EventosController } from './eventos.controller'
 import { EventosService } from './eventos.service'
 import { EventosValidator } from './eventos.validator'
 import { ResultadoService } from './resultado.service'
+import { SeriesRecorrenciaService } from './series-recorrencia.service'
 
 @Module({
   imports: [UploadsModule],
@@ -16,6 +17,7 @@ import { ResultadoService } from './resultado.service'
     EventosValidator,
     EventosStatusService,
     ResultadoService,
+    SeriesRecorrenciaService,
   ],
   exports: [EventosService],
 })

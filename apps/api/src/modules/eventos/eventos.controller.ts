@@ -1,22 +1,34 @@
 import {
   alterarStatusSchema,
   cancelarEventoSchema,
+  criarEventoOuSerieSchema,
   criarEventoSchema,
+  criarSerieSchema,
   editarEventoSchema,
+  editarOcorrenciaSchema,
+  editarSeguintesSchema,
+  EscopoOcorrencia,
   eventoCanceladoDtoSchema,
   eventoDetalheSchema,
   eventoDtoSchema,
   idParamSchema,
   listaEventosSchema,
   listarEventosQuerySchema,
+  ocorrenciasAlteradasDtoSchema,
   Papel,
   registrarResultadoSchema,
+  serieCriadaDtoSchema,
   statusEventoAlteradoDtoSchema,
   type CriarEvento,
+  type CriarSerie,
+  type EditarEvento,
+  type EditarSeguintes,
   type EventoCanceladoDto,
   type EventoDetalheDto,
   type EventoDto,
   type ListaEventos,
+  type OcorrenciasAlteradasDto,
+  type SerieCriadaDto,
   type StatusEventoAlteradoDto,
 } from '@atletica/shared'
 import {
@@ -38,6 +50,7 @@ import {
   ApiBody,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiExtraModels,
   ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
@@ -46,6 +59,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
+  getSchemaPath,
 } from '@nestjs/swagger'
 import { createZodDto } from 'nestjs-zod'
 import { PapelMinimo } from '../auth/decorators/papel-minimo.decorator'
@@ -56,11 +70,21 @@ import { EventosStatusService } from './eventos-status.service'
 import { EventosService } from './eventos.service'
 import { paraEventoResumo } from './linha-evento'
 import { ResultadoService } from './resultado.service'
+import { SeriesRecorrenciaService } from './series-recorrencia.service'
 
-/** União discriminada não é tipável como classe; o pipe valida pelo schema e devolve `CriarEvento`. */
-const CriarEventoDtoBase: new () => object = createZodDto(criarEventoSchema)
+/** União não é tipável como classe; o pipe valida pelo schema e devolve `CriarEvento | CriarSerie`. */
+const CriarEventoDtoBase: new () => object = createZodDto(criarEventoOuSerieSchema)
 class CriarEventoDto extends CriarEventoDtoBase {}
-class EditarEventoDto extends createZodDto(editarEventoSchema) {}
+const EditarEventoDtoBase: new () => object = createZodDto(editarOcorrenciaSchema)
+class EditarEventoDto extends EditarEventoDtoBase {}
+/** Só documentação: as variantes de cada corpo. */
+const EventoAvulsoDtoBase: new () => object = createZodDto(criarEventoSchema)
+class EventoAvulsoDto extends EventoAvulsoDtoBase {}
+class TreinoRecorrenteDto extends createZodDto(criarSerieSchema) {}
+class EditarEstaDto extends createZodDto(editarEventoSchema) {}
+class EditarSeguintesDto extends createZodDto(editarSeguintesSchema) {}
+class SerieCriadaRespostaDto extends createZodDto(serieCriadaDtoSchema) {}
+class OcorrenciasAlteradasRespostaDto extends createZodDto(ocorrenciasAlteradasDtoSchema) {}
 class CancelarEventoDto extends createZodDto(cancelarEventoSchema) {}
 class EventoIdDto extends createZodDto(idParamSchema) {}
 class EventoRespostaDto extends createZodDto(eventoDtoSchema) {}
@@ -129,6 +153,31 @@ const EXEMPLO_DETALHE: EventoDetalheDto = {
   motivoBloqueioResposta: null,
 }
 
+const EXEMPLO_SERIE: SerieCriadaDto = {
+  serie: {
+    id: '5f2c8d1e-3a4b-4c5d-8e6f-7a8b9c0d1e2f',
+    timeId: EXEMPLO.time.id,
+    diasSemana: [1, 3],
+    horario: '18:30',
+    dataInicio: '2026-10-05',
+    dataFim: '2027-04-05',
+  },
+  totalOcorrencias: 53,
+  primeiraOcorrencia: {
+    id: '9a01b2c3-d4e5-4f60-8a1b-2c3d4e5f6a7b',
+    inicio: '2026-10-05T21:30:00.000Z',
+  },
+  ultimaOcorrencia: {
+    id: 'e7b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
+    inicio: '2027-04-05T21:30:00.000Z',
+  },
+}
+
+const ehSerie = (dados: CriarEvento | CriarSerie): dados is CriarSerie => 'recorrencia' in dados
+
+const ehSeguintes = (dados: EditarEvento | EditarSeguintes): dados is EditarSeguintes =>
+  dados.escopo === EscopoOcorrencia.ESTA_E_SEGUINTES
+
 const NAO_AUTENTICADO = '`UNAUTHENTICATED` ou `TOKEN_EXPIRED`.'
 const SEM_PERMISSAO = '`FORBIDDEN`: papel insuficiente.'
 const NAO_ENCONTRADO = '`NOT_FOUND`: evento inexistente, excluído ou de outra atlética.'
@@ -140,6 +189,15 @@ const TIMES_INVALIDOS =
   '`MODALIDADES_DIFERENTES`.'
 
 @ApiTags('Eventos')
+@ApiExtraModels(
+  EventoAvulsoDto,
+  TreinoRecorrenteDto,
+  EditarEstaDto,
+  EditarSeguintesDto,
+  EventoRespostaDto,
+  SerieCriadaRespostaDto,
+  OcorrenciasAlteradasRespostaDto,
+)
 @ApiUnauthorizedResponse({ description: NAO_AUTENTICADO })
 @Controller('eventos')
 export class EventosController {
@@ -148,6 +206,7 @@ export class EventosController {
     private readonly eventosStatus: EventosStatusService,
     private readonly resultados: ResultadoService,
     private readonly leitura: EventosLeituraService,
+    private readonly series: SeriesRecorrenciaService,
   ) {}
 
   @Get()
@@ -197,13 +256,22 @@ export class EventosController {
   @ApiForbiddenResponse({ description: SEM_PERMISSAO })
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Cadastra um Jogo ou Treino avulso',
+    summary: 'Cadastra um Jogo, um Treino avulso ou um Treino recorrente',
     description:
       'Nasce `AGENDADO`; a modalidade é a do time (RN10). Jogo exige adversário de outra ' +
-      'atlética, ativo e da mesma modalidade (RN11); Treino não aceita adversário (RN12).',
+      'atlética, ativo e da mesma modalidade (RN11); Treino não aceita adversário (RN12). ' +
+      'Treino com `recorrencia` (no lugar de `inicio`) gera, na mesma transação, uma ocorrência ' +
+      'por data entre `dataInicio` e `dataFim` (até 6 meses) nos `diasSemana` (0 = domingo), ' +
+      'no `horario` de America/Fortaleza, omitindo as já iniciadas (RN13). Geração síncrona, ' +
+      'sem fila; emite um único `evento.criado` para a série.',
   })
   @ApiBody({
-    type: CriarEventoDto,
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(EventoAvulsoDto) },
+        { $ref: getSchemaPath(TreinoRecorrenteDto) },
+      ],
+    },
     examples: {
       jogo: {
         value: {
@@ -218,16 +286,49 @@ export class EventosController {
       treino: {
         value: { tipo: 'TREINO', timeId: EXEMPLO.time.id, inicio: EXEMPLO.inicio, local: 'Quadra' },
       },
+      treinoRecorrente: {
+        value: {
+          tipo: 'TREINO',
+          timeId: EXEMPLO.time.id,
+          local: 'Quadra do CCET',
+          observacoes: null,
+          recorrencia: {
+            dataInicio: '2026-10-05',
+            horario: '18:30',
+            diasSemana: [1, 3],
+            dataFim: '2027-04-05',
+          },
+        },
+      },
     },
   })
-  @ApiCreatedResponse({ type: EventoRespostaDto, example: EXEMPLO })
-  @ApiBadRequestResponse({ description: INVALIDO })
-  @ApiUnprocessableEntityResponse({ description: TIMES_INVALIDOS })
+  @ApiCreatedResponse({
+    description: 'O evento criado ou, com `recorrencia`, o resumo da série.',
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(EventoRespostaDto) },
+        { $ref: getSchemaPath(SerieCriadaRespostaDto) },
+      ],
+    },
+    examples: {
+      avulso: { summary: 'Avulso', value: EXEMPLO },
+      recorrente: { summary: 'Treino recorrente', value: EXEMPLO_SERIE },
+    },
+  })
+  @ApiBadRequestResponse({
+    description:
+      `${INVALIDO} Na recorrência: \`inicio\` junto, Jogo, dias inválidos ou repetidos, ` +
+      'horário inválido, início no passado ou período acima de 6 meses.',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: `${TIMES_INVALIDOS} \`SERIE_SEM_OCORRENCIAS\`: nenhuma data gerada.`,
+  })
   criar(
-    @Body() dados: CriarEventoDto,
+    @Body() corpo: CriarEventoDto,
     @UsuarioAtual() usuario: UsuarioAutenticado,
-  ): Promise<EventoDto> {
-    return this.eventos.criar(dados as CriarEvento, usuario)
+  ): Promise<EventoDto | SerieCriadaDto> {
+    const dados = corpo as CriarEvento | CriarSerie
+    return ehSerie(dados) ? this.series.criar(dados, usuario) : this.eventos.criar(dados, usuario)
   }
 
   @Patch(':id')
@@ -238,21 +339,61 @@ export class EventosController {
     summary: 'Edita data, local, observações e times (ao menos um campo)',
     description:
       'Cancelado não é editável; Finalizado só aceita `observacoes`. Trocar `timeId` exige o ' +
-      'evento sem participações. `timeAdversarioId` só em Jogo.',
+      'evento sem participações. `timeAdversarioId` só em Jogo. Em ocorrência de série, ' +
+      '`escopo: ESTA_E_SEGUINTES` aceita só `horario`, `local` e `observacoes` e os aplica à ' +
+      'ocorrência e às seguintes `AGENDADO`, cada uma no seu dia; mudar o horário a partir de ' +
+      'uma ocorrência que não é a 1ª divide a série.',
   })
-  @ApiOkResponse({ type: EventoRespostaDto, example: EXEMPLO })
-  @ApiBadRequestResponse({ description: INVALIDO })
+  @ApiBody({
+    schema: {
+      oneOf: [{ $ref: getSchemaPath(EditarEstaDto) }, { $ref: getSchemaPath(EditarSeguintesDto) }],
+    },
+    examples: {
+      esta: { value: { local: 'Quadra 2' } },
+      estaESeguintes: {
+        value: { escopo: 'ESTA_E_SEGUINTES', horario: '19:00', local: 'Quadra 2' },
+      },
+    },
+  })
+  @ApiOkResponse({
+    description: 'O evento editado ou, com `ESTA_E_SEGUINTES`, as ocorrências alteradas.',
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(EventoRespostaDto) },
+        { $ref: getSchemaPath(OcorrenciasAlteradasRespostaDto) },
+      ],
+    },
+    examples: {
+      esta: { summary: 'Só esta', value: EXEMPLO },
+      estaESeguintes: {
+        summary: 'Esta e as seguintes',
+        value: {
+          eventoIds: [EXEMPLO_SERIE.primeiraOcorrencia.id],
+          serieId: '8c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f',
+          serieDividida: true,
+        },
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: `${INVALIDO} Com \`ESTA_E_SEGUINTES\`: \`inicio\` ou \`timeId\` no corpo.`,
+  })
   @ApiNotFoundResponse({ description: NAO_ENCONTRADO })
   @ApiConflictResponse({ description: '`EVENTO_COM_PARTICIPACOES` ao trocar o time.' })
   @ApiUnprocessableEntityResponse({
-    description: `\`EVENTO_CANCELADO\`, \`EVENTO_FINALIZADO\`, ${TIMES_INVALIDOS}`,
+    description:
+      `\`EVENTO_CANCELADO\`, \`EVENTO_FINALIZADO\`, ${TIMES_INVALIDOS} ` +
+      '`EVENTO_SEM_SERIE`: `ESTA_E_SEGUINTES` em evento avulso.',
   })
   atualizar(
     @Param() { id }: EventoIdDto,
-    @Body() dados: EditarEventoDto,
+    @Body() corpo: EditarEventoDto,
     @UsuarioAtual() usuario: UsuarioAutenticado,
-  ): Promise<EventoDto> {
-    return this.eventos.atualizar(id, dados, usuario)
+  ): Promise<EventoDto | OcorrenciasAlteradasDto> {
+    const dados = corpo as EditarEvento | EditarSeguintes
+    return ehSeguintes(dados)
+      ? this.series.editarSeguintes(id, dados, usuario)
+      : this.eventos.atualizar(id, dados, usuario)
   }
 
   @Post(':id/cancelar')
@@ -262,22 +403,35 @@ export class EventosController {
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'Cancela um evento Agendado ou Em andamento',
-    description: 'O evento continua existindo com status `CANCELADO`. Corpo vazio.',
+    description:
+      'O evento continua existindo com status `CANCELADO`. Corpo opcional. Em ocorrência de ' +
+      'série, `escopo: ESTA_E_SEGUINTES` cancela também as seguintes `AGENDADO`; sem nenhuma ' +
+      'agendada restante, a série fica cancelada.',
   })
-  @ApiBody({ type: CancelarEventoDto, required: false })
+  @ApiBody({
+    type: CancelarEventoDto,
+    required: false,
+    examples: { esta: { value: {} }, estaESeguintes: { value: { escopo: 'ESTA_E_SEGUINTES' } } },
+  })
   @ApiOkResponse({
     type: EventoCanceladoRespostaDto,
     example: { eventoIds: [EXEMPLO.id], status: 'CANCELADO' },
   })
-  @ApiBadRequestResponse({ description: '`VALIDATION_ERROR`: id não-UUID ou campo no corpo.' })
+  @ApiBadRequestResponse({
+    description: '`VALIDATION_ERROR`: id não-UUID, escopo inválido ou outro campo no corpo.',
+  })
   @ApiNotFoundResponse({ description: NAO_ENCONTRADO })
-  @ApiUnprocessableEntityResponse({ description: '`EVENTO_FINALIZADO` ou `EVENTO_JA_CANCELADO`.' })
+  @ApiUnprocessableEntityResponse({
+    description: '`EVENTO_FINALIZADO`, `EVENTO_JA_CANCELADO` ou `EVENTO_SEM_SERIE`.',
+  })
   cancelar(
     @Param() { id }: EventoIdDto,
-    @Body() _corpo: CancelarEventoDto,
+    @Body() { escopo }: CancelarEventoDto,
     @UsuarioAtual() usuario: UsuarioAutenticado,
   ): Promise<EventoCanceladoDto> {
-    return this.eventos.cancelarPorId(id, usuario)
+    return escopo === EscopoOcorrencia.ESTA_E_SEGUINTES
+      ? this.series.cancelarSeguintes(id, usuario)
+      : this.eventos.cancelarPorId(id, usuario)
   }
 
   @Patch(':id/status')

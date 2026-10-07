@@ -110,19 +110,34 @@ describe('editarEventoSchema', () => {
     expect(editarEventoSchema.parse({ observacoes: '  ' })).toEqual({ observacoes: null })
   })
 
-  it.each([{}, { tipo: 'JOGO' }, { status: 'CANCELADO' }, { placarTime: 1 }])(
-    'rejeita %j',
-    (dados) => {
-      expect(editarEventoSchema.safeParse(dados).success).toBe(false)
-    },
-  )
+  it('aceita escopo ESTA junto de um campo', () => {
+    expect(editarEventoSchema.parse({ escopo: 'ESTA', local: 'Quadra' })).toEqual({
+      escopo: 'ESTA',
+      local: 'Quadra',
+    })
+  })
+
+  it.each([
+    {},
+    { escopo: 'ESTA' },
+    { escopo: 'ESTA_E_SEGUINTES', local: 'Quadra' },
+    { tipo: 'JOGO' },
+    { status: 'CANCELADO' },
+    { placarTime: 1 },
+  ])('rejeita %j', (dados) => {
+    expect(editarEventoSchema.safeParse(dados).success).toBe(false)
+  })
 })
 
 describe('cancelarEventoSchema', () => {
-  it('aceita corpo ausente ou vazio e rejeita campos', () => {
+  it('aceita corpo ausente, vazio ou com escopo e rejeita outros campos', () => {
     expect(cancelarEventoSchema.parse(undefined)).toEqual({})
     expect(cancelarEventoSchema.parse({})).toEqual({})
-    expect(cancelarEventoSchema.safeParse({ escopo: 'ESTA' }).success).toBe(false)
+    expect(cancelarEventoSchema.parse({ escopo: 'ESTA_E_SEGUINTES' })).toEqual({
+      escopo: 'ESTA_E_SEGUINTES',
+    })
+    expect(cancelarEventoSchema.safeParse({ escopo: 'TODAS' }).success).toBe(false)
+    expect(cancelarEventoSchema.safeParse({ motivo: 'chuva' }).success).toBe(false)
   })
 })
 

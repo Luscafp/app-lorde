@@ -123,6 +123,23 @@ export function erroEventoNaoFinalizado(): ErroNegocio {
   )
 }
 
+export function erroSerieSemOcorrencias(): ErroNegocio {
+  return erroDeCampo(
+    HttpStatus.UNPROCESSABLE_ENTITY,
+    'SERIE_SEM_OCORRENCIAS',
+    'recorrencia.diasSemana',
+    'Nenhuma data corresponde aos dias escolhidos.',
+  )
+}
+
+export function erroEventoSemSerie(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.UNPROCESSABLE_ENTITY,
+    'EVENTO_SEM_SERIE',
+    'Este evento não faz parte de um treino recorrente.',
+  )
+}
+
 export function erroEventoNaoEJogo(): ErroNegocio {
   return new ErroNegocio(
     HttpStatus.UNPROCESSABLE_ENTITY,
