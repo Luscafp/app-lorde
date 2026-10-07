@@ -1,10 +1,24 @@
-import type { CriarEvento, EditarEvento, EventoCanceladoDto, EventoDto } from '@atletica/shared'
+import type {
+  CriarEvento,
+  EditarEvento,
+  EventoCanceladoDto,
+  EventoDto,
+  PeriodoEventos,
+} from '@atletica/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CodigoApi } from '@/infra/api/api-erro'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
-import { atualizarEvento, buscarEvento, cancelarEvento, criarEvento, excluirEvento } from './api'
+import {
+  atualizarEvento,
+  buscarEvento,
+  cancelarEvento,
+  criarEvento,
+  excluirEvento,
+  type FiltrosEventos,
+} from './api'
+import { useEventos } from './consultas'
 
 export const CodigoEvento = {
   TIME_INVALIDO: 'TIME_INVALIDO',
@@ -26,6 +40,15 @@ const ERROS_DO_FORMULARIO = [
   CodigoEvento.MODALIDADES_DIFERENTES,
   CodigoEvento.EVENTO_COM_PARTICIPACOES,
 ]
+
+export type FiltrosEventosPainel = Pick<FiltrosEventos, 'tipo' | 'status'> & {
+  periodo: PeriodoEventos
+}
+
+/** O Painel vê também os eventos de times inativos. */
+export function useEventosPainel(filtros: FiltrosEventosPainel) {
+  return useEventos({ ...filtros, incluirInativos: true })
+}
 
 /** Sem o placeholder do card: o formulário precisa do detalhe completo. */
 export function useEventoPainel(id: string) {
