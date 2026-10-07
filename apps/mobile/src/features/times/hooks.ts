@@ -10,6 +10,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useState } from 'react'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
+import { proximaPagina } from '@/infra/query/proxima-pagina'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import { useValorAtrasado } from '@/infra/use-valor-atrasado'
 import {
@@ -19,7 +20,6 @@ import {
   criarAtleticaAdversaria,
   criarTime,
   excluirTime,
-  LIMITE_PAGINA,
   listarAtleticasAdversarias,
   listarTimes,
   type FiltrosTimes,
@@ -34,9 +34,6 @@ const ERROS_DO_TIME = [
 ]
 const ERROS_DA_ATLETICA = ['VALIDATION_ERROR', 'ATLETICA_DUPLICADA']
 const ATRASO_BUSCA_MS = 300
-
-const proximaPagina = ({ page, total }: { page: number; total: number }) =>
-  page * LIMITE_PAGINA < total ? page + 1 : undefined
 
 export function useTimes(filtros: FiltrosTimes) {
   return useInfiniteQuery({

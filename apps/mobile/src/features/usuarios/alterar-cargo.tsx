@@ -10,12 +10,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import { router } from 'expo-router'
 import { useState } from 'react'
 import { Modal, Pressable, View } from 'react-native'
-import { Alerta, Botao, Texto } from '@/components/ui'
+import { Alerta, Botao, confirmar, Texto } from '@/components/ui'
 import { paleta, useAtletica } from '@/features/atletica'
 import type { ApiErro } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
 import { useSessao } from '@/infra/sessao/store'
-import { confirmar } from './confirmar'
 import { ERROS_DO_CARGO, useAlterarPapel } from './consultas'
 
 /** Crescente de nível, como no protótipo. */
