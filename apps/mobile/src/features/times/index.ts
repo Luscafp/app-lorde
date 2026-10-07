@@ -1,3 +1,4 @@
+export { ElencoPainel } from './elenco-painel'
 export { FormAtleticaAdversaria, SheetAtleticaAdversaria } from './form-atletica-adversaria'
 export { FormTime } from './form-time'
 export {
@@ -6,7 +7,10 @@ export {
   useAtualizarTime,
   useCriarAtleticaAdversaria,
   useCriarTime,
+  useDefinirCapitao,
+  useElenco,
   useExcluirTime,
+  useRemoverMembro,
   useTime,
   useTimes,
 } from './hooks'
