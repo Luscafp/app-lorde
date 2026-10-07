@@ -3,5 +3,12 @@ import { TelaTime } from '@/features/times'
 
 export default function Time() {
   const { timeId } = useLocalSearchParams<{ timeId: string }>()
-  return <TelaTime timeId={timeId} aoVoltar={() => router.dismissTo('/times')} />
+  return (
+    <TelaTime
+      timeId={timeId}
+      aoVoltar={() => router.dismissTo('/times')}
+      aoAbrirEvento={(id) => router.push(`/eventos/${id}`)}
+      aoVerAgenda={(filtros) => router.navigate({ pathname: '/agenda', params: filtros })}
+    />
+  )
 }
