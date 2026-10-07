@@ -1,3 +1,4 @@
+import { PeriodoEventos } from '@atletica/shared'
 import { RefreshControl, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { FaixaOffline } from '@/components/estado'
@@ -13,6 +14,8 @@ import { HomeHeader } from './home-header'
 import { SecaoProximosEventos } from './secao-proximos-eventos'
 import { SecaoUltimasNoticias } from './secao-ultimas-noticias'
 
+const LIMITE_PROXIMOS_EVENTOS = 5
+
 type NavegacaoHome = {
   aoAbrirAgenda: (aba: AbaAgenda) => void
   aoAbrirTimes: () => void
@@ -23,7 +26,7 @@ type NavegacaoHome = {
 }
 
 export function TelaHome(navegacao: NavegacaoHome) {
-  const eventos = useProximosEventos()
+  const eventos = useProximosEventos({ periodo: PeriodoEventos.PROXIMOS }, LIMITE_PROXIMOS_EVENTOS)
   const noticias = useUltimasNoticias()
   const secoes = combinarConsultas([eventos, noticias])
   const online = useOnline()

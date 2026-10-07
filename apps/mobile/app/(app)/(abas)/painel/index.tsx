@@ -42,9 +42,9 @@ export default function Painel() {
       <Texto variante="titulo">Painel</Texto>
       <ItemPainel
         titulo="Eventos"
-        descricao="Cadastrar jogos e treinos"
+        descricao="Jogos e treinos: cadastrar, editar e cancelar"
         icone="calendar-outline"
-        href="/painel/eventos/novo"
+        href="/painel/eventos"
       />
       <ItemPainel
         titulo="Notícias"

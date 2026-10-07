@@ -14,7 +14,8 @@ export {
   type EventoDoCard,
 } from './components'
 export { useEventos, useProximosEventos } from './consultas'
-export { tituloEvento } from './formatacao'
-export { useEventoPainel } from './hooks'
+export { rotuloInicio, tituloEvento } from './formatacao'
+export { useEventoPainel, useEventosPainel, type FiltrosEventosPainel } from './hooks'
+export { ListaEventosPainel, type NavegacaoEventos } from './lista-eventos-painel'
 export { MENSAGEM_SEM_EVENTOS, TelaAgenda } from './tela-agenda'
 export { TelaEvento } from './tela-evento'

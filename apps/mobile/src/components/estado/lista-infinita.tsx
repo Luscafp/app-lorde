@@ -1,7 +1,7 @@
 import { ActivityIndicator, FlatList, type FlatListProps } from 'react-native'
 import { paleta } from '@/features/atletica'
 
-type ConsultaInfinita = {
+export type ConsultaInfinita = {
   hasNextPage: boolean
   isFetchingNextPage: boolean
   isRefetching: boolean

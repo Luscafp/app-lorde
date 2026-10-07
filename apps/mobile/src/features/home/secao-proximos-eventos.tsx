@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons'
-import type { EventoResumoDto } from '@atletica/shared'
+import type { ListaEventos } from '@atletica/shared'
 import type { UseQueryResult } from '@tanstack/react-query'
 import { View } from 'react-native'
 import { TelaDados } from '@/components/estado'
@@ -10,7 +10,7 @@ import { CabecalhoSecao } from './cabecalho-secao'
 const MENSAGEM_ERRO_EVENTOS = 'Não foi possível carregar os eventos'
 
 type Props = {
-  consulta: UseQueryResult<EventoResumoDto[]>
+  consulta: UseQueryResult<ListaEventos>
   aoVerAgenda: () => void
   aoAbrirEvento: (id: string) => void
 }
@@ -26,13 +26,13 @@ export function SecaoProximosEventos({ consulta, aoVerAgenda, aoAbrirEvento }: P
         consulta={consulta}
         esqueleto={{ variante: 'cartoes', quantidade: 3 }}
         faixaOffline={false}
-        vazio={(eventos) => eventos.length === 0}
+        vazio={({ items }) => items.length === 0}
         mensagemVazio={MENSAGEM_SEM_EVENTOS}
         mensagemErro={MENSAGEM_ERRO_EVENTOS}
       >
-        {(eventos) => (
+        {({ items }) => (
           <View className="gap-2">
-            {eventos.map((evento) => (
+            {items.map((evento) => (
               <EventoCard
                 key={evento.id}
                 evento={evento}
