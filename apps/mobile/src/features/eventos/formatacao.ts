@@ -1,6 +1,7 @@
 import {
   chaveDiaLocal,
   formatarData,
+  formatarHora,
   localParaUtc,
   TipoEvento,
   type EventoResumoDto,
@@ -27,6 +28,13 @@ export function rotuloDia(dia: string, agora: Instante = Date.now()): string {
   if (dia === chaveDiaLocal(localParaUtc(hoje, '12:00').getTime() + UM_DIA_MS)) return 'Amanhã'
   const meioDia = localParaUtc(dia, '12:00')
   return `${DIAS_SEMANA[meioDia.getUTCDay()]}, ${formatarData(meioDia).slice(0, 5)}`
+}
+
+/** `"Qui · 01/10/2026 · 19:00"` no fuso padrão. */
+export function rotuloInicio(inicio: Instante): string {
+  const sigla = DIAS_SEMANA[localParaUtc(chaveDiaLocal(inicio), '12:00').getUTCDay()] ?? ''
+  const dia = sigla.charAt(0).toUpperCase() + sigla.slice(1)
+  return `${dia} · ${formatarData(inicio)} · ${formatarHora(inicio)}`
 }
 
 export const rotuloAdversario = ({

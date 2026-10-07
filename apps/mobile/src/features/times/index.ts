@@ -11,6 +11,7 @@ export {
   useDefinirCapitao,
   useElenco,
   useExcluirTime,
+  useProximosTreinos,
   useRemoverMembro,
   useTime,
   useTimes,

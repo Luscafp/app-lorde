@@ -14,6 +14,9 @@ jest.mock('@/components/ui/toast', () => ({
 }))
 jest.mock('@/features/times/api')
 jest.mock('@/features/solicitacoes/api')
+jest.mock('@/features/eventos/api', () => ({
+  listarEventos: jest.fn(() => Promise.resolve({ items: [], page: 1, limit: 5, total: 0 })),
+}))
 
 const apiTime = jest.mocked(apiTimes)
 const api = jest.mocked(apiSolicitacoes)
@@ -54,7 +57,12 @@ async function abrirTime(situacao: MinhaSituacaoDto | null, aoVoltar = jest.fn()
   apiTime.buscarTime.mockResolvedValue(time(situacao))
   await render(
     <QueryClientProvider client={cliente}>
-      <TelaTime timeId="t-masc" aoVoltar={aoVoltar} />
+      <TelaTime
+        timeId="t-masc"
+        aoVoltar={aoVoltar}
+        aoAbrirEvento={jest.fn()}
+        aoVerAgenda={jest.fn()}
+      />
     </QueryClientProvider>,
   )
   await screen.findByRole('header', { name: 'Futsal Masculino' })

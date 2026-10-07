@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { Papel } from '@atletica/shared'
 import { act, fireEvent, waitFor } from '@testing-library/react-native'
+import { router } from 'expo-router'
 import * as SecureStore from 'expo-secure-store'
 import { renderRouter, screen } from 'expo-router/testing-library'
 import * as rotaApp from '../app/(app)/_layout'
@@ -136,6 +137,68 @@ describe('navegação', () => {
     expect(buscarTime).toHaveBeenCalledWith('b2a1c3d4', expect.anything())
     expect(screen.queryByText('Página não encontrada')).toBeNull()
     buscarTime.mockRestore()
+  })
+
+  it('treino do time abre /eventos/:id e "Ver na agenda" abre a Agenda filtrada (#67)', async () => {
+    const timeId = 'b2a1c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
+    const modalidade = {
+      id: '6f1c2a7e-2f5b-4c39-9a0e-3f3b1b8d2c11',
+      nome: 'Futsal',
+      icone: 'soccer',
+    }
+    const espioes = [
+      jest.spyOn(apiTimes, 'buscarTime').mockResolvedValue({
+        id: timeId,
+        nome: 'Futsal Masculino',
+        ativo: true,
+        modalidade,
+        atletica: { id: 'a1', nome: 'Lorde', sigla: 'LRD', propria: true },
+        capitao: null,
+        totalMembros: 0,
+        minhaSituacao: null,
+      }),
+      jest.spyOn(apiTimes, 'buscarElenco').mockResolvedValue({ items: [], total: 0 }),
+    ]
+    const listarEventos = jest.spyOn(apiEventos, 'listarEventos').mockResolvedValue({
+      items: [
+        {
+          id: 'e1',
+          tipo: 'TREINO',
+          status: 'AGENDADO',
+          inicio: '2030-10-09T22:00:00.000Z',
+          local: 'Ginásio',
+          serieId: null,
+          time: { id: timeId, nome: 'Futsal Masculino' },
+          modalidade,
+          timeAdversario: null,
+          placarTime: null,
+          placarAdversario: null,
+          resultado: null,
+          souMembro: false,
+          minhaParticipacao: null,
+        },
+      ],
+      page: 1,
+      limit: 5,
+      total: 1,
+    })
+    await comSessaoSalva('ATLETA')
+    const caminho = await abrir(`/times/${timeId}`)
+
+    await fireEvent.press(await screen.findByRole('button', { name: /^Treino — Futsal Masculino/ }))
+    await waitFor(() => expect(caminho()).toBe('/eventos/e1'))
+
+    await act(() => router.back())
+    await fireEvent.press(await screen.findByRole('link', { name: 'Ver na agenda' }))
+    await waitFor(() => expect(caminho()).toBe('/agenda'))
+    await waitFor(() =>
+      expect(listarEventos).toHaveBeenLastCalledWith(
+        { periodo: 'PROXIMOS', tipo: 'TREINO', modalidadeId: modalidade.id },
+        1,
+        expect.anything(),
+      ),
+    )
+    ;[...espioes, listarEventos].forEach((espiao) => espiao.mockRestore())
   })
 
   it('deep link /agenda com filtros consulta a API com eles e o card abre /eventos/:id (#76)', async () => {

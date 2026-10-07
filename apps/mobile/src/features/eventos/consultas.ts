@@ -59,3 +59,11 @@ export function useEventos(filtros: FiltrosEventos) {
     select: ({ pages }) => juntarPaginas(pages),
   })
 }
+
+/** Lista curta sem paginação (treinos do time, Home): só a primeira página. */
+export function useProximosEventos(filtros: FiltrosEventos, limit: number) {
+  return useQuery({
+    queryKey: chaves.eventos.lista({ ...filtros, limit }),
+    queryFn: ({ signal }) => listarEventos(filtros, 1, signal, limit),
+  })
+}
