@@ -3,6 +3,7 @@ import {
   perfilSchema,
   type AlterarSenha,
   type AtualizarPerfil,
+  type ExcluirConta,
   type FotoAtualizada,
   type Perfil,
 } from '@atletica/shared'
@@ -26,4 +27,8 @@ export async function removerFoto(): Promise<void> {
 
 export async function alterarSenha(dados: AlterarSenha): Promise<void> {
   await api.put('/me/senha', dados)
+}
+
+export async function excluirConta(dados: ExcluirConta): Promise<void> {
+  await api.delete('/me/conta', { corpo: dados })
 }
