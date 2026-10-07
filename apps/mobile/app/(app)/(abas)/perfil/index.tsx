@@ -6,6 +6,7 @@ export default function Perfil() {
     <TelaPerfil
       aoAbrirConfiguracoes={() => router.push('/perfil/configuracoes')}
       aoAbrirTime={(id) => router.push(`/times/${id}`)}
+      aoAbrirEvento={(id) => router.push(`/eventos/${id}`)}
       aoConhecerTimes={() => router.navigate('/times')}
     />
   )

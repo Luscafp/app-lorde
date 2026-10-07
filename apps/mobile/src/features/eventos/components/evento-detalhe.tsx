@@ -14,7 +14,7 @@ import { useVePainel } from '@/infra/sessao/use-ve-painel'
 import { ehDetalhe, type EventoEmTela } from '../consultas'
 import { tituloEvento } from '../formatacao'
 import { RESULTADO, ROTULO_TIPO, siglaOuNome, STATUS } from '../rotulos'
-import { ParticipacaoAcoes } from './participacao-acoes'
+import { ParticipacaoAcoes } from '@/features/participacoes/components/participacao-acoes'
 
 export const MENSAGEM_RESULTADO_PENDENTE = 'Resultado pendente'
 export const MENSAGEM_NINGUEM_CONFIRMOU = 'Ninguém confirmou ainda'
@@ -124,11 +124,12 @@ function QuemVai({ confirmados }: { confirmados: Confirmado[] }) {
 function Participacao({
   evento,
   aoTentarNovamente,
+  aoAbrirTime,
 }: {
   evento: EventoEmTela
   aoTentarNovamente: () => Promise<unknown>
+  aoAbrirTime: (timeId: string) => void
 }) {
-  const cancelado = evento.status === StatusEvento.CANCELADO
   const consulta = {
     data: ehDetalhe(evento) ? evento : undefined,
     isError: false,
@@ -143,11 +144,7 @@ function Participacao({
           <View className="gap-2">
             <Texto variante="subtitulo">Participação</Texto>
             <Texto testID="contagem">{resumoContagem(detalhe.contagem)}</Texto>
-            {!cancelado && (
-              <View testID="slot-participacao">
-                <ParticipacaoAcoes evento={detalhe} />
-              </View>
-            )}
+            <ParticipacaoAcoes evento={detalhe} aoAbrirTime={aoAbrirTime} />
           </View>
           <QuemVai confirmados={detalhe.confirmados} />
         </View>
@@ -159,10 +156,11 @@ function Participacao({
 type Props = {
   evento: EventoEmTela
   aoGerenciar: () => void
+  aoAbrirTime: (timeId: string) => void
   aoTentarNovamente: () => Promise<unknown>
 }
 
-export function EventoDetalhe({ evento, aoGerenciar, aoTentarNovamente }: Props) {
+export function EventoDetalhe({ evento, aoGerenciar, aoAbrirTime, aoTentarNovamente }: Props) {
   const vePainel = useVePainel()
   const cancelado = evento.status === StatusEvento.CANCELADO
 
@@ -180,7 +178,11 @@ export function EventoDetalhe({ evento, aoGerenciar, aoTentarNovamente }: Props)
       </View>
       <CartaoPlacar evento={evento} />
       <Informacoes evento={evento} />
-      <Participacao evento={evento} aoTentarNovamente={aoTentarNovamente} />
+      <Participacao
+        evento={evento}
+        aoTentarNovamente={aoTentarNovamente}
+        aoAbrirTime={aoAbrirTime}
+      />
       {vePainel && <Botao titulo="Gerenciar" variante="secundaria" onPress={aoGerenciar} />}
     </View>
   )

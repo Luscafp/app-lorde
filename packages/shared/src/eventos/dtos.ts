@@ -49,6 +49,16 @@ export const minhaParticipacaoSchema = z
   .strict()
   .nullable()
 
+/** Respostas do elenco atual do time. */
+export const contagemParticipacaoSchema = z
+  .object({
+    confirmados: z.number().int(),
+    recusados: z.number().int(),
+    semResposta: z.number().int(),
+    elenco: z.number().int(),
+  })
+  .strict()
+
 /** Item de `GET /eventos`. */
 export const eventoResumoSchema = eventoDtoSchema
   .omit({ observacoes: true, criadoEm: true, atualizadoEm: true })
@@ -70,15 +80,7 @@ export const eventoDetalheSchema = eventoDtoSchema
       })
       .strict()
       .nullable(),
-    /** Só o elenco atual do time. */
-    contagem: z
-      .object({
-        confirmados: z.number().int(),
-        recusados: z.number().int(),
-        semResposta: z.number().int(),
-        elenco: z.number().int(),
-      })
-      .strict(),
+    contagem: contagemParticipacaoSchema,
     /** "Quem vai": membros atuais com `confirmado = true`. */
     confirmados: z.array(
       z
@@ -108,6 +110,7 @@ export const statusEventoAlteradoDtoSchema = z
 
 export type EventoDto = z.infer<typeof eventoDtoSchema>
 export type EventoCanceladoDto = z.infer<typeof eventoCanceladoDtoSchema>
+export type ContagemParticipacao = z.infer<typeof contagemParticipacaoSchema>
 export type MinhaParticipacao = z.infer<typeof minhaParticipacaoSchema>
 export type EventoResumoDto = z.infer<typeof eventoResumoSchema>
 export type ListaEventos = z.infer<typeof listaEventosSchema>

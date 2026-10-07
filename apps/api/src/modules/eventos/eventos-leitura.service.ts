@@ -2,6 +2,7 @@ import {
   avaliarResposta,
   Papel,
   temNivelMinimo,
+  type ContagemParticipacao,
   type EventoDetalheDto,
   type EventoResumoDto,
   type ListaEventos,
@@ -38,6 +39,10 @@ interface LinhaParticipacao {
 function minhaParticipacao(linha: LinhaParticipacao | null | undefined): MinhaParticipacao {
   if (!linha || linha.confirmado === null || !linha.respondidoEm) return null
   return { confirmado: linha.confirmado, respondidoEm: linha.respondidoEm.toISOString() }
+}
+
+function doElenco(timeId: string) {
+  return { usuario: { membrosTime: { some: { timeId, ...ELENCO_ATUAL } } } }
 }
 
 /** `@db.Date` → `"aaaa-mm-dd"`. */
@@ -132,18 +137,10 @@ export class EventosLeituraService {
     })
     if (!evento) throw erroEventoNaoEncontrado()
 
-    const doElenco = {
-      usuario: { membrosTime: { some: { timeId: evento.timeId, ...ELENCO_ATUAL } } },
-    }
-    const [elenco, respostas, confirmados, minha, souMembro] = await Promise.all([
-      this.prisma.db.membroTime.count({ where: { timeId: evento.timeId, ...ELENCO_ATUAL } }),
-      this.prisma.db.participacao.groupBy({
-        by: ['confirmado'],
-        where: { eventoId: id, confirmado: { not: null }, ...doElenco },
-        _count: { _all: true },
-      }),
+    const [contagem, confirmados, minha, souMembro] = await Promise.all([
+      this.contagem(evento),
       this.prisma.db.participacao.findMany({
-        where: { eventoId: id, confirmado: true, ...doElenco },
+        where: { eventoId: id, confirmado: true, ...doElenco(evento.timeId) },
         select: { usuario: { select: CAMPOS_MEMBRO } },
         orderBy: [{ usuario: { nome: 'asc' } }, { usuarioId: 'asc' }],
       }),
@@ -156,10 +153,6 @@ export class EventosLeituraService {
         .then((total) => total > 0),
     ])
 
-    const contar = (confirmado: boolean) =>
-      respostas.find((grupo) => grupo.confirmado === confirmado)?._count._all ?? 0
-    const totalConfirmados = contar(true)
-    const totalRecusados = contar(false)
     const { capitaoId, ...time } = evento.time
     const { serie } = evento
 
@@ -172,12 +165,7 @@ export class EventosLeituraService {
         dataInicio: dataLocal(serie.dataInicio),
         dataFim: dataLocal(serie.dataFim),
       },
-      contagem: {
-        confirmados: totalConfirmados,
-        recusados: totalRecusados,
-        semResposta: elenco - totalConfirmados - totalRecusados,
-        elenco,
-      },
+      contagem,
       confirmados: confirmados.map(({ usuario }) => ({
         id: usuario.id,
         ...identidadeMembro(usuario, this.uploads),
@@ -187,5 +175,22 @@ export class EventosLeituraService {
       minhaParticipacao: minhaParticipacao(minha),
       ...avaliarResposta(evento, souMembro, new Date()),
     }
+  }
+
+  /** Só o elenco atual do time conta; quem saiu mantém a resposta no banco. */
+  async contagem(evento: { id: string; timeId: string }): Promise<ContagemParticipacao> {
+    const [elenco, respostas] = await Promise.all([
+      this.prisma.db.membroTime.count({ where: { timeId: evento.timeId, ...ELENCO_ATUAL } }),
+      this.prisma.db.participacao.groupBy({
+        by: ['confirmado'],
+        where: { eventoId: evento.id, confirmado: { not: null }, ...doElenco(evento.timeId) },
+        _count: { _all: true },
+      }),
+    ])
+    const contar = (confirmado: boolean) =>
+      respostas.find((grupo) => grupo.confirmado === confirmado)?._count._all ?? 0
+    const confirmados = contar(true)
+    const recusados = contar(false)
+    return { confirmados, recusados, semResposta: elenco - confirmados - recusados, elenco }
   }
 }

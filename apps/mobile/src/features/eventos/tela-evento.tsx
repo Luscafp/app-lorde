@@ -7,7 +7,9 @@ import { useEvento } from './consultas'
 export const MENSAGEM_EVENTO_NAO_ENCONTRADO = 'Evento não encontrado'
 
 /** O 404 vence o cache: o evento pode ter sido excluído depois de carregado. */
-export function TelaEvento({ id, aoGerenciar }: { id: string; aoGerenciar: () => void }) {
+type Props = { id: string; aoGerenciar: () => void; aoAbrirTime: (timeId: string) => void }
+
+export function TelaEvento({ id, aoGerenciar, aoAbrirTime }: Props) {
   const consulta = useEvento(id)
 
   return (
@@ -30,6 +32,7 @@ export function TelaEvento({ id, aoGerenciar }: { id: string; aoGerenciar: () =>
               <EventoDetalhe
                 evento={evento}
                 aoGerenciar={aoGerenciar}
+                aoAbrirTime={aoAbrirTime}
                 aoTentarNovamente={consulta.refetch}
               />
             </ScrollView>

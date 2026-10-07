@@ -10,7 +10,6 @@ export {
   EventoCard,
   EventoForm,
   MinhaRespostaChip,
-  ParticipacaoAcoes,
   type EventoDoCard,
 } from './components'
 export { useEventos } from './consultas'

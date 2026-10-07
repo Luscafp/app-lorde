@@ -17,6 +17,6 @@ import { ResultadoService } from './resultado.service'
     EventosStatusService,
     ResultadoService,
   ],
-  exports: [EventosService],
+  exports: [EventosService, EventosLeituraService],
 })
 export class EventosModule {}
