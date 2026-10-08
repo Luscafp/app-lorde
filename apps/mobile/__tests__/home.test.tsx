@@ -85,6 +85,7 @@ const navegacao = {
   aoAbrirEvento: jest.fn(),
   aoAbrirNoticia: jest.fn(),
   aoAbrirPerfil: jest.fn(),
+  aoVerificarEmail: jest.fn(),
 }
 
 const abrirHome = () => renderizar(<TelaHome {...navegacao} />)

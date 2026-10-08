@@ -10,6 +10,7 @@ export default function Inicio() {
       aoAbrirEvento={(id) => router.push(`/eventos/${id}`)}
       aoAbrirNoticia={(id) => router.push(`/noticias/${id}`)}
       aoAbrirPerfil={() => router.navigate('/perfil')}
+      aoVerificarEmail={() => router.push('/verificar-email')}
     />
   )
 }

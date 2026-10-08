@@ -207,6 +207,19 @@ Rotas `@Publico()` do `AuthController` (UC09, épico #11), entrada pelos schemas
 - `novaSenha` é validada pelo pipe antes do código: senha fraca → `400 VALIDATION_ERROR` sem gastar tentativa.
 - `429` do limite por e-mail: "Limite de 3 envios por hora atingido. Tente novamente em X min." (o app mostra a `message`).
 
+### Verificação de e-mail (`VerificacaoEmailService`)
+
+Rotas autenticadas de `verificacao-email/` (RF06, #31); só o próprio usuário, sem 403/404. Não bloqueia nada: e-mail não verificado continua usando o app.
+
+| Rota                                      | Resposta                                        | Faz                                                                                                                         |
+| ----------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `POST /auth/verificar-email/enviar`       | `202 { enviadoPara, expiraEm, proximoEnvioEm }` | Invalida os códigos anteriores, grava `CodigoVerificacao` (`VERIFICAR_EMAIL`, 24 h) e envia o template `verificacao-email`. |
+| `POST /auth/verificar-email` `{ codigo }` | `200 { emailVerificado: true }` (idempotente)   | Consome o código e marca `Usuario.emailVerificado`.                                                                         |
+
+- **Cadastro:** `VerificacaoEmailOuvinte` ouve `usuario.cadastrado` (`{ async: true }`) e envia o primeiro código na atlética do payload; erro vai ao log e ao Sentry sem afetar o cadastro. Falha do provedor de e-mail não propaga em nenhum dos dois caminhos (o `EmailService` já registrou).
+- **Limites** (`VERIFICACAO_ENVIO`, chave `usuarioId`, o envio do cadastro conta): 3 por hora e 60 s entre envios (este sob `consumir`). `429` traz `details: [{ field: 'proximoEnvioEm', message: <ISO> }]`. Já verificado → `409 EMAIL_JA_VERIFICADO`.
+- **Código:** errado → `400 CODIGO_INVALIDO` e soma `tentativas`; na 5ª o código é marcado usado. Expirado, usado ou inexistente → `400 CODIGO_EXPIRADO`.
+
 ### Agendador (`src/infra/agendador`)
 
 Único registro do `ScheduleModule` (`@nestjs/schedule`, convenções §11.6). Jobs usam `@Cron(expr, { name, timeZone: FUSO_PADRAO })` e recebem o relógio por parâmetro num método separado (o `cron` passa argumentos próprios ao `onTick`). `LimpezaDiariaJob` (`manutencao.limpeza-diaria`, 03:00) apaga `TentativaAcesso` e `CodigoVerificacao` com mais de 24 h e `Sessao` expiradas ou revogadas há mais de 30 dias. `LimpezaOrfaosJob` (`uploads.limpeza-orfaos`, 03:30) fica no `UploadsModule` (ver [Limpeza de órfãos](#limpeza-de-órfãos)).
@@ -219,6 +232,7 @@ Rotas `@Publico()` do `AuthController` (UC09, épico #11), entrada pelos schemas
 verificar(tipo, chave, { maximo, janelaMs, bloqueioMs? }, agora?): Promise<number> // tentativas restantes
 registrar(tipo, chave, agora?): Promise<void>
 consumir(tipo, chave, limite, agora?): Promise<number> // verificar + registrar atômicos
+liberadoEm(tipo, chave, limite, agora?): Promise<Date | null> // fim do bloqueio, sem lançar
 limpar(tipo, chave): Promise<void>
 limparPorPrefixo(tipo, prefixo, cliente?): Promise<void> // ex.: falhas de login `email|*`; aceita a `tx`
 ```

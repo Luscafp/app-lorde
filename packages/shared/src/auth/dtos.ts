@@ -35,7 +35,23 @@ export const respostaEsqueciSenhaSchema = z
 
 export const respostaVerificarCodigoSchema = z.object({ valido: z.literal(true) }).strict()
 
+/** Validade do código de verificação de e-mail (#31). */
+export const VALIDADE_CODIGO_VERIFICACAO_MS = 24 * 60 * 60_000
+
+/** `202` de `POST /auth/verificar-email/enviar`; `enviadoPara` vem mascarado. */
+export const respostaEnvioVerificacaoSchema = z
+  .object({
+    enviadoPara: z.string(),
+    expiraEm: z.iso.datetime(),
+    proximoEnvioEm: z.iso.datetime(),
+  })
+  .strict()
+
+export const respostaVerificarEmailSchema = z.object({ emailVerificado: z.literal(true) }).strict()
+
 export type UsuarioSessao = z.infer<typeof usuarioSessaoSchema>
 export type RespostaSessao = z.infer<typeof respostaSessaoSchema>
 export type RespostaEsqueciSenha = z.infer<typeof respostaEsqueciSenhaSchema>
 export type RespostaVerificarCodigo = z.infer<typeof respostaVerificarCodigoSchema>
+export type RespostaEnvioVerificacao = z.infer<typeof respostaEnvioVerificacaoSchema>
+export type RespostaVerificarEmail = z.infer<typeof respostaVerificarEmailSchema>

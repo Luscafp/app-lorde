@@ -68,6 +68,8 @@ export const codigoSchema = z
   .string()
   .regex(/^\d{6}$/, { error: 'Informe os 6 dígitos do código.' })
 
+export const verificarEmailSchema = z.object({ codigo: codigoSchema }).strict()
+
 export const esqueciSenhaSchema = z.object({ email: emailSchema }).strict()
 
 export const verificarCodigoSchema = z.object({ email: emailSchema, codigo: codigoSchema }).strict()
@@ -88,6 +90,7 @@ export type LoginEntrada = z.infer<typeof loginSchema>
 export type CadastroEntrada = z.infer<typeof cadastroSchema>
 export type CadastroForm = z.infer<typeof cadastroFormSchema>
 export type RefreshTokenEntrada = z.infer<typeof refreshTokenSchema>
+export type VerificarEmailEntrada = z.infer<typeof verificarEmailSchema>
 export type EsqueciSenhaEntrada = z.infer<typeof esqueciSenhaSchema>
 export type VerificarCodigoEntrada = z.infer<typeof verificarCodigoSchema>
 export type RedefinirSenhaEntrada = z.infer<typeof redefinirSenhaSchema>

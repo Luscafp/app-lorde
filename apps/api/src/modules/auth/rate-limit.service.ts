@@ -65,6 +65,17 @@ export class RateLimitService {
     return verificarCom(this.prisma.semEscopo, tipo, chave, limite, agora)
   }
 
+  /** Instante em que a chave volta a ter tentativas; `null` se já tem. Não lança. */
+  async liberadoEm(
+    tipo: TipoTentativa,
+    chave: string,
+    limite: LimiteTentativas,
+    agora: Date = new Date(),
+  ): Promise<Date | null> {
+    const recentes = await recentesDe(this.prisma.semEscopo, tipo, chave, limite, agora)
+    return avaliarLimite(recentes, limite, agora).bloqueadoAte
+  }
+
   async registrar(tipo: TipoTentativa, chave: string, agora: Date = new Date()): Promise<void> {
     await this.prisma.semEscopo.tentativaAcesso.create({ data: { tipo, chave, criadoEm: agora } })
   }
@@ -106,19 +117,26 @@ async function verificarCom(
   limite: LimiteTentativas,
   agora: Date,
 ): Promise<number> {
+  const recentes = await recentesDe(cliente, tipo, chave, limite, agora)
+  const { restantes, bloqueadoAte } = avaliarLimite(recentes, limite, agora)
+  if (bloqueadoAte) {
+    throw new ErroLimiteExcedido(Math.ceil((bloqueadoAte.getTime() - agora.getTime()) / 1000))
+  }
+  return restantes
+}
+
+async function recentesDe(
+  cliente: Pick<ClienteBase, 'tentativaAcesso'>,
+  tipo: TipoTentativa,
+  chave: string,
+  limite: LimiteTentativas,
+  agora: Date,
+): Promise<Date[]> {
   const recentes = await cliente.tentativaAcesso.findMany({
     where: { tipo, chave, criadoEm: { lte: agora } },
     orderBy: { criadoEm: 'desc' },
     take: limite.maximo,
     select: { criadoEm: true },
   })
-  const { restantes, bloqueadoAte } = avaliarLimite(
-    recentes.map(({ criadoEm }) => criadoEm),
-    limite,
-    agora,
-  )
-  if (bloqueadoAte) {
-    throw new ErroLimiteExcedido(Math.ceil((bloqueadoAte.getTime() - agora.getTime()) / 1000))
-  }
-  return restantes
+  return recentes.map(({ criadoEm }) => criadoEm)
 }

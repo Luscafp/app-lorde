@@ -222,6 +222,7 @@ const navegacaoHome = {
   aoAbrirEvento: jest.fn(),
   aoAbrirNoticia: jest.fn(),
   aoAbrirPerfil: jest.fn(),
+  aoVerificarEmail: jest.fn(),
 }
 
 const agenda = (aba: AbaAgenda) => (

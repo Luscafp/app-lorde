@@ -18,6 +18,10 @@ export default function LayoutApp() {
       <Stack.Screen name="eventos/[id]" options={{ ...comCabecalho, title: 'Evento' }} />
       <Stack.Screen name="noticias/index" options={{ ...comCabecalho, title: 'Notícias' }} />
       <Stack.Screen name="noticias/[id]" options={{ ...comCabecalho, title: 'Notícia' }} />
+      <Stack.Screen
+        name="verificar-email"
+        options={{ ...comCabecalho, title: 'Verificar e-mail', presentation: 'modal' }}
+      />
     </Stack>
   )
 }
