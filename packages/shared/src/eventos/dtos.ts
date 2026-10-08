@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { Resultado, StatusEvento, TipoEvento } from '../enums/evento'
+import { contagemParticipacaoSchema } from '../participacoes/dtos'
 import { respostaPaginadaSchema } from '../utils/paginacao'
 import { MotivoBloqueioResposta } from './participacao'
 
@@ -100,15 +101,7 @@ export const eventoDetalheSchema = eventoDtoSchema
       })
       .strict()
       .nullable(),
-    /** Só o elenco atual do time. */
-    contagem: z
-      .object({
-        confirmados: z.number().int(),
-        recusados: z.number().int(),
-        semResposta: z.number().int(),
-        elenco: z.number().int(),
-      })
-      .strict(),
+    contagem: contagemParticipacaoSchema,
     /** "Quem vai": membros atuais com `confirmado = true`. */
     confirmados: z.array(
       z

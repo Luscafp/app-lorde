@@ -8,15 +8,7 @@ import { tituloEvento } from '../formatacao'
 
 export type EventoDoCard = Pick<
   EventoResumoDto,
-  | 'id'
-  | 'tipo'
-  | 'status'
-  | 'inicio'
-  | 'local'
-  | 'time'
-  | 'modalidade'
-  | 'timeAdversario'
-  | 'serieId'
+  'id' | 'tipo' | 'status' | 'inicio' | 'local' | 'time' | 'modalidade' | 'timeAdversario'
 >
 
 const ROTULO_TIPO = { [TipoEvento.JOGO]: 'JOGO', [TipoEvento.TREINO]: 'TREINO' } as const
@@ -32,12 +24,20 @@ type Props<T extends EventoDoCard> = {
   evento: T
   aoAbrir: (evento: T) => void
   direita?: ReactNode
+  rotuloData?: string
+  selos?: ReactNode
 }
 
-export function EventoCard<T extends EventoDoCard>({ evento, aoAbrir, direita }: Props<T>) {
+export function EventoCard<T extends EventoDoCard>({
+  evento,
+  aoAbrir,
+  direita,
+  rotuloData = formatarDataHora(evento.inicio),
+  selos,
+}: Props<T>) {
   const { corPrimaria, corSecundaria } = useAtletica()
   const titulo = tituloEvento(evento)
-  const quando = `${formatarDataHora(evento.inicio)} · ${evento.local}`
+  const quando = `${rotuloData} · ${evento.local}`
   const cancelado = evento.status === StatusEvento.CANCELADO
   const status = SELO_STATUS[evento.status]
   const corTipo = evento.tipo === TipoEvento.JOGO ? corPrimaria : corSecundaria
@@ -60,7 +60,7 @@ export function EventoCard<T extends EventoDoCard>({ evento, aoAbrir, direita }:
             <Selo texto={ROTULO_TIPO[evento.tipo]} cor={corTipo} />
             <Selo texto={evento.modalidade.nome} />
             {status && <Selo texto={status.texto} cor={status.cor} />}
-            {evento.serieId && <Selo texto="↺ Recorrente" />}
+            {selos}
           </View>
           <Texto
             className="font-semibold"

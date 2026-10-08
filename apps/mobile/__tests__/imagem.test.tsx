@@ -35,6 +35,11 @@ describe('Imagem', () => {
     expect(screen.getByText('B')).toBeOnTheScreen()
   })
 
+  it('textoFallback substitui as iniciais', async () => {
+    await renderizar(<Imagem uri={null} nome="Atlética de Computação" textoFallback="AAC" />)
+    expect(screen.getByText('AAC')).toBeOnTheScreen()
+  })
+
   it('sem nome, o fallback é um placeholder neutro', async () => {
     await renderizar(<Imagem uri={undefined} />)
     expect(screen.getByTestId('imagem-fallback')).toBeOnTheScreen()

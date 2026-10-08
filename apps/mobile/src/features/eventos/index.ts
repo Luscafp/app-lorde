@@ -4,17 +4,19 @@ export {
   type FiltrosSelecionados,
   type ParametrosAgenda,
 } from './agenda'
+export { listarEventos, type FiltrosEventos } from './api'
 export {
   CabecalhoDia,
   DetalheEventoPainel,
   EventoCard,
   EventoForm,
   MinhaRespostaChip,
-  ParticipacaoAcoes,
+  type AcoesParticipacao,
   type EventoDoCard,
 } from './components'
-export { useEventos } from './consultas'
-export { tituloEvento } from './formatacao'
-export { useEventoPainel } from './hooks'
-export { TelaAgenda } from './tela-agenda'
+export { ehDetalhe, useEventos, useProximosEventos, type EventoEmTela } from './consultas'
+export { rotuloInicio, tituloEvento } from './formatacao'
+export { useEventoPainel, useEventosPainel, type FiltrosEventosPainel } from './hooks'
+export { ListaEventosPainel, type NavegacaoEventos } from './lista-eventos-painel'
+export { MENSAGEM_SEM_EVENTOS, TelaAgenda } from './tela-agenda'
 export { TelaEvento } from './tela-evento'

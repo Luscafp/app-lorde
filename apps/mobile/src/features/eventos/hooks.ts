@@ -7,6 +7,7 @@ import type {
   EventoCanceladoDto,
   EventoDto,
   OcorrenciasAlteradasDto,
+  PeriodoEventos,
   SerieCriadaDto,
 } from '@atletica/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -24,7 +25,9 @@ import {
   editarSeguintes,
   excluirEvento,
   filtrosAgendadosDaSerie,
+  type FiltrosEventos,
 } from './api'
+import { useEventos } from './consultas'
 
 export const CodigoEvento = {
   TIME_INVALIDO: 'TIME_INVALIDO',
@@ -48,6 +51,15 @@ const ERROS_DO_FORMULARIO = [
   CodigoEvento.EVENTO_COM_PARTICIPACOES,
   CodigoEvento.SERIE_SEM_OCORRENCIAS,
 ]
+
+export type FiltrosEventosPainel = Pick<FiltrosEventos, 'tipo' | 'status'> & {
+  periodo: PeriodoEventos
+}
+
+/** O Painel vê também os eventos de times inativos. */
+export function useEventosPainel(filtros: FiltrosEventosPainel) {
+  return useEventos({ ...filtros, incluirInativos: true })
+}
 
 /** Sem o placeholder do card: o formulário precisa do detalhe completo. */
 export function useEventoPainel(id: string) {

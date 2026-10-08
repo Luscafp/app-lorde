@@ -40,6 +40,15 @@ export interface EventosDominio {
     timeId: string
     autorId: string
   }
+  /** #69; `usuarioId` = solicitante, `autorId` = Diretor. Ouvido pela #89 (push ao solicitante). */
+  'solicitacao.avaliada': PayloadBase & {
+    atleticaId: string
+    solicitacaoId: string
+    timeId: string
+    usuarioId: string
+    status: StatusAvaliacao
+    autorId: string
+  }
   /** #80, só na primeira publicação; `autorId` = quem publicou. Ouvido pela #89 (push de notícia). */
   'noticia.publicada': PayloadBase & { atleticaId: string; noticiaId: string; autorId: string }
   /** Em série, `eventoId` é a 1ª ocorrência. */
@@ -74,5 +83,7 @@ export interface EventosDominio {
 }
 
 export type CampoAlteradoEvento = 'inicio' | 'local' | 'status'
+
+export type StatusAvaliacao = 'APROVADA' | 'REJEITADA'
 
 export type NomeEventoDominio = keyof EventosDominio

@@ -10,6 +10,8 @@ type Props = {
   uri: string | null | undefined
   /** Fallback de perfil: sem imagem ou com erro, mostra as iniciais deste nome. */
   nome?: string
+  /** Texto do fallback no lugar das iniciais (ex.: sigla da atlética). */
+  textoFallback?: string | null
   rotulo?: string
   className?: string
   /** Substitui o fallback padrão (iniciais ou ícone neutro). */
@@ -31,9 +33,8 @@ function IconeNeutro({ testID }: { testID: string }) {
   )
 }
 
-function Fallback({ nome }: { nome?: string }) {
+function Fallback({ texto }: { texto: string }) {
   const { corPrimaria } = useAtletica()
-  const texto = nome ? iniciais(nome) : ''
   if (!texto) return <IconeNeutro testID="imagem-fallback" />
   return (
     <View
@@ -49,7 +50,7 @@ function Fallback({ nome }: { nome?: string }) {
 }
 
 /** Toda imagem remota do app passa por aqui (convenções §10.8): cache em memória e disco. */
-export function Imagem({ uri, nome, rotulo, className, fallback }: Props) {
+export function Imagem({ uri, nome, textoFallback, rotulo, className, fallback }: Props) {
   const [uriComErro, setUriComErro] = useState<string | null>(null)
   const exibir = uri && uri !== uriComErro
 
@@ -74,7 +75,7 @@ export function Imagem({ uri, nome, rotulo, className, fallback }: Props) {
           />
         </>
       ) : (
-        (fallback ?? <Fallback nome={nome} />)
+        (fallback ?? <Fallback texto={textoFallback ?? (nome ? iniciais(nome) : '')} />)
       )}
     </View>
   )

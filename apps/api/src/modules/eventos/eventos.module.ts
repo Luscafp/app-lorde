@@ -19,6 +19,6 @@ import { SeriesRecorrenciaService } from './series-recorrencia.service'
     ResultadoService,
     SeriesRecorrenciaService,
   ],
-  exports: [EventosService],
+  exports: [EventosService, EventosLeituraService],
 })
 export class EventosModule {}

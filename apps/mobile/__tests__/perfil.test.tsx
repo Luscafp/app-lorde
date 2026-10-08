@@ -1,6 +1,6 @@
-import type { Perfil } from '@atletica/shared'
+import type { EventoResumoDto, Perfil } from '@atletica/shared'
 import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native'
 import { toast } from '@/components/ui/toast'
 import {
   AlterarSenha,
@@ -10,6 +10,7 @@ import {
   MENSAGEM_SENHA_ALTERADA,
   TelaPerfil,
 } from '@/features/perfil'
+import * as apiEventos from '@/features/eventos/api'
 import * as apiPerfil from '@/features/perfil/api'
 import { useUploadImagem } from '@/features/uploads'
 import { ApiErro } from '@/infra/api/api-erro'
@@ -23,8 +24,13 @@ jest.mock('@/components/ui/toast', () => ({
 }))
 jest.mock('@/features/perfil/api')
 jest.mock('@/features/uploads', () => ({ useUploadImagem: jest.fn() }))
+jest.mock('@/features/eventos/api', () => ({
+  ...jest.requireActual<object>('@/features/eventos/api'),
+  listarEventos: jest.fn(),
+}))
 
 const api = jest.mocked(apiPerfil)
+const listarEventos = jest.mocked(apiEventos.listarEventos)
 const ID = '6b0e2a52-8e5d-4a43-9d6c-1f0f3c2b7a90'
 const CHAVE_NOVA = `usuarios/${ID}/perfil/nova.jpg`
 
@@ -85,6 +91,7 @@ function renderizar(elemento: React.ReactElement) {
 const navegacao = () => ({
   aoAbrirConfiguracoes: jest.fn(),
   aoAbrirTime: jest.fn(),
+  aoAbrirEvento: jest.fn(),
   aoConhecerTimes: jest.fn(),
 })
 
@@ -94,6 +101,7 @@ beforeEach(() => {
   onlineManager.setOnline(true)
   jest.clearAllMocks()
   jest.mocked(useUploadImagem).mockReturnValue(upload())
+  listarEventos.mockResolvedValue({ items: [], page: 1, limit: 5, total: 0 })
   useSessao.setState({
     status: 'autenticado',
     usuario: {
@@ -192,6 +200,111 @@ describe('Tela Perfil', () => {
         .catch(() => undefined),
     )
     expect(cliente.getQueryState(chaves.me())?.isInvalidated).toBe(true)
+  })
+})
+
+function eventoConfirmado(id: string, inicio: string, local: string): EventoResumoDto {
+  return {
+    id,
+    tipo: 'TREINO',
+    status: 'AGENDADO',
+    inicio,
+    local,
+    serieId: null,
+    time: { id: '9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e5f', nome: 'Futsal Masculino' },
+    modalidade: { id: '6f1c2a7e-2f5b-4c39-9a0e-3f3b1b8d2c11', nome: 'Futsal', icone: 'futsal' },
+    timeAdversario: null,
+    placarTime: null,
+    placarAdversario: null,
+    resultado: null,
+    souMembro: true,
+    minhaParticipacao: { confirmado: true, respondidoEm: '2026-10-01T12:00:00.000Z' },
+  }
+}
+
+describe('Meus próximos eventos (#24)', () => {
+  const PRIMEIRO = '1a1a1a1a-0000-4000-8000-000000000001'
+  const SEGUNDO = '2b2b2b2b-0000-4000-8000-000000000002'
+
+  it('lista os confirmados na ordem da API e abre o evento (critério 16)', async () => {
+    api.buscarPerfil.mockResolvedValue(perfil())
+    listarEventos.mockResolvedValue({
+      items: [
+        eventoConfirmado(PRIMEIRO, '2026-10-10T22:00:00.000Z', 'Quadra A'),
+        eventoConfirmado(SEGUNDO, '2026-10-12T22:00:00.000Z', 'Quadra B'),
+      ],
+      page: 1,
+      limit: 5,
+      total: 2,
+    })
+    const nav = navegacao()
+    await renderizar(<TelaPerfil {...nav} />)
+
+    expect(await screen.findByText(/Quadra A/)).toBeOnTheScreen()
+    expect(listarEventos).toHaveBeenCalledWith(
+      { periodo: 'PROXIMOS', confirmadoPorMim: true },
+      { page: 1, limit: 5 },
+      expect.anything(),
+    )
+    const consultas = cliente.getQueryCache().findAll({ queryKey: chaves.eventos.todos() })
+    expect(consultas.map(({ queryKey }) => queryKey)).toEqual([
+      chaves.eventos.lista({ periodo: 'PROXIMOS', confirmadoPorMim: true, limit: 5 }),
+    ])
+    const [primeiro, segundo] = screen.getAllByText(/Quadra [AB]/)
+    expect(primeiro).toHaveTextContent(/Quadra A/)
+    expect(segundo).toHaveTextContent(/Quadra B/)
+
+    await fireEvent.press(screen.getAllByRole('button', { name: /Quadra B/ })[0]!)
+    expect(nav.aoAbrirEvento).toHaveBeenCalledWith(SEGUNDO)
+  })
+
+  it('vazio: mensagem própria (critério 17)', async () => {
+    api.buscarPerfil.mockResolvedValue(perfil())
+    await renderizar(<TelaPerfil {...navegacao()} />)
+    expect(
+      await screen.findByText('Você não confirmou presença em nenhum evento próximo.'),
+    ).toBeOnTheScreen()
+  })
+
+  it('erro só na seção: "Tentar novamente" e o restante do Perfil visível (critério 17)', async () => {
+    api.buscarPerfil.mockResolvedValue(perfil())
+    listarEventos.mockRejectedValueOnce(
+      new ApiErro({ status: 500, code: 'INTERNAL_ERROR', message: 'x' }),
+    )
+    await renderizar(<TelaPerfil {...navegacao()} />)
+
+    expect(
+      await screen.findByText('Não foi possível carregar seus próximos eventos'),
+    ).toBeOnTheScreen()
+    expect(screen.getByText('Ana Souza')).toBeOnTheScreen()
+    expect(screen.getByLabelText('Futsal Masculino, Futsal, capitão')).toBeOnTheScreen()
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Tentar novamente' }))
+    expect(
+      await screen.findByText('Você não confirmou presença em nenhum evento próximo.'),
+    ).toBeOnTheScreen()
+  })
+  it('carregando só na seção: esqueleto e o restante do Perfil visível (critério 17)', async () => {
+    api.buscarPerfil.mockResolvedValue(perfil())
+    listarEventos.mockReturnValue(new Promise(() => undefined))
+    await renderizar(<TelaPerfil {...navegacao()} />)
+
+    const secao = await screen.findByTestId('meus-proximos-eventos')
+    expect(within(secao).getByLabelText('Carregando')).toBeOnTheScreen()
+    expect(screen.getByText('Ana Souza')).toBeOnTheScreen()
+  })
+
+  it('offline sem cache só na seção: "Sem conexão" e o restante do Perfil visível (critério 17)', async () => {
+    cliente.setQueryData(chaves.me(), perfil())
+    onlineManager.setOnline(false)
+    await renderizar(<TelaPerfil {...navegacao()} />)
+
+    const secao = await screen.findByTestId('meus-proximos-eventos')
+    expect(
+      within(secao).getByText('Sem conexão. Conecte-se à internet para carregar os dados.'),
+    ).toBeOnTheScreen()
+    expect(screen.getByText('Ana Souza')).toBeOnTheScreen()
+    expect(listarEventos).not.toHaveBeenCalled()
   })
 })
 
