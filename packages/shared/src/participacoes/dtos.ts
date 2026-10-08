@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { StatusEvento } from '../enums/evento'
+import { RespostaPresenca } from './presenca'
 
 /** Respostas do elenco atual do time. */
 export const contagemParticipacaoSchema = z
@@ -20,5 +22,29 @@ export const participacaoRespondidaDtoSchema = z
   })
   .strict()
 
+export const itemPresencaSchema = z
+  .object({
+    usuarioId: z.uuid(),
+    nome: z.string(),
+    fotoUrl: z.string().nullable(),
+    resposta: z.enum(RespostaPresenca),
+    /** Valor salvo; sem chamada registrada, pré-preenchido com `confirmado = true`. */
+    presente: z.boolean(),
+  })
+  .strict()
+
+/** `GET` e `PUT /eventos/:id/presencas` (#84): elenco do evento por nome, sem paginação. */
+export const listaPresencaDtoSchema = z
+  .object({
+    eventoId: z.uuid(),
+    status: z.enum(StatusEvento),
+    registrada: z.boolean(),
+    registradaEm: z.iso.datetime().nullable(),
+    itens: z.array(itemPresencaSchema),
+  })
+  .strict()
+
 export type ParticipacaoRespondidaDto = z.infer<typeof participacaoRespondidaDtoSchema>
 export type ContagemParticipacao = z.infer<typeof contagemParticipacaoSchema>
+export type ItemPresenca = z.infer<typeof itemPresencaSchema>
+export type ListaPresencaDto = z.infer<typeof listaPresencaDtoSchema>

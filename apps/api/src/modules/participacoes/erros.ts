@@ -17,3 +17,21 @@ export function erroRespostaBloqueada(motivo: MotivoBloqueioResposta): ErroNegoc
       : HttpStatus.UNPROCESSABLE_ENTITY
   return new ErroNegocio(status, motivo, MENSAGENS[motivo])
 }
+
+export function erroStatusSemPresenca(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.UNPROCESSABLE_ENTITY,
+    'EVENTO_STATUS_INVALIDO',
+    'A presença só pode ser registrada em eventos em andamento ou finalizados.',
+  )
+}
+
+/** Um `details` por id fora do elenco do evento, inclusive de outra atlética. */
+export function erroAtletaForaDoElenco(usuarioIds: string[]): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.UNPROCESSABLE_ENTITY,
+    'ATLETA_FORA_DO_ELENCO',
+    'Há atletas que não estavam no elenco do time no início do evento.',
+    usuarioIds.map((id) => ({ field: 'presentes', message: id })),
+  )
+}

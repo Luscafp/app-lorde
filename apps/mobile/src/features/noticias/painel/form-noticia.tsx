@@ -17,6 +17,7 @@ import { SeletorImagem } from '@/components/imagem'
 import { Botao, Campo, confirmar, Texto, toast } from '@/components/ui'
 import { ApiErro } from '@/infra/api/api-erro'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
+import { useAvisoAlteracoes } from '@/infra/navegacao/use-aviso-alteracoes'
 import { useOnline } from '@/infra/rede/online'
 import { useTemNivelMinimo } from '@/infra/sessao/use-tem-nivel-minimo'
 import { BarraMarkdown } from './barra-markdown'
@@ -37,7 +38,6 @@ import {
 } from './hooks'
 import { aplicarMarcacao, type Marcacao, type Selecao } from './marcacao'
 import { PreviaNoticia } from './previa-noticia'
-import { useAvisoAlteracoes } from './use-aviso-alteracoes'
 
 type Acao = 'rascunho' | 'salvar' | 'publicar' | 'despublicar' | 'excluir'
 
