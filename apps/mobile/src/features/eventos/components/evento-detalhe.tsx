@@ -14,9 +14,14 @@ import { contar, porNome } from '@/features/times/formatacao'
 import { useVePainel } from '@/infra/sessao/use-ve-painel'
 import { ehDetalhe, type EventoEmTela } from '../consultas'
 import { tituloEvento } from '../formatacao'
-import { RESULTADO, ROTULO_TIPO, siglaOuNome, STATUS } from '../rotulos'
+import {
+  MENSAGEM_RESULTADO_PENDENTE,
+  RESULTADO,
+  ROTULO_TIPO,
+  siglaOuNome,
+  STATUS,
+} from '../rotulos'
 
-export const MENSAGEM_RESULTADO_PENDENTE = 'Resultado pendente'
 export const MENSAGEM_NINGUEM_CONFIRMOU = 'Ninguém confirmou ainda'
 
 type Confirmado = EventoDetalheDto['confirmados'][number]

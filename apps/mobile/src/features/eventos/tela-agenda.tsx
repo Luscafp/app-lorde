@@ -1,9 +1,9 @@
-import { PeriodoEventos, type EventoResumoDto } from '@atletica/shared'
+import { PeriodoEventos } from '@atletica/shared'
 import { View } from 'react-native'
 import { TelaDados } from '@/components/estado'
 import { Segmentos, Texto, type Segmento } from '@/components/ui'
-import { vazioEventos, type AbaAgenda, type FiltrosSelecionados } from './agenda'
-import { FiltrosAgenda, ListaEventosPorDia, MinhaRespostaChip } from './components'
+import { vazioEventos, type AbaAgenda, type PropsSegmentoAgenda } from './agenda'
+import { FiltrosAgenda, ListaEventosPorDia, MinhaRespostaChip, PlacarLista } from './components'
 import { useEventos } from './consultas'
 
 export const MENSAGEM_SEM_EVENTOS = 'Nenhum evento agendado'
@@ -14,13 +14,7 @@ const SEGMENTOS: readonly Segmento<AbaAgenda>[] = [
   { valor: 'placar', rotulo: 'Placar' },
 ]
 
-type PropsEventos = {
-  filtros: FiltrosSelecionados
-  aoMudarFiltros: (filtros: FiltrosSelecionados) => void
-  aoAbrirEvento: (evento: EventoResumoDto) => void
-}
-
-function JogosETreinos({ filtros, aoMudarFiltros, aoAbrirEvento }: PropsEventos) {
+function JogosETreinos({ filtros, aoMudarFiltros, aoAbrirEvento }: PropsSegmentoAgenda) {
   const consulta = useEventos({ periodo: PeriodoEventos.PROXIMOS, ...filtros })
 
   return (
@@ -48,7 +42,7 @@ function JogosETreinos({ filtros, aoMudarFiltros, aoAbrirEvento }: PropsEventos)
   )
 }
 
-type Props = PropsEventos & { aba: AbaAgenda; aoMudarAba: (aba: AbaAgenda) => void }
+type Props = PropsSegmentoAgenda & { aba: AbaAgenda; aoMudarAba: (aba: AbaAgenda) => void }
 
 export function TelaAgenda({ aba, aoMudarAba, ...eventos }: Props) {
   return (
@@ -57,8 +51,7 @@ export function TelaAgenda({ aba, aoMudarAba, ...eventos }: Props) {
         <Texto variante="titulo">Agenda</Texto>
         <Segmentos opcoes={SEGMENTOS} valor={aba} aoMudar={aoMudarAba} />
       </View>
-      {/* Segmento Placar: `PlacarLista` da #23. */}
-      {aba === 'eventos' ? <JogosETreinos {...eventos} /> : <View className="flex-1" />}
+      {aba === 'eventos' ? <JogosETreinos {...eventos} /> : <PlacarLista {...eventos} />}
     </View>
   )
 }

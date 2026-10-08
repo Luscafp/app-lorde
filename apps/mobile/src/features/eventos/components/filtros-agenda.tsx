@@ -4,16 +4,25 @@ import { useModalidades } from '@/features/modalidades'
 import type { FiltrosSelecionados } from '../agenda'
 import { OPCOES_TIPO } from '../rotulos'
 
-type Props = { filtros: FiltrosSelecionados; aoMudar: (filtros: FiltrosSelecionados) => void }
+type PropsModalidade = {
+  valor: string | undefined
+  aoMudar: (modalidadeId: string | undefined) => void
+}
 
 /** Sem modalidades (carregando ou erro) fica só "Todas": a lista não depende delas. */
-export function FiltrosAgenda({ filtros, aoMudar }: Props) {
+export function FiltroModalidade({ valor, aoMudar }: PropsModalidade) {
   const { data: modalidades = [] } = useModalidades({ incluirInativas: false })
-  const opcoesModalidade: Opcao<string>[] = [
+  const opcoes: Opcao<string>[] = [
     { valor: undefined, rotulo: 'Todas' },
     ...modalidades.map(({ id, nome }) => ({ valor: id, rotulo: nome })),
   ]
 
+  return <Pilulas rotulo="Modalidade" opcoes={opcoes} valor={valor} aoMudar={aoMudar} />
+}
+
+type Props = { filtros: FiltrosSelecionados; aoMudar: (filtros: FiltrosSelecionados) => void }
+
+export function FiltrosAgenda({ filtros, aoMudar }: Props) {
   return (
     <View className="gap-2 px-4">
       <Pilulas
@@ -22,9 +31,7 @@ export function FiltrosAgenda({ filtros, aoMudar }: Props) {
         valor={filtros.tipo}
         aoMudar={(tipo) => aoMudar({ ...filtros, tipo })}
       />
-      <Pilulas
-        rotulo="Modalidade"
-        opcoes={opcoesModalidade}
+      <FiltroModalidade
         valor={filtros.modalidadeId}
         aoMudar={(modalidadeId) => aoMudar({ ...filtros, modalidadeId })}
       />

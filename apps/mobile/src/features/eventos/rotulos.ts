@@ -31,6 +31,8 @@ export const STATUS: Record<StatusEvento, Rotulo> = {
   [StatusEvento.CANCELADO]: { rotulo: 'Cancelado', cor: paleta.erro },
 }
 
+export const MENSAGEM_RESULTADO_PENDENTE = 'Resultado pendente'
+
 export const RESULTADO: Record<Resultado, Rotulo> = {
   [Resultado.VITORIA]: { rotulo: 'Vitória', cor: paleta.sucesso },
   [Resultado.EMPATE]: { rotulo: 'Empate', cor: paleta.alerta },
@@ -39,4 +41,5 @@ export const RESULTADO: Record<Resultado, Rotulo> = {
 
 export type AtleticaAdversaria = NonNullable<EventoResumoDto['timeAdversario']>['atletica']
 
-export const siglaOuNome = ({ sigla, nome }: AtleticaAdversaria) => sigla ?? nome
+export const siglaOuNome = ({ sigla, nome }: Pick<AtleticaAdversaria, 'sigla' | 'nome'>) =>
+  sigla ?? nome

@@ -15,13 +15,14 @@ const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'] as const
 const DIAS_SEMANA_CAPITALIZADOS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const
 const UM_DIA_MS = 86_400_000
 
-export function tituloEvento({
-  tipo,
-  time,
-  timeAdversario,
-}: Pick<EventoResumoDto, 'tipo' | 'time' | 'timeAdversario'>): string {
-  if (tipo === TipoEvento.TREINO) return `Treino — ${time.nome}`
-  return `${time.nome} × ${timeAdversario?.atletica.nome ?? '—'}`
+export const nomeAdversario = ({ timeAdversario }: Pick<EventoResumoDto, 'timeAdversario'>) =>
+  timeAdversario?.atletica.nome ?? '—'
+
+export function tituloEvento(
+  evento: Pick<EventoResumoDto, 'tipo' | 'time' | 'timeAdversario'>,
+): string {
+  if (evento.tipo === TipoEvento.TREINO) return `Treino — ${evento.time.nome}`
+  return `${evento.time.nome} × ${nomeAdversario(evento)}`
 }
 
 /** `dia` no formato de `chaveDiaLocal`: "Hoje", "Amanhã" ou "qua, 14/10". */

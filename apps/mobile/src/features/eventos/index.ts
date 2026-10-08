@@ -11,8 +11,12 @@ export {
   EventoCard,
   EventoForm,
   MinhaRespostaChip,
+  PlacarLista,
+  ResultadoCard,
+  useResultadoLabel,
   type AcoesParticipacao,
   type EventoDoCard,
+  type ResultadoLabel,
 } from './components'
 export { ehDetalhe, useEventos, useProximosEventos, type EventoEmTela } from './consultas'
 export { rotuloInicio, tituloEvento } from './formatacao'

@@ -1,9 +1,14 @@
-import { chaveDiaLocal, TipoEvento } from '@atletica/shared'
+import { chaveDiaLocal, TipoEvento, type EventoResumoDto } from '@atletica/shared'
 import { z } from 'zod'
 import type { FiltrosEventos } from './api'
 
 export type AbaAgenda = 'eventos' | 'placar'
 export type FiltrosSelecionados = Pick<FiltrosEventos, 'tipo' | 'modalidadeId'>
+export type PropsSegmentoAgenda = {
+  filtros: FiltrosSelecionados
+  aoMudarFiltros: (filtros: FiltrosSelecionados) => void
+  aoAbrirEvento: (evento: EventoResumoDto) => void
+}
 export type ParametrosAgenda = { aba?: string; tipo?: string; modalidadeId?: string }
 export type Dia<T> = { dia: string; eventos: T[] }
 export type LinhaDia<T> = { dia: string; evento?: undefined } | { dia?: undefined; evento: T }
