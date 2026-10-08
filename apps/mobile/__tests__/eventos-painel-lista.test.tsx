@@ -212,6 +212,57 @@ describe('Painel: lista de eventos', () => {
     expect(within(cardJogo).queryByText('RECORRENTE')).toBeNull()
   })
 
+  it('chip "Resultado pendente" consulta os jogos finalizados sem placar (critério 21)', async () => {
+    listarEventos.mockResolvedValue(pagina([evento('a')]))
+    await renderizar()
+    await screen.findByText(JOGO)
+    await fireEvent.press(screen.getByRole('radio', { name: 'Treinos' }))
+
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Resultado pendente' }))
+
+    await waitFor(() =>
+      expect(consultasFeitas().at(-1)).toEqual({
+        filtros: {
+          tipo: 'JOGO',
+          status: 'FINALIZADO',
+          resultado: 'PENDENTE',
+          periodo: 'TODOS',
+          incluirInativos: true,
+        },
+        page: 1,
+      }),
+    )
+    expect(screen.getByRole('checkbox', { name: 'Resultado pendente' })).toBeChecked()
+    expect(screen.queryByRole('radio', { name: 'Treinos' })).toBeNull()
+
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Resultado pendente' }))
+    expect(screen.getByRole('radio', { name: 'Treinos' })).toBeSelected()
+  })
+
+  it('selo "RESULTADO PENDENTE" só no jogo finalizado sem resultado', async () => {
+    listarEventos.mockResolvedValue(
+      pagina([
+        evento('a', { status: 'FINALIZADO' }),
+        evento('b', {
+          status: 'FINALIZADO',
+          time: { id: 't3', nome: 'Lorde Futsal' },
+          placarTime: 2,
+          placarAdversario: 1,
+          resultado: 'VITORIA',
+        }),
+        treino('c', { status: 'FINALIZADO' }),
+      ]),
+    )
+    await renderizar()
+
+    const pendente = await screen.findByRole('button', { name: /^Lorde Vôlei × Atlética Medicina/ })
+    expect(within(pendente).getByText('RESULTADO PENDENTE')).toBeOnTheScreen()
+    const registrado = screen.getByRole('button', { name: /^Lorde Futsal × Atlética Medicina/ })
+    expect(within(registrado).queryByText('RESULTADO PENDENTE')).toBeNull()
+    const cardTreino = screen.getByRole('button', { name: /^Treino — Lorde Vôlei/ })
+    expect(within(cardTreino).queryByText('RESULTADO PENDENTE')).toBeNull()
+  })
+
   it('23 eventos: o fim da lista carrega a 2ª página sem duplicar itens', async () => {
     const todos = Array.from({ length: 23 }, (_, i) => evento(`e${i}`))
     listarEventos

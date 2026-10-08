@@ -13,13 +13,14 @@ export {
   MinhaRespostaChip,
   PlacarLista,
   ResultadoCard,
+  ResultadoForm,
   useResultadoLabel,
   type AcoesParticipacao,
   type EventoDoCard,
   type ResultadoLabel,
 } from './components'
 export { ehDetalhe, useEventos, useProximosEventos, type EventoEmTela } from './consultas'
-export { rotuloInicio, tituloEvento } from './formatacao'
+export { aceitaResultado, rotuloInicio, tituloEvento } from './formatacao'
 export { useEventoPainel, useEventosPainel, type FiltrosEventosPainel } from './hooks'
 export { ListaEventosPainel, type NavegacaoEventos } from './lista-eventos-painel'
 export { MENSAGEM_SEM_EVENTOS, TelaAgenda } from './tela-agenda'

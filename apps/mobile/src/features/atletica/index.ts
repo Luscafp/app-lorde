@@ -1,5 +1,5 @@
 export { carregarAtletica } from './carregar-atletica'
-export { corTextoSobre } from './cores'
+export { comAlfa, corTextoSobre } from './cores'
 export { paleta } from './paleta'
 export { ProvedorTema } from './provedor-tema'
 export { useAtletica, useConsultaAtletica, type Atletica } from './use-atletica'

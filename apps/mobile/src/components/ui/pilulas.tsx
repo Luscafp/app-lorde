@@ -1,5 +1,6 @@
-import { Pressable, ScrollView, Text } from 'react-native'
-import { paleta, useAtletica } from '@/features/atletica'
+import { ScrollView } from 'react-native'
+import { useAtletica } from '@/features/atletica'
+import { Pilula } from './pilula'
 
 export type Opcao<T> = { valor: T | undefined; rotulo: string }
 
@@ -22,27 +23,15 @@ export function Pilulas<T extends string>({
       accessibilityLabel={rotulo}
       contentContainerClassName="gap-2"
     >
-      {opcoes.map((opcao) => {
-        const selecionada = opcao.valor === valor
-        return (
-          <Pressable
-            key={opcao.rotulo}
-            accessibilityRole="radio"
-            accessibilityLabel={opcao.rotulo}
-            accessibilityState={{ selected: selecionada }}
-            onPress={() => aoMudar(opcao.valor)}
-            className="min-h-[44px] justify-center rounded-full border px-4"
-            style={{ borderColor: selecionada ? corPrimaria : paleta.borda }}
-          >
-            <Text
-              className={`text-sm ${selecionada ? 'font-semibold' : ''}`}
-              style={{ color: selecionada ? corPrimaria : paleta.texto }}
-            >
-              {opcao.rotulo}
-            </Text>
-          </Pressable>
-        )
-      })}
+      {opcoes.map((opcao) => (
+        <Pilula
+          key={opcao.rotulo}
+          rotulo={opcao.rotulo}
+          ativa={opcao.valor === valor}
+          cor={corPrimaria}
+          aoPressionar={() => aoMudar(opcao.valor)}
+        />
+      ))}
     </ScrollView>
   )
 }

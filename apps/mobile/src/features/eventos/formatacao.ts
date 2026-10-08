@@ -5,6 +5,7 @@ import {
   formatarDataHora,
   formatarHora,
   localParaUtc,
+  StatusEvento,
   TipoEvento,
   type EventoResumoDto,
   type Instante,
@@ -17,6 +18,14 @@ const UM_DIA_MS = 86_400_000
 
 export const nomeAdversario = ({ timeAdversario }: Pick<EventoResumoDto, 'timeAdversario'>) =>
   timeAdversario?.atletica.nome ?? '—'
+
+export const aceitaResultado = (evento: Pick<EventoResumoDto, 'tipo' | 'status'>) =>
+  evento.tipo === TipoEvento.JOGO && evento.status !== StatusEvento.CANCELADO
+
+export const resultadoPendente = (evento: Pick<EventoResumoDto, 'tipo' | 'status' | 'resultado'>) =>
+  evento.tipo === TipoEvento.JOGO &&
+  evento.status === StatusEvento.FINALIZADO &&
+  evento.resultado === null
 
 export function tituloEvento(
   evento: Pick<EventoResumoDto, 'tipo' | 'time' | 'timeAdversario'>,
