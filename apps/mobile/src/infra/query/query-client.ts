@@ -8,12 +8,15 @@ import {
   MENSAGEM_ERRO_GENERICO,
 } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
+import { limparCacheAoSairDaSessao } from '@/infra/query/persistencia'
 import { aoEncerrarSessao } from '@/infra/sessao/store'
 
 declare module '@tanstack/react-query' {
   interface Register {
     /** `errosNaTela`: códigos que a própria tela mostra, sem o toast global. */
     mutationMeta: { errosNaTela?: readonly string[] }
+    /** `persistir`: entra no cache salvo no aparelho (#29, convenções §10.4). */
+    queryMeta: { persistir?: boolean }
   }
 }
 
@@ -65,3 +68,4 @@ export function criarQueryClient(): QueryClient {
 export const queryClient = criarQueryClient()
 
 aoEncerrarSessao(() => queryClient.clear())
+limparCacheAoSairDaSessao()

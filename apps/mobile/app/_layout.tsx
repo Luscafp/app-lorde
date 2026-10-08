@@ -1,19 +1,26 @@
 import '../global.css'
 import * as Sentry from '@sentry/react-native'
-import { QueryClientProvider } from '@tanstack/react-query'
+import { useIsRestoring } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { Stack, useNavigationContainerRef, useRouter } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import Toast from 'react-native-toast-message'
 import { LimiteErro } from '@/components/estado'
 import { toastConfig } from '@/components/ui'
 import { carregarAtletica, paleta, ProvedorTema } from '@/features/atletica'
 import { acompanharLogoutPendente } from '@/features/auth'
+import { opcoesPersistencia } from '@/infra/query/persistencia'
 import { queryClient } from '@/infra/query/query-client'
 import { configurarRede } from '@/infra/rede/online'
-import { iniciarSentry, iniciarSpanAbertura, integracaoNavegacao } from '@/infra/sentry'
+import {
+  iniciarSentry,
+  iniciarSpanAbertura,
+  iniciarSpanRestauracao,
+  integracaoNavegacao,
+} from '@/infra/sentry'
 import { consumirDestinoAposLogin } from '@/infra/sessao/destino'
 import { useSessao } from '@/infra/sessao/store'
 
@@ -57,6 +64,32 @@ function Navegacao() {
   )
 }
 
+/** A splash cobre a restauração do cache: nada de esqueleto com a tela vazia. */
+function AposRestaurar({ children }: { children: ReactNode }) {
+  const restaurando = useIsRestoring()
+
+  useEffect(() => {
+    if (!restaurando) void SplashScreen.hideAsync()
+  }, [restaurando])
+
+  return restaurando ? null : children
+}
+
+function ProvedorQuery({ children }: { children: ReactNode }) {
+  const [fimRestauracao] = useState(iniciarSpanRestauracao)
+
+  return (
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={opcoesPersistencia}
+      onSuccess={fimRestauracao}
+      onError={fimRestauracao}
+    >
+      <AposRestaurar>{children}</AposRestaurar>
+    </PersistQueryClientProvider>
+  )
+}
+
 function LayoutRaiz() {
   const navegacao = useNavigationContainerRef()
   const sessaoCarregada = useSessao((estado) => estado.status !== 'carregando')
@@ -72,14 +105,10 @@ function LayoutRaiz() {
     void carregarAtletica().then(() => setAtleticaCarregada(true))
   }, [])
 
-  useEffect(() => {
-    if (pronto) void SplashScreen.hideAsync()
-  }, [pronto])
-
   if (!pronto) return null
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <ProvedorQuery>
       <SafeAreaProvider>
         <ProvedorTema>
           <StatusBar style="light" />
@@ -89,7 +118,7 @@ function LayoutRaiz() {
         </ProvedorTema>
         <Toast config={toastConfig} />
       </SafeAreaProvider>
-    </QueryClientProvider>
+    </ProvedorQuery>
   )
 }
 

@@ -14,6 +14,7 @@ import { useProximosEventos } from '@/features/eventos'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
+import { persistida } from '@/infra/query/persistencia'
 import { proximaPagina } from '@/infra/query/proxima-pagina'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import { useValorAtrasado } from '@/infra/use-valor-atrasado'
@@ -48,6 +49,7 @@ export function useTimes(filtros: FiltrosTimes) {
     queryFn: ({ pageParam, signal }) => listarTimes(filtros, pageParam, signal),
     initialPageParam: 1,
     getNextPageParam: proximaPagina,
+    ...persistida,
   })
 }
 
@@ -55,6 +57,7 @@ export function useTime(id: string) {
   return useQuery({
     queryKey: chaves.times.detalhe(id),
     queryFn: ({ signal }) => buscarTime(id, signal),
+    ...persistida,
   })
 }
 
@@ -68,6 +71,7 @@ export function useTimesProprios() {
     initialPageParam: 1,
     getNextPageParam: (pagina) => (pagina.items.length > 0 ? proximaPagina(pagina) : undefined),
     select: (dados) => juntarPaginas(dados.pages),
+    ...persistida,
   })
   const { hasNextPage, isFetching, isFetchNextPageError, fetchNextPage } = consulta
 
@@ -113,6 +117,7 @@ export function useElenco(timeId: string) {
   return useQuery({
     queryKey: chaves.times.elenco(timeId),
     queryFn: ({ signal }) => buscarElenco(timeId, signal),
+    ...persistida,
   })
 }
 

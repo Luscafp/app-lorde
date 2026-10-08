@@ -10,6 +10,7 @@ import { useEffect } from 'react'
 import { toast } from '@/components/ui/toast'
 import { CodigoApi, type ApiErro } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
+import { persistida } from '@/infra/query/persistencia'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import { useSessao } from '@/infra/sessao/store'
 import {
@@ -44,6 +45,7 @@ export function useMe() {
   const consulta = useQuery({
     queryKey: chaves.me(),
     queryFn: ({ signal }) => buscarPerfil(signal),
+    ...persistida,
     staleTime: MINUTO,
     refetchOnWindowFocus: true,
   })
