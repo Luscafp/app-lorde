@@ -28,6 +28,19 @@ function montarApp(dsn: string | undefined) {
 
 let limpar: (() => unknown) | undefined
 
+// O momento em que a Home fica pronta é testado em home.test.tsx; aqui, só a ligação do span.
+jest.mock('@/features/home', () => {
+  const { useMarcarHomePronta } =
+    jest.requireActual<typeof import('@/infra/sentry')>('@/infra/sentry')
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native')
+  return {
+    TelaHome: () => {
+      useMarcarHomePronta(true)
+      return <Text>Início</Text>
+    },
+  }
+})
+
 beforeEach(() => jest.replaceProperty(globais, '__DEV__', false))
 afterEach(async () => {
   await limpar?.()

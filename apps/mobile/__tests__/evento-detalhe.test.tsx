@@ -5,6 +5,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import type { ReactElement, ReactNode } from 'react'
 import type { RefreshControlProps } from 'react-native'
 import { TelaEvento } from '@/features/eventos'
+import { ParticipacaoAcoes } from '@/features/participacoes'
 import { ApiErro } from '@/infra/api/api-erro'
 import { api } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
@@ -81,7 +82,14 @@ function Provedor({ children }: { children: ReactNode }) {
 }
 
 function renderizar(aoGerenciar = jest.fn()) {
-  return render(<TelaEvento id={ID} aoGerenciar={aoGerenciar} />, { wrapper: Provedor })
+  return render(
+    <TelaEvento
+      id={ID}
+      aoGerenciar={aoGerenciar}
+      acoesParticipacao={(evento) => <ParticipacaoAcoes evento={evento} aoAbrirTime={jest.fn()} />}
+    />,
+    { wrapper: Provedor },
+  )
 }
 
 function comPapel(papel: Papel) {
@@ -130,10 +138,11 @@ describe('Detalhe do evento', () => {
     expect(screen.getByTestId('contagem')).toHaveTextContent('8 vão · 2 não vão · 4 sem resposta')
   })
 
-  it('slot ParticipacaoAcoes renderizado vazio', async () => {
+  it('seção Participação com os botões "Vou" e "Não vou" para o membro', async () => {
     get.mockResolvedValue(detalhe())
     await renderizar()
-    expect(await screen.findByTestId('slot-participacao')).toBeEmptyElement()
+    expect(await screen.findByRole('button', { name: 'Vou' })).toBeOnTheScreen()
+    expect(screen.getByRole('button', { name: 'Não vou' })).toBeOnTheScreen()
   })
 
   it('"Quem vai" com capitão primeiro e selo', async () => {
@@ -170,7 +179,8 @@ describe('Detalhe do evento', () => {
 
     expect(await screen.findByText('Cancelado')).toBeOnTheScreen()
     expect(screen.getByTestId('titulo-evento').props.className).toMatch(/line-through/)
-    expect(screen.queryByTestId('slot-participacao')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Vou' })).toBeDisabled()
+    expect(screen.getByTestId('legenda-participacao')).toHaveTextContent('Evento cancelado')
   })
 
   it('não cancelado: título sem risco', async () => {

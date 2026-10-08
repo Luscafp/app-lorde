@@ -1,14 +1,8 @@
-import { TipoEvento } from '@atletica/shared'
 import { View } from 'react-native'
 import { Pilulas, type Opcao } from '@/components/ui'
 import { useModalidades } from '@/features/modalidades'
 import type { FiltrosSelecionados } from '../agenda'
-
-const OPCOES_TIPO: readonly Opcao<TipoEvento>[] = [
-  { valor: undefined, rotulo: 'Todos' },
-  { valor: TipoEvento.JOGO, rotulo: 'Jogos' },
-  { valor: TipoEvento.TREINO, rotulo: 'Treinos' },
-]
+import { OPCOES_TIPO } from '../rotulos'
 
 type PropsModalidade = {
   valor: string | undefined

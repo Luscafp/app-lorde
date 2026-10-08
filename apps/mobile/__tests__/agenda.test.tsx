@@ -124,7 +124,8 @@ function Agenda({
 const estiloDe = (texto: string): TextStyle =>
   StyleSheet.flatten(screen.getByText(texto).props.style as StyleProp<TextStyle>) ?? {}
 
-const consultasFeitas = () => listarEventos.mock.calls.map(([filtros, page]) => ({ filtros, page }))
+const consultasFeitas = () =>
+  listarEventos.mock.calls.map(([filtros, { page }]) => ({ filtros, page }))
 
 beforeEach(() => {
   cliente = criarQueryClient()
@@ -340,7 +341,7 @@ describe('Aba Agenda', () => {
 
   it('45 próximos: rolar até o fim carrega as páginas 2 e 3 (critério 10)', async () => {
     const todos = Array.from({ length: 45 }, (_, i) => evento(`e${i}`))
-    listarEventos.mockImplementation((_filtros, page) =>
+    listarEventos.mockImplementation((_filtros, { page }) =>
       Promise.resolve(pagina(todos.slice((page - 1) * 20, page * 20), page, 45)),
     )
     await renderizar(<Agenda />)
@@ -558,7 +559,7 @@ describe('Placar', () => {
 
   it('30 finalizados: rolar até o fim carrega a página 2 (critério 10)', async () => {
     const todos = Array.from({ length: 30 }, (_, i) => finalizado(`e${i}`))
-    listarEventos.mockImplementation((_filtros, page) =>
+    listarEventos.mockImplementation((_filtros, { page }) =>
       Promise.resolve(pagina(todos.slice((page - 1) * 20, page * 20), page, 30)),
     )
     await renderizar(<Agenda aba="placar" />)

@@ -4,6 +4,7 @@ import {
   type EventoDetalheDto,
   type EventoResumoDto,
 } from '@atletica/shared'
+import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import { TelaDados } from '@/components/estado'
 import { Imagem } from '@/components/imagem'
@@ -20,7 +21,6 @@ import {
   siglaOuNome,
   STATUS,
 } from '../rotulos'
-import { ParticipacaoAcoes } from './participacao-acoes'
 
 export const MENSAGEM_NINGUEM_CONFIRMOU = 'Ninguém confirmou ainda'
 
@@ -129,11 +129,12 @@ function QuemVai({ confirmados }: { confirmados: Confirmado[] }) {
 function Participacao({
   evento,
   aoTentarNovamente,
+  acoesParticipacao,
 }: {
   evento: EventoEmTela
   aoTentarNovamente: () => Promise<unknown>
+  acoesParticipacao: AcoesParticipacao
 }) {
-  const cancelado = evento.status === StatusEvento.CANCELADO
   const consulta = {
     data: ehDetalhe(evento) ? evento : undefined,
     isError: false,
@@ -148,11 +149,7 @@ function Participacao({
           <View className="gap-2">
             <Texto variante="subtitulo">Participação</Texto>
             <Texto testID="contagem">{resumoContagem(detalhe.contagem)}</Texto>
-            {!cancelado && (
-              <View testID="slot-participacao">
-                <ParticipacaoAcoes evento={detalhe} />
-              </View>
-            )}
+            {acoesParticipacao(detalhe)}
           </View>
           <QuemVai confirmados={detalhe.confirmados} />
         </View>
@@ -161,13 +158,22 @@ function Participacao({
   )
 }
 
+/** Slot dos botões "Vou/Não vou", preenchido pela rota com a feature de participações. */
+export type AcoesParticipacao = (detalhe: EventoDetalheDto) => ReactNode
+
 type Props = {
   evento: EventoEmTela
   aoGerenciar: () => void
+  acoesParticipacao: AcoesParticipacao
   aoTentarNovamente: () => Promise<unknown>
 }
 
-export function EventoDetalhe({ evento, aoGerenciar, aoTentarNovamente }: Props) {
+export function EventoDetalhe({
+  evento,
+  aoGerenciar,
+  acoesParticipacao,
+  aoTentarNovamente,
+}: Props) {
   const vePainel = useVePainel()
   const cancelado = evento.status === StatusEvento.CANCELADO
 
@@ -185,7 +191,11 @@ export function EventoDetalhe({ evento, aoGerenciar, aoTentarNovamente }: Props)
       </View>
       <CartaoPlacar evento={evento} />
       <Informacoes evento={evento} />
-      <Participacao evento={evento} aoTentarNovamente={aoTentarNovamente} />
+      <Participacao
+        evento={evento}
+        aoTentarNovamente={aoTentarNovamente}
+        acoesParticipacao={acoesParticipacao}
+      />
       {vePainel && <Botao titulo="Gerenciar" variante="secundaria" onPress={aoGerenciar} />}
     </View>
   )
