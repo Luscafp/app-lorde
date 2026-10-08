@@ -25,6 +25,7 @@ Validadas por `src/config/env.schema.ts` (Zod): a API não sobe com variável fa
 | `R2_PUBLIC_BASE_URL`        | sim (https, sem barra final) | URL pública do bucket; as respostas expõem `fotoUrl` = `<base>/<fotoKey>`                                                  |
 | `SENTRY_DSN`                | não                          | DSN do Sentry da API; ausente ou vazia = Sentry desligado (veja [Observabilidade](#observabilidade))                       |
 | `SENTRY_TRACES_SAMPLE_RATE` | não (`0.1`)                  | Fração de traces de 0 a 1: `0.1` em produção, `1.0` em homologação                                                         |
+| `FILA_WORKERS_ATIVOS`       | não (`true`)                 | `false` desliga workers e crons do pg-boss (só enfileira); útil em scripts (veja [Fila](#fila-srcinfrafila))               |
 | `GIT_COMMIT_SHA`            | não                          | Commit do build, injetado no `docker build` (veja [Docker](#docker)). Ausente = `RAILWAY_GIT_COMMIT_SHA` ou `desconhecido` |
 
 ## Testes
@@ -46,16 +47,18 @@ pnpm --filter api test:unit                # só unitários, sem banco
 
 - **Env:** `test/setup/env.ts` lê `.env.test.example` (versionado, valores fictícios). Para trocar algo localmente, crie `apps/api/.env.test` (fora do Git), que tem precedência; variáveis já definidas no ambiente (CI) têm precedência sobre os dois. `NODE_ENV` é sempre `test` e o `.env` de desenvolvimento é ignorado.
 - **`globalSetup`** (`test/setup/global-setup.ts`): roda `prisma migrate deploy` no banco de teste antes da suíte. **Recusa** qualquer `DATABASE_URL` cujo banco não termine em `_test`, para nunca apagar o banco de desenvolvimento.
-- **Banco vazio em todo teste:** `test/setup/integracao.ts` chama `limparBanco()` no `beforeEach` de todos os testes de integração. Por isso, **crie os dados no `beforeEach` ou no próprio teste**, nunca no `beforeAll` (seriam apagados antes do primeiro teste).
+- **Banco vazio em todo teste:** `test/setup/integracao.ts` chama `limparBanco()` e `limparFilas()` no `beforeEach` de todos os testes de integração. Por isso, **crie os dados no `beforeEach` ou no próprio teste**, nunca no `beforeAll` (seriam apagados antes do primeiro teste).
 - **Sem transação por teste** (épico #2 §14): os services abrem as próprias transações interativas (auditoria, #8), incompatíveis com rollback por teste. O isolamento é o `TRUNCATE` + `--runInBand`.
 
 ### Utilitários (`test/setup/`)
 
-| Utilitário                           | Uso                                                                                                                                                                                                                                                                                                                                              |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `prismaTeste` (`prisma-teste.ts`)    | Cliente Prisma **base** (sem a extensão multi-atlética): enxerga todas as atléticas. Para preparar dados e conferir o banco; o código da API usa o `PrismaService` (#44).                                                                                                                                                                        |
-| `limparBanco()` (`limpar-banco.ts`)  | `TRUNCATE ... RESTART IDENTITY CASCADE` em todas as tabelas do `public`, menos `_prisma_migrations` (lista lida de `pg_tables`). Já roda no `beforeEach`; chame direto só para limpar no meio de um teste.                                                                                                                                       |
-| `criarApp(opcoes?)` (`criar-app.ts`) | Sobe o `AppModule` real com o `configurarApp` do `main.ts` e devolve `{ app, http }`. `opcoes.controllers` acrescenta controllers de teste; `opcoes.ajustar` recebe o `TestingModuleBuilder` (`overrideProvider`...). Antes de subir, esvazia o banco e cria a atlética padrão (`prepararAtleticaPadrao`), exigida pelo `AtleticaPadraoService`. |
+| Utilitário                                                         | Uso                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `prismaTeste` (`prisma-teste.ts`)                                  | Cliente Prisma **base** (sem a extensão multi-atlética): enxerga todas as atléticas. Para preparar dados e conferir o banco; o código da API usa o `PrismaService` (#44).                                                                                                                                                                        |
+| `limparBanco()` (`limpar-banco.ts`)                                | `TRUNCATE ... RESTART IDENTITY CASCADE` em todas as tabelas do `public`, menos `_prisma_migrations` (lista lida de `pg_tables`). Já roda no `beforeEach`; chame direto só para limpar no meio de um teste.                                                                                                                                       |
+| `criarApp(opcoes?)` (`criar-app.ts`)                               | Sobe o `AppModule` real com o `configurarApp` do `main.ts` e devolve `{ app, http }`. `opcoes.controllers` acrescenta controllers de teste; `opcoes.ajustar` recebe o `TestingModuleBuilder` (`overrideProvider`...). Antes de subir, esvazia o banco e cria a atlética padrão (`prepararAtleticaPadrao`), exigida pelo `AtleticaPadraoService`. |
+| `limparFilas()` (`limpar-banco.ts`)                                | Apaga os jobs do schema `pgboss` (filas e crons registrados ficam). Já roda no `beforeEach`.                                                                                                                                                                                                                                                     |
+| `aguardarFilaVazia(app, nome)` / `processarFilas(app)` (`fila.ts`) | Acordam os workers do pg-boss real e esperam a fila (ou todas) ficar sem jobs prontos: ativos, em retry e criados com `startAfter` vencido. Jobs agendados para o futuro não contam. Estouram em 15 s.                                                                                                                                           |
 
 ```ts
 import request from 'supertest'
@@ -483,6 +486,17 @@ export interface EventosDominio {
 
 Nome fora do mapa ou payload com tipo errado (ou sem `autorId`) falha no `pnpm typecheck`.
 
+## Fila (`src/infra/fila`)
+
+`FilaModule` (global) é o único dono do pg-boss (convenções §11.6): `FilaService` usa o mesmo `DATABASE_URL`, o schema próprio `pgboss` e roda os workers no processo da API. Inicia no `onModuleInit` e para com `stop({ graceful: true })` no encerramento, esperando até 30 s pelos jobs em execução.
+
+- **Schema `pgboss`:** criado pelo próprio pg-boss na primeira subida, **fora do Prisma** (o datasource só enxerga `public`; nenhuma migration). Em homologação/produção o usuário do banco precisa de permissão `CREATE` no banco — verificação humana em #96. Sem ela, a API não sobe.
+- **API:** `criarFila(nome, opcoes)`, `enviar(nome, payload, opcoes)`, `trabalhar(nome, handler, { batchSize })`, `agendar(nome, cron, { tz })`. Nomes e payloads tipados pelo mapa `FilasDominio` (`filas-dominio.ts`), que cada issue estende (#87, #90).
+- **Handlers:** rodam no contexto da atlética quando o payload tem `atleticaId`, logam fila/id/tentativa e só a última tentativa vai ao Sentry (`capturarErroJob`).
+- **`FILA_WORKERS_ATIVOS=false`:** `trabalhar` e `agendar` viram no-op e o pg-boss não roda crons nem manutenção; `enviar` continua funcionando.
+
+Semântica de `singletonKey` por política, retry e versão fixada: [`src/infra/fila/README.md`](src/infra/fila/README.md).
+
 ## Atlética padrão (`src/modules/atleticas`)
 
 Enquanto só uma atlética usa o app (seção 8.4), a atlética padrão é a **única** `Atletica` com `usaAplicativo = true`. O `AtleticaPadraoService` a resolve no `onModuleInit` e guarda o `id` em memória; com zero ou mais de uma, a API **não sobe** e o log explica o motivo (`ErroAtleticaPadrao`, convenções §6). A consulta usa `prisma.db`: `Atletica` não tem escopo, e `semEscopo` é proibido em `modules/atleticas` (convenções §3).
@@ -763,7 +777,7 @@ Público (`@Publico()`), usado pelo healthcheck do deploy e pelo monitor de upti
 
 ### Encerramento
 
-`enableShutdownHooks()` faz o `SIGTERM` do deploy chamar `app.close()`: o servidor HTTP para de aceitar conexões e o `PrismaService` desconecta (teste em `test/health/health.e2e-spec.ts`; `docker stop` termina com código 0).
+`enableShutdownHooks()` faz o `SIGTERM` do deploy chamar `app.close()`: o servidor HTTP para de aceitar conexões, o pg-boss espera os jobs em execução (até 30 s) e o `PrismaService` desconecta (teste em `test/health/health.e2e-spec.ts`; `docker stop` termina com código 0).
 
 ## Docker
 

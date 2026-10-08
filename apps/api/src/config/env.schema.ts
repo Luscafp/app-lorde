@@ -51,6 +51,13 @@ export const envSchema = z
     SENTRY_TRACES_SAMPLE_RATE: vazioComoAusente(
       z.coerce.number({ error: 'deve ser um número de 0 a 1' }).min(0).max(1).default(0.1),
     ),
+    // Workers e crons do pg-boss (#86); `false` só enfileira (testes unitários e scripts).
+    FILA_WORKERS_ATIVOS: vazioComoAusente(
+      z
+        .enum(['true', 'false'], { error: 'deve ser true ou false' })
+        .default('true')
+        .transform((valor) => valor === 'true'),
+    ),
     // Commit do build (#46): build-arg do `docker build`; a Railway define RAILWAY_GIT_COMMIT_SHA.
     GIT_COMMIT_SHA: vazioComoAusente(z.string().trim().optional()),
     RAILWAY_GIT_COMMIT_SHA: vazioComoAusente(z.string().trim().optional()),
