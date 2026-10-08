@@ -13,21 +13,28 @@ type Problema = { campo: NomeCampo; mensagem: string }
 const publicacaoComCapaAtual = noticiaPublicacaoSchema.omit({ imagemCapaKey: true })
 
 export function paraCriacao(
-  { titulo, conteudo = '', imagemCapaKey }: DadosNoticia,
+  { titulo, conteudo = '', imagemCapaKey, tags = [] }: DadosNoticia,
   publicar: boolean,
 ): NoticiaCriacao {
-  return { titulo, conteudo, ...(imagemCapaKey ? { imagemCapaKey } : {}), publicar }
+  return {
+    titulo,
+    conteudo,
+    ...(imagemCapaKey ? { imagemCapaKey } : {}),
+    ...(tags.length > 0 ? { tags } : {}),
+    publicar,
+  }
 }
 
-/** Só os campos alterados; `null` remove a capa. */
+/** Só os campos alterados; `null` remove a capa e `tags` substitui o conjunto. */
 export function alteracoes(
-  { titulo, conteudo = '', imagemCapaKey }: DadosNoticia,
+  { titulo, conteudo = '', imagemCapaKey, tags = [] }: DadosNoticia,
   alterado: (campo: NomeCampo) => boolean,
 ): NoticiaAtualizacao {
   return {
     ...(alterado('titulo') ? { titulo } : {}),
     ...(alterado('conteudo') ? { conteudo } : {}),
     ...(alterado('imagemCapaKey') ? { imagemCapaKey: imagemCapaKey ?? null } : {}),
+    ...(alterado('tags') ? { tags } : {}),
   }
 }
 

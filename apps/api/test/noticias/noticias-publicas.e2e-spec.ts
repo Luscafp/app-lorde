@@ -157,6 +157,7 @@ describe('/noticias (#78)', () => {
           conteudo: '**Campeões!**\n\n- vôlei',
           imagemCapaUrl: `${BASE_PUBLICA}/${key}`,
           publicadaEm: criada.publicadaEm?.toISOString(),
+          tags: [],
         })
       },
     )

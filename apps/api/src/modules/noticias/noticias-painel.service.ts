@@ -20,6 +20,7 @@ import { diferenca, type DiferencaAuditoria } from '../auditoria/diferenca'
 import type { UsuarioNaAtletica } from '../auth/tipos'
 import { UploadsService } from '../uploads/uploads.service'
 import { erroCapaObrigatoria, erroConteudoObrigatorio, erroNoticiaNaoEncontrada } from './erros'
+import { CAMPOS_TAGS, garantirTags, idsDasTags, paraTags, substituirTags } from './tags-da-noticia'
 
 const CAMPOS = {
   id: true,
@@ -31,6 +32,7 @@ const CAMPOS = {
   criadoEm: true,
   atualizadoEm: true,
   autor: { select: { id: true, nome: true } },
+  tags: CAMPOS_TAGS,
 } as const satisfies Prisma.NoticiaSelect
 
 type LinhaNoticia = Prisma.NoticiaGetPayload<{ select: typeof CAMPOS }>
@@ -62,7 +64,7 @@ function garantirPublicavel({ conteudo, imagemCapaKey }: Editaveis): void {
 }
 
 /** `$queryRaw` não passa pela extensão multi-atlética: o filtro de atlética vai no SQL. */
-function filtrosDaLista(atleticaId: string, { status, q }: NoticiasPainelQuery): Prisma.Sql {
+function filtrosDaLista(atleticaId: string, { status, q, tagId }: NoticiasPainelQuery): Prisma.Sql {
   const condicoes = [
     Prisma.sql`n."atleticaId" = ${atleticaId}::uuid`,
     Prisma.sql`n."excluidoEm" IS NULL`,
@@ -73,20 +75,41 @@ function filtrosDaLista(atleticaId: string, { status, q }: NoticiasPainelQuery):
       Prisma.sql`unaccent(lower(n."titulo")) LIKE unaccent(lower(${padraoLike(q)})) ESCAPE '\\'`,
     )
   }
+  if (tagId) {
+    condicoes.push(
+      Prisma.sql`EXISTS (SELECT 1 FROM "NoticiaTag" nt WHERE nt."noticiaId" = n."id" AND nt."tagId" = ${tagId}::uuid)`,
+    )
+  }
   return Prisma.join(condicoes, ' AND ')
 }
 
-/** Sem o conteúdo nem a chave da capa (convenções §7): só o título e indicadores. */
-function dadosDaAlteracao({ antes, depois }: DiferencaAuditoria): DadosAuditoria {
+interface TrocaDeTags {
+  antes: string[]
+  depois: string[]
+}
+
+/** Sem o conteúdo nem a chave da capa (convenções §7): só o título, as tags e indicadores. */
+function dadosDaAlteracao(
+  { antes, depois }: DiferencaAuditoria = { antes: {}, depois: {} },
+  tags?: TrocaDeTags,
+): DadosAuditoria {
   const titulo = 'titulo' in depois
   return {
-    antes: titulo ? { titulo: antes.titulo } : {},
+    antes: {
+      ...(titulo && { titulo: antes.titulo }),
+      ...(tags && { tagIds: tags.antes }),
+    },
     depois: {
       ...(titulo && { titulo: depois.titulo }),
       ...('conteudo' in depois && { conteudoAlterado: true }),
       ...('imagemCapaKey' in depois && { capaAlterada: true }),
+      ...(tags && { tagIds: tags.depois }),
     },
   }
+}
+
+function mesmasTags(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i])
 }
 
 /** Gestão de notícias pelo Painel (UC21, issue #80). */
@@ -125,12 +148,13 @@ export class NoticiasPainelService {
     solicitante: UsuarioNaAtletica,
     entrada: NoticiaCriacao,
   ): Promise<NoticiaPainelDetalheDto> {
-    const { publicar = false, titulo, conteudo = '', imagemCapaKey = null } = entrada
+    const { publicar = false, titulo, conteudo = '', imagemCapaKey = null, tags = [] } = entrada
     if (publicar) garantirPublicavel({ titulo, conteudo, imagemCapaKey })
     if (imagemCapaKey) await this.validarCapa(imagemCapaKey, solicitante)
 
     return this.transacao.executar(async (tx) => {
       const publicadaEm = publicar ? new Date() : null
+      const tagIds = await garantirTags(tx, solicitante.atleticaId, tags)
       const criada = await tx.noticia.create({
         data: {
           titulo,
@@ -139,6 +163,7 @@ export class NoticiasPainelService {
           atleticaId: solicitante.atleticaId,
           autorId: solicitante.id,
           ...(publicadaEm && { status: StatusNoticia.PUBLICADA, publicadaEm }),
+          ...(tagIds.length > 0 && { tags: { create: tagIds.map((tagId) => ({ tagId })) } }),
         },
         select: CAMPOS,
       })
@@ -146,7 +171,10 @@ export class NoticiasPainelService {
         entidade: 'Noticia',
         acao: 'NOTICIA_CRIADA',
         entidadeId: criada.id,
-        dados: { antes: null, depois: { titulo, status: criada.status } },
+        dados: {
+          antes: null,
+          depois: { titulo, status: criada.status, ...(tagIds.length > 0 && { tagIds }) },
+        },
       })
       if (publicadaEm) {
         await this.registrarPublicacao(tx, { noticia: criada, primeira: true, solicitante })
@@ -171,21 +199,23 @@ export class NoticiasPainelService {
           entrada.imagemCapaKey === undefined ? antes.imagemCapaKey : entrada.imagemCapaKey,
       }
       const diff = diferenca<Editaveis>(antes, depois, EDITAVEIS)
-      if (!diff) return this.paraDto(antes)
+      const tags = await this.trocaDeTags(tx, antes, solicitante, entrada.tags)
+      if (!diff && !tags) return this.paraDto(antes)
 
-      if (antes.status === StatusNoticia.PUBLICADA) garantirPublicavel(depois)
+      if (diff && antes.status === StatusNoticia.PUBLICADA) garantirPublicavel(depois)
       const capaAnterior = antes.imagemCapaKey
       const trocouCapa = depois.imagemCapaKey !== capaAnterior
       if (trocouCapa && depois.imagemCapaKey && depois.imagemCapaKey !== capaValidada) {
         await this.validarCapa(depois.imagemCapaKey, solicitante)
       }
 
+      if (tags) await substituirTags(tx, id, tags.depois)
       const atualizada = await tx.noticia.update({ where: { id }, data: depois, select: CAMPOS })
       await this.auditoria.registrar(tx, {
         entidade: 'Noticia',
         acao: 'NOTICIA_ALTERADA',
         entidadeId: id,
-        dados: dadosDaAlteracao(diff),
+        dados: dadosDaAlteracao(diff ?? undefined, tags),
       })
       if (trocouCapa && capaAnterior) aposCommit(() => this.uploads.remover(capaAnterior))
       return this.paraDto(atualizada)
@@ -298,6 +328,19 @@ export class NoticiasPainelService {
     return this.ler(tx, id)
   }
 
+  /** `undefined` quando `tags` não foi enviado ou o conjunto não muda. */
+  private async trocaDeTags(
+    tx: TransacaoComEscopo,
+    antes: LinhaNoticia,
+    { atleticaId }: UsuarioNaAtletica,
+    nomes: string[] | undefined,
+  ): Promise<TrocaDeTags | undefined> {
+    if (nomes === undefined) return undefined
+    const atuais = idsDasTags(antes.tags)
+    const novas = await garantirTags(tx, atleticaId, nomes)
+    return mesmasTags(atuais, novas) ? undefined : { antes: atuais, depois: novas }
+  }
+
   private ler(tx: TransacaoComEscopo, id: string): Promise<LinhaNoticia> {
     return tx.noticia.findUniqueOrThrow({ where: { id }, select: CAMPOS })
   }
@@ -338,6 +381,7 @@ export class NoticiasPainelService {
       criadoEm: noticia.criadoEm.toISOString(),
       atualizadoEm: noticia.atualizadoEm.toISOString(),
       autor: noticia.autor,
+      tags: paraTags(noticia.tags),
     }
   }
 

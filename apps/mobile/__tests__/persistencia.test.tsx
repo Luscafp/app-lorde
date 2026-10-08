@@ -151,6 +151,7 @@ const paginaNoticias = (titulos: string[]): ListaNoticias => ({
     imagemCapaUrl: null,
     publicadaEm: '2026-09-28T18:00:00.000Z',
     resumo: 'Resumo.',
+    tags: [],
   })),
   page: 1,
   limit: 3,

@@ -1,4 +1,10 @@
+import { TAGS_POR_NOTICIA_MAX } from '@atletica/shared'
 import type { DadosNoticia } from './dados-noticia'
+
+/** `tags.N` da API aparece no campo de tags. */
+export const CAMPOS_DA_API: Record<string, string> = Object.fromEntries(
+  Array.from({ length: TAGS_POR_NOTICIA_MAX }, (_, i) => [`tags.${i}`, 'tags']),
+)
 
 /** UC21 A4: mensagem única para formato e tamanho da capa. */
 export const MENSAGEM_CAPA_INVALIDA = 'Imagem inválida ou maior que 5 MB'

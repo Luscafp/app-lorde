@@ -10,7 +10,9 @@ const NOTICIA = {
   conteudo: 'A equipe **venceu** a final.',
   imagemCapaKey: 'atleticas/a/noticias/u/capa.jpg',
   publicadaEm: PUBLICADA_EM,
+  tags: [{ tag: { id: 'tag-volei', nome: 'Vôlei' } }],
 }
+const TAG_ID = 'd2f1a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a5b'
 const VISIVEL = { status: 'PUBLICADA', excluidoEm: null }
 
 function criarServico() {
@@ -53,6 +55,7 @@ describe('NoticiasPublicasService', () => {
             imagemCapaUrl: 'https://img.teste/atleticas/a/noticias/u/capa.jpg',
             publicadaEm: '2026-09-28T18:00:00.000Z',
             resumo: 'A equipe venceu a final.',
+            tags: [{ id: 'tag-volei', nome: 'Vôlei' }],
           },
           expect.objectContaining({ imagemCapaUrl: null }),
         ],
@@ -60,6 +63,20 @@ describe('NoticiasPublicasService', () => {
         limit: 20,
         total: 45,
       })
+    })
+  })
+
+  describe('listar por tag', () => {
+    it('mantém o filtro de publicadas e aplica o mesmo where na contagem', async () => {
+      const { servico, db } = criarServico()
+      db.noticia.findMany.mockResolvedValue([])
+      db.noticia.count.mockResolvedValue(0)
+
+      await servico.listar({ page: 1, limit: 20, tagId: TAG_ID })
+
+      const where = { ...VISIVEL, tags: { some: { tagId: TAG_ID } } }
+      expect(db.noticia.findMany).toHaveBeenCalledWith(expect.objectContaining({ where }))
+      expect(db.noticia.count).toHaveBeenCalledWith({ where })
     })
   })
 
@@ -74,6 +91,7 @@ describe('NoticiasPublicasService', () => {
         conteudo: 'A equipe **venceu** a final.',
         imagemCapaUrl: 'https://img.teste/atleticas/a/noticias/u/capa.jpg',
         publicadaEm: '2026-09-28T18:00:00.000Z',
+        tags: [{ id: 'tag-volei', nome: 'Vôlei' }],
       })
       expect(db.noticia.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: ID, ...VISIVEL } }),

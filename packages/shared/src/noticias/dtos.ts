@@ -1,12 +1,15 @@
 import { z } from 'zod'
 import { StatusNoticia } from '../enums/noticia'
 import { respostaPaginadaSchema } from '../utils/paginacao'
+import { tagResumoSchema } from './tags'
 
 const noticiaBaseSchema = z.object({
   id: z.uuid(),
   titulo: z.string(),
   imagemCapaUrl: z.string().nullable(),
   publicadaEm: z.iso.datetime(),
+  /** Ordenadas por nome. */
+  tags: z.array(tagResumoSchema),
 })
 
 /** Item de `GET /noticias`: `resumo` em texto puro, sem marcação Markdown. */

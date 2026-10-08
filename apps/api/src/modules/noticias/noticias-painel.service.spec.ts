@@ -29,7 +29,14 @@ type Linha = {
   criadoEm: Date
   atualizadoEm: Date
   autor: { id: string; nome: string }
+  tags: { tag: { id: string; nome: string } }[]
 }
+
+const FUTSAL = { id: 'tag-futsal', nome: 'Futsal' }
+const SELETIVA = { id: 'tag-seletiva', nome: 'Seletiva' }
+const RESULTADOS = { id: 'tag-resultados', nome: 'Resultados' }
+const TAGS_DA_ATLETICA = [FUTSAL, SELETIVA, RESULTADOS]
+const associadas = (...tags: { id: string; nome: string }[]) => tags.map((tag) => ({ tag }))
 
 function linha(parcial: Partial<Linha> = {}): Linha {
   return {
@@ -42,15 +49,30 @@ function linha(parcial: Partial<Linha> = {}): Linha {
     criadoEm: DATA,
     atualizadoEm: DATA,
     autor: { id: DIRETOR.id, nome: 'Maria' },
+    tags: [],
     ...parcial,
   }
+}
+
+/** Simula o `nomeNormalizado` das tags já existentes na atlética. */
+function tagsPorNome({ where }: { where: { nomeNormalizado: { in: string[] } } }) {
+  const nomes = where.nomeNormalizado.in
+  return Promise.resolve(
+    TAGS_DA_ATLETICA.filter(({ nome }) => nomes.includes(nome.toLowerCase())).map(({ id }) => ({
+      id,
+    })),
+  )
 }
 
 function criarServico(atual: Linha | null = linha()) {
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue(atual ? [{ id: ID }] : []),
+    tag: { createMany: jest.fn(), findMany: jest.fn(tagsPorNome) },
+    noticiaTag: { deleteMany: jest.fn(), createMany: jest.fn() },
     noticia: {
-      create: jest.fn(({ data }: { data: Partial<Linha> }) => Promise.resolve(linha(data))),
+      create: jest.fn(({ data: { tags: _, ...data } }: { data: Partial<Linha> }) =>
+        Promise.resolve(linha(data)),
+      ),
       update: jest.fn(({ data }: { data: Partial<Linha> }) =>
         Promise.resolve(linha({ ...atual, ...data })),
       ),
@@ -228,6 +250,27 @@ describe('NoticiasPainelService', () => {
       expect(tx.noticia.create).not.toHaveBeenCalled()
     })
 
+    it('com tags: cria as que faltam na atlética, associa e audita os ids', async () => {
+      const { servico, tx, dadosAuditados } = criarServico()
+
+      await servico.criar(DIRETOR, { titulo: 'Seletiva', tags: ['Futsal', 'Seletiva'] })
+
+      expect(tx.tag.createMany).toHaveBeenCalledWith({
+        data: [
+          { atleticaId: ATLETICA_ID, nome: 'Futsal', nomeNormalizado: 'futsal' },
+          { atleticaId: ATLETICA_ID, nome: 'Seletiva', nomeNormalizado: 'seletiva' },
+        ],
+        skipDuplicates: true,
+      })
+      expect(tx.noticia.create.mock.calls[0]?.[0].data).toMatchObject({
+        tags: { create: [{ tagId: FUTSAL.id }, { tagId: SELETIVA.id }] },
+      })
+      expect(dadosAuditados()).toEqual({
+        antes: null,
+        depois: { titulo: 'Seletiva', status: 'RASCUNHO', tagIds: [FUTSAL.id, SELETIVA.id] },
+      })
+    })
+
     it('capa inválida interrompe antes de abrir a transação', async () => {
       const { servico, tx, uploads } = criarServico()
       uploads.validarKey.mockRejectedValue(new Error('UPLOAD_INVALIDO'))
@@ -309,6 +352,62 @@ describe('NoticiasPainelService', () => {
       await servico.atualizar(ID, DIRETOR, { titulo: 'Seletiva de futsal' })
       expect(tx.noticia.update).not.toHaveBeenCalled()
       expect(auditoria.registrar).not.toHaveBeenCalled()
+    })
+
+    describe('tags', () => {
+      const comTags = () => linha({ tags: associadas(FUTSAL, SELETIVA) })
+
+      it('lista nova substitui o conjunto e audita só os ids (NOTICIA_ALTERADA)', async () => {
+        const { servico, tx, acoes, dadosAuditados } = criarServico(comTags())
+
+        await servico.atualizar(ID, DIRETOR, { tags: ['Resultados'] })
+
+        expect(tx.noticiaTag.deleteMany).toHaveBeenCalledWith({ where: { noticiaId: ID } })
+        expect(tx.noticiaTag.createMany).toHaveBeenCalledWith({
+          data: [{ noticiaId: ID, tagId: RESULTADOS.id }],
+        })
+        expect(tx.noticia.update).toHaveBeenCalled()
+        expect(acoes()).toEqual(['NOTICIA_ALTERADA'])
+        expect(dadosAuditados()).toEqual({
+          antes: { tagIds: [FUTSAL.id, SELETIVA.id] },
+          depois: { tagIds: [RESULTADOS.id] },
+        })
+      })
+
+      it('[] remove todas', async () => {
+        const { servico, tx, dadosAuditados } = criarServico(comTags())
+
+        await servico.atualizar(ID, DIRETOR, { tags: [] })
+
+        expect(tx.tag.createMany).not.toHaveBeenCalled()
+        expect(tx.noticiaTag.deleteMany).toHaveBeenCalledWith({ where: { noticiaId: ID } })
+        expect(tx.noticiaTag.createMany).not.toHaveBeenCalled()
+        expect(dadosAuditados()).toMatchObject({ depois: { tagIds: [] } })
+      })
+
+      it('omitidas: mantém as atuais', async () => {
+        const { servico, tx, dadosAuditados } = criarServico(comTags())
+
+        await servico.atualizar(ID, DIRETOR, { titulo: 'Novo título' })
+
+        expect(tx.tag.createMany).not.toHaveBeenCalled()
+        expect(tx.noticiaTag.deleteMany).not.toHaveBeenCalled()
+        expect(dadosAuditados()).toEqual({
+          antes: { titulo: 'Seletiva de futsal' },
+          depois: { titulo: 'Novo título' },
+        })
+      })
+
+      it('mesmo conjunto em outra ordem: não grava nem audita', async () => {
+        const { servico, tx, auditoria } = criarServico(comTags())
+
+        const atualizada = await servico.atualizar(ID, DIRETOR, { tags: ['Seletiva', 'Futsal'] })
+
+        expect(tx.noticiaTag.deleteMany).not.toHaveBeenCalled()
+        expect(tx.noticia.update).not.toHaveBeenCalled()
+        expect(auditoria.registrar).not.toHaveBeenCalled()
+        expect(atualizada.tags).toEqual([FUTSAL, SELETIVA])
+      })
     })
 
     it.each([
