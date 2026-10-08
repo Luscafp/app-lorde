@@ -13,6 +13,7 @@ import {
 } from '@/features/eventos'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
+import { persistida } from '@/infra/query/persistencia'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import { responderParticipacao } from './api'
 
@@ -90,5 +91,6 @@ export function useMeusProximosEventos() {
     queryFn: ({ signal }) =>
       listarEventos(FILTROS_MEUS_PROXIMOS, { page: 1, limit: LIMITE_MEUS_PROXIMOS }, signal),
     select: ({ items }) => items,
+    ...persistida,
   })
 }

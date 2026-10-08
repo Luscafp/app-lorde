@@ -2,6 +2,7 @@ import type { ListaNoticias } from '@atletica/shared'
 import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { ehNaoEncontrado } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
+import { persistida } from '@/infra/query/persistencia'
 import { proximaPagina } from '@/infra/query/proxima-pagina'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
 import { semItemNaLista, type ListaEmCache } from '@/infra/query/sem-item'
@@ -33,6 +34,7 @@ export function useNoticias() {
     initialPageParam: 1,
     getNextPageParam: proximaPagina,
     select: ({ pages }) => juntarPaginas(pages),
+    ...persistida,
   })
 }
 
@@ -43,6 +45,7 @@ export function useUltimasNoticias() {
     queryKey: chaves.noticias.lista({ limit: LIMITE_ULTIMAS }),
     queryFn: ({ signal }) => listarNoticias({ page: 1, limit: LIMITE_ULTIMAS }, signal),
     select: ({ items }) => items.slice(0, LIMITE_ULTIMAS),
+    ...persistida,
   })
 }
 
@@ -62,5 +65,6 @@ export function useNoticia(id: string) {
         throw erro
       }
     },
+    ...persistida,
   })
 }

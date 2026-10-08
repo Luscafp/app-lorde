@@ -14,6 +14,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CodigoApi } from '@/infra/api/api-erro'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
+import { persistida } from '@/infra/query/persistencia'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import {
   atualizarEvento,
@@ -66,6 +67,7 @@ export function useEventoPainel(id: string) {
   return useQuery({
     queryKey: chaves.eventos.detalhe(id),
     queryFn: ({ signal }) => buscarEvento(id, signal),
+    ...persistida,
   })
 }
 

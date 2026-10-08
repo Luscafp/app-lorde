@@ -2,6 +2,7 @@ import type { Modalidade, ModalidadeAtualizacao, ModalidadeCriacao } from '@atle
 import { useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
+import { persistida } from '@/infra/query/persistencia'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import {
   atualizarModalidade,
@@ -18,6 +19,7 @@ export function useModalidades(filtro: FiltroModalidades = {}) {
   return useQuery({
     queryKey: chaves.modalidades(filtro),
     queryFn: ({ signal }) => buscarModalidades(filtro, signal),
+    ...persistida,
   })
 }
 

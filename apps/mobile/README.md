@@ -89,7 +89,7 @@ Grupos oficiais `(publico)` e `(app)/(abas)` (convenções §3 e §11.1).
 - **Deep link protegido sem sessão**: `app/+native-intent.tsx` guarda o caminho e, depois do login, o layout raiz navega até ele (`src/infra/sessao/destino.ts`).
 - **Aba Painel**: aparece só para `temNivelMinimo(papel, Papel.DIRETOR)` (`useVePainel()`); para os demais fica com `href: null` e `/painel` redireciona ao Início. A ocultação é só visual; quem autoriza é a API.
 - **Telas de detalhe** (eventos, notícias...) ficam em `app/(app)/...`, acima das abas. Uma aba pode virar pasta com `_layout.tsx` (Stack) + `index.tsx`; tocar de novo na aba ativa volta à raiz dessa pilha.
-- **Splash**: fica visível até a sessão (SecureStore) e a atlética (cache ou rede, até 3 s) carregarem.
+- **Splash**: fica visível até a sessão (SecureStore) e a atlética (cache ou rede, até 3 s) carregarem e o cache offline ser restaurado.
 - **Recuperação de senha** (#62): e-mail → código → nova senha. E-mail e código passam pelo `useRecuperacaoStore` (`src/features/recuperacao-senha`, só em memória), nunca pela URL. Login e cadastro abrem o fluxo com `/recuperar-senha?email=<e-mail>` para a tela vir preenchida. Ao concluir, o app volta a `/login?email=<e-mail>` para o login vir preenchido.
 
 ## Sessão — `src/infra/sessao/store.ts`
@@ -146,7 +146,7 @@ await api.post('/times/1/solicitacoes', { mensagem }, { consulta: { origem: 'app
 
 ## Dados — TanStack Query (`src/infra/query`, `src/infra/rede`)
 
-`queryClient` (`query-client.ts`, provider no layout raiz): `staleTime` 60 s, `gcTime` 24 h, `retry` até 2 vezes só para `SEM_CONEXAO`, `TEMPO_ESGOTADO` e 5xx, `refetchOnReconnect`. NetInfo → `onlineManager` (offline quando `isConnected === false` ou `isInternetReachable === false`; `null` conta como online) e `AppState` → `focusManager`, ligados por `configurarRede()` (`online.ts`). `useOnline()` devolve se há conexão.
+`queryClient` (`query-client.ts`, `PersistQueryClientProvider` no layout raiz): `staleTime` 60 s, `gcTime` 24 h (7 dias nas queries persistidas), `retry` até 2 vezes só para `SEM_CONEXAO`, `TEMPO_ESGOTADO` e 5xx, `refetchOnReconnect`. NetInfo → `onlineManager` (offline quando `isConnected === false` ou `isInternetReachable === false`; `null` conta como online) e `AppState` → `focusManager`, ligados por `configurarRede()` (`online.ts`). `useOnline()` devolve se há conexão.
 
 ### Chaves — `chaves.ts`
 
@@ -175,6 +175,16 @@ Fábrica **única** de chaves (convenções §10.4). **Nunca escreva arrays lite
 Prefixos: `chaves.times.todos()`, `chaves.eventos.todos()`, `chaves.noticias.todos()`, `chaves.painel.todos()`, `chaves.painel.noticias.todos()`, `chaves.usuarios.todos()`.
 
 Listas infinitas usam `getNextPageParam: proximaPagina` (`proxima-pagina.ts`), que lê `page`, `limit` e `total` da resposta.
+
+### Persistência offline — `persistencia.ts` (#29)
+
+Só vão para o disco as queries com `...persistida` (`meta.persistir` + `gcTime` de 7 dias), conforme a coluna "Persistida" da tabela de chaves das convenções (§10.4). Query nova de leitura que deve aparecer offline recebe `...persistida`; dados do Painel, de usuários e de auditoria nunca.
+
+- AsyncStorage, chave `rq-cache:<usuarioId>`, gravação a cada 1 s no máximo. Sem sessão nada é gravado nem restaurado.
+- `maxAge` de 7 dias e `buster` `<versão do app>-<VERSAO_FORMATO_CACHE>`: mude `VERSAO_FORMATO_CACHE` ao alterar o formato de um dado persistido.
+- `['me']` guarda só `nome`, `fotoUrl`, `papel` e `times`; `id` e e-mail voltam da sessão na restauração.
+- Listas infinitas de eventos e notícias guardam só as 2 primeiras páginas; as de times guardam todas.
+- A transição da sessão para `'anonimo'` (logout, exclusão de conta, refresh `401`) apaga o cache do usuário e limpa o `queryClient`.
 
 ### Mutações — `useAcaoOnline`
 
@@ -263,7 +273,7 @@ const { online, mutate, isPending } = useAcaoOnline({
 - Resposta 5xx da API (só do domínio da API) vira breadcrumb `http` com `requestId`, método, rota (sem query) e status, para correlacionar com os logs da API.
 - `LimiteErro` (ErrorBoundary) envolve a navegação, dentro do `ProvedorTema` (a tela de erro usa o tema): erro de renderização vai ao Sentry e mostra `TelaErroFatal` ("Recarregar" → `Updates.reloadAsync()`). O layout raiz é exportado com `Sentry.wrap` e registra a navegação (rotas do Expo Router como nome de transação).
 - Source maps: plugin `@sentry/react-native/expo` no `app.config.ts` e `getSentryExpoConfig` no `metro.config.js`; o `SENTRY_AUTH_TOKEN` fica só no EAS (#93).
-- Abertura (RNF03): `iniciarSpanAbertura()` no layout raiz abre o span `inicio_home_pronta` (sem DSN ou em `__DEV__`, nada); a Home chama `useMarcarHomePronta(comDados)`, que o fecha uma única vez no primeiro render com dados (cache ou rede). Até a #79 a Home provisória o fecha no primeiro render.
+- Abertura (RNF03): `iniciarSpanAbertura()` no layout raiz abre o span `inicio_home_pronta` (sem DSN ou em `__DEV__`, nada); a Home chama `useMarcarHomePronta(comDados)`, que o fecha uma única vez no primeiro render com dados (cache ou rede). Até a #79 a Home provisória o fecha no primeiro render. Dentro dele, o span `restaurar_cache` (`iniciarSpanRestauracao()`) mede a restauração do cache offline.
 
 ## Imagens e uploads — `src/components/imagem`, `src/features/uploads`
 

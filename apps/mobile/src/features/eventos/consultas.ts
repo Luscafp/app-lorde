@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query'
 import { chaves } from '@/infra/query/chaves'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
+import { persistida } from '@/infra/query/persistencia'
 import { proximaPagina } from '@/infra/query/proxima-pagina'
 import { buscarEvento, LIMITE_PAGINA, listarEventos, type FiltrosEventos } from './api'
 
@@ -44,6 +45,7 @@ export function useEvento(id: string) {
     queryKey: chaves.eventos.detalhe(id),
     queryFn: ({ signal }) => buscarEvento(id, signal),
     placeholderData: card?.evento,
+    ...persistida,
   })
   if (!consulta.isPlaceholderData) return consulta
   return { ...consulta, dataUpdatedAt: card?.atualizadoEm ?? 0 }
@@ -57,6 +59,7 @@ export function useEventos(filtros: FiltrosEventos) {
     initialPageParam: 1,
     getNextPageParam: proximaPagina,
     select: ({ pages }) => juntarPaginas(pages),
+    ...persistida,
   })
 }
 
@@ -66,5 +69,6 @@ export function useProximosEventos(filtros: FiltrosEventos, limit: number) {
     queryKey: chaves.eventos.lista({ ...filtros, limit }),
     queryFn: ({ signal }) => listarEventos(filtros, { page: 1, limit }, signal),
     select: (lista) => ({ ...lista, items: lista.items.slice(0, limit) }),
+    ...persistida,
   })
 }

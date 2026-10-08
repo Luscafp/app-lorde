@@ -103,6 +103,17 @@ export function marcarHomePronta(): void {
   spanAbertura = undefined
 }
 
+/** Restauração do cache offline (#29), dentro do span de abertura. Devolve o fim do span. */
+export function iniciarSpanRestauracao(): () => void {
+  if (!spanAbertura) return () => undefined
+  const span = Sentry.startInactiveSpan({
+    name: 'restaurar_cache',
+    op: 'app.cache.restaurar',
+    parentSpan: spanAbertura,
+  })
+  return () => span.end()
+}
+
 /** Chamado pela Home: fecha o span de abertura no primeiro render com dados. */
 export function useMarcarHomePronta(comDados: boolean): void {
   useEffect(() => {

@@ -1,6 +1,7 @@
 import type { AtleticaPublica } from '@atletica/shared'
 import { queryOptions } from '@tanstack/react-query'
 import { chaves } from '@/infra/query/chaves'
+import { persistida } from '@/infra/query/persistencia'
 import { queryClient } from '@/infra/query/query-client'
 import {
   buscarAtletica,
@@ -15,6 +16,7 @@ let atleticaLidaNaSplash: AtleticaEmCache | undefined
 
 export const consultaAtletica = queryOptions({
   queryKey: chaves.atletica(),
+  ...persistida,
   queryFn: async ({ signal }) => {
     const atletica = await buscarAtletica(signal)
     await gravarAtleticaNoCache(atletica).catch(() => undefined)
