@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import {
   formatarDataHora,
   Papel,
+  type EventoDetalheDto,
   type EventoResumoDto,
   type ListaEventos,
   type ListaNoticias,
@@ -14,37 +15,58 @@ import {
   persistQueryClientSave,
   PersistQueryClientProvider,
 } from '@tanstack/react-query-persist-client'
-import { act, cleanup, render, renderHook, screen, waitFor } from '@testing-library/react-native'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from '@testing-library/react-native'
 import type { ReactElement, ReactNode } from 'react'
 import { MENSAGEM_SEM_CONEXAO } from '@/components/estado'
 import { toast } from '@/components/ui/toast'
 import { sair } from '@/features/auth/logout'
-import { TelaAgenda, type AbaAgenda } from '@/features/eventos'
+import { TelaAgenda, TelaEvento, type AbaAgenda } from '@/features/eventos'
 import * as apiEventos from '@/features/eventos/api'
 import { TelaHome } from '@/features/home'
+import { TelaNoticia } from '@/features/noticias'
 import * as apiNoticias from '@/features/noticias/api'
+import { ParticipacaoAcoes } from '@/features/participacoes'
+import { ListaUsuarios } from '@/features/usuarios'
+import * as apiUsuarios from '@/features/usuarios/api'
 import { api } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import {
-  BUSTER,
-  CACHE_SCHEMA_VERSION,
   chaveCache,
   criarPersister,
-  MAX_AGE,
+  deveDesidratar,
+  IDADE_MAXIMA_CACHE_MS,
   metaPersistida,
   opcoesPersistencia,
   persistida,
-  shouldDehydrateQuery,
+  VERSAO_CACHE,
+  VERSAO_FORMATO_CACHE,
 } from '@/infra/query/persistencia'
-import { criarQueryClient } from '@/infra/query/query-client'
+import { criarQueryClient, queryClient } from '@/infra/query/query-client'
 import { MENSAGEM_ACAO_OFFLINE, useAcaoOnline } from '@/infra/query/use-acao-online'
 import { useSessao, type UsuarioSessao } from '@/infra/sessao/store'
 
 jest.mock('@/components/ui/toast', () => ({
   toast: { sucesso: jest.fn(), erro: jest.fn(), info: jest.fn() },
 }))
-jest.mock('@/features/eventos/api', () => ({ LIMITE_PAGINA: 20, listarEventos: jest.fn() }))
-jest.mock('@/features/noticias/api', () => ({ LIMITE_PAGINA: 20, listarNoticias: jest.fn() }))
+jest.mock('@/features/eventos/api', () => ({
+  LIMITE_PAGINA: 20,
+  listarEventos: jest.fn(),
+  buscarEvento: jest.fn(),
+}))
+jest.mock('@/features/noticias/api', () => ({
+  LIMITE_PAGINA: 20,
+  listarNoticias: jest.fn(),
+  buscarNoticia: jest.fn(),
+}))
+jest.mock('@/features/usuarios/api', () => ({ LIMITE_PAGINA: 20, listarUsuarios: jest.fn() }))
 jest.mock('@/features/modalidades/api')
 jest.mock('@/features/atletica/api')
 jest.mock('@/infra/sentry', () => ({
@@ -53,7 +75,10 @@ jest.mock('@/infra/sentry', () => ({
 }))
 
 const listarEventos = jest.mocked(apiEventos.listarEventos)
+const buscarEvento = jest.mocked(apiEventos.buscarEvento)
 const listarNoticias = jest.mocked(apiNoticias.listarNoticias)
+const buscarNoticia = jest.mocked(apiNoticias.buscarNoticia)
+const listarUsuarios = jest.mocked(apiUsuarios.listarUsuarios)
 
 const HORA = 60 * 60_000
 const agoraReal = Date.now.bind(Date)
@@ -132,21 +157,38 @@ const paginaNoticias = (titulos: string[]): ListaNoticias => ({
   total: titulos.length,
 })
 
-const PERFIL: Perfil = {
-  id: 'usuario',
+const DETALHE_JOGO: EventoDetalheDto = {
+  ...JOGO,
+  observacoes: null,
+  criadoEm: '2026-10-01T12:00:00.000Z',
+  atualizadoEm: '2026-10-01T12:00:00.000Z',
+  serie: null,
+  contagem: { confirmados: 8, recusados: 2, semResposta: 4, elenco: 14 },
+  confirmados: [],
+  souMembro: true,
+  podeResponder: true,
+  motivoBloqueioResposta: null,
+}
+
+const perfilDe = ({ id, email }: UsuarioSessao): Perfil => ({
+  id,
   nome: 'Ana',
-  email: 'ana@exemplo.com',
+  email,
   fotoUrl: null,
+  emailVerificado: true,
   papel: Papel.ATLETA,
+  atletica: { id: 'atletica-1', nome: 'Atlética Lorde', sigla: 'LORDE' },
   times: [],
-} as unknown as Perfil
+  termosAceitos: { versao: '1', aceitoEm: '2026-09-01T12:00:00.000Z' },
+  criadoEm: '2026-09-01T12:00:00.000Z',
+})
 
 const salvar = (cliente: QueryClient) =>
   persistQueryClientSave({
     queryClient: cliente,
     persister: criarPersister(usuario.id),
-    buster: BUSTER,
-    dehydrateOptions: { shouldDehydrateQuery },
+    buster: VERSAO_CACHE,
+    dehydrateOptions: { shouldDehydrateQuery: deveDesidratar },
   })
 
 const lerSalvo = async () => {
@@ -233,6 +275,11 @@ beforeEach(async () => {
     Promise.resolve(paginaEventos(filtros.status === 'FINALIZADO' ? [ENCERRADO] : [JOGO])),
   )
   listarNoticias.mockResolvedValue(paginaNoticias(['Calourada 2026']))
+  buscarNoticia.mockResolvedValue({
+    ...paginaNoticias(['Calourada 2026']).items[0]!,
+    conteudo: 'Programação da semana.',
+  })
+  buscarEvento.mockResolvedValue(DETALHE_JOGO)
 })
 
 afterEach(async () => {
@@ -242,12 +289,12 @@ afterEach(async () => {
 
 describe('o que é persistido', () => {
   it('versão do cache e idade máxima de 7 dias', () => {
-    expect(BUSTER).toMatch(new RegExp(`-${CACHE_SCHEMA_VERSION}$`))
-    expect(MAX_AGE).toBe(7 * 24 * HORA)
-    expect(persistida).toEqual({ meta: metaPersistida, gcTime: MAX_AGE })
+    expect(VERSAO_CACHE).toMatch(new RegExp(`-${VERSAO_FORMATO_CACHE}$`))
+    expect(IDADE_MAXIMA_CACHE_MS).toBe(7 * 24 * HORA)
+    expect(persistida).toEqual({ meta: metaPersistida, gcTime: IDADE_MAXIMA_CACHE_MS })
   })
 
-  it('shouldDehydrateQuery aceita só queries com meta.persistir e status success', async () => {
+  it('deveDesidratar aceita só queries com meta.persistir e status success', async () => {
     await cliente.fetchQuery({ queryKey: ['com-meta'], queryFn: () => 1, ...persistida })
     await cliente.fetchQuery({ queryKey: ['sem-meta'], queryFn: () => 1 })
     await cliente
@@ -259,9 +306,9 @@ describe('o que é persistido', () => {
       .catch(() => undefined)
 
     const query = (chave: string) => cliente.getQueryCache().find({ queryKey: [chave] })!
-    expect(shouldDehydrateQuery(query('com-meta'))).toBe(true)
-    expect(shouldDehydrateQuery(query('sem-meta'))).toBe(false)
-    expect(shouldDehydrateQuery(query('com-erro'))).toBe(false)
+    expect(deveDesidratar(query('com-meta'))).toBe(true)
+    expect(deveDesidratar(query('sem-meta'))).toBe(false)
+    expect(deveDesidratar(query('com-erro'))).toBe(false)
   })
 
   it('lista de usuários do painel não é persistida (critério 9)', async () => {
@@ -280,26 +327,43 @@ describe('o que é persistido', () => {
     expect(await chavesSalvas()).toEqual([chaves.atletica()])
   })
 
-  it("['me'] vai sem e-mail e o AsyncStorage não tem tokens (critério 12)", async () => {
-    await cliente.fetchQuery({ queryKey: chaves.me(), queryFn: () => PERFIL, ...persistida })
+  it("['me'] guarda só nome, foto, papel e times; sem e-mail nem tokens (critério 12)", async () => {
+    await cliente.fetchQuery({
+      queryKey: chaves.me(),
+      queryFn: () => perfilDe(usuario),
+      ...persistida,
+    })
 
     await salvar(cliente)
 
     const bruto = (await AsyncStorage.getItem(chaveCache(usuario.id)))!
-    expect(bruto).toContain('"nome":"Ana"')
+    const [me] = (JSON.parse(bruto) as { clientState: { queries: { state: { data: unknown } }[] } })
+      .clientState.queries
+    expect(me!.state.data).toEqual({ nome: 'Ana', fotoUrl: null, papel: Papel.ATLETA, times: [] })
     expect(bruto).not.toContain('ana@exemplo.com')
     expect(bruto).not.toContain('token-de-acesso')
     expect(bruto).not.toContain('token-de-refresh')
   })
 
-  it("na restauração, o e-mail do ['me'] volta da sessão local", async () => {
-    await cliente.fetchQuery({ queryKey: chaves.me(), queryFn: () => PERFIL, ...persistida })
+  it("na restauração, id e e-mail do ['me'] voltam da sessão local", async () => {
+    await cliente.fetchQuery({
+      queryKey: chaves.me(),
+      queryFn: () => perfilDe(usuario),
+      ...persistida,
+    })
     await salvar(cliente)
     cliente.clear()
 
     await persistQueryClientRestore({ ...opcoesPersistencia, queryClient: cliente })
 
-    expect(cliente.getQueryData(chaves.me())).toEqual(PERFIL)
+    expect(cliente.getQueryData(chaves.me())).toEqual({
+      id: usuario.id,
+      nome: 'Ana',
+      email: usuario.email,
+      fotoUrl: null,
+      papel: Papel.ATLETA,
+      times: [],
+    })
   })
 
   it('lista infinita de eventos guarda só as 2 primeiras páginas; a de times guarda todas', async () => {
@@ -339,7 +403,7 @@ describe('restauração', () => {
       queryClient: cliente,
       persister: criarPersister(usuario.id),
       buster: 'versao-antiga-0',
-      dehydrateOptions: { shouldDehydrateQuery },
+      dehydrateOptions: { shouldDehydrateQuery: deveDesidratar },
     })
     cliente.clear()
 
@@ -378,11 +442,12 @@ describe('restauração', () => {
 })
 
 describe('telas offline com o cache restaurado', () => {
-  it('Agenda, Placar e Home mostram os dados e a faixa com a data do dado salvo (critério 1)', async () => {
+  it('Agenda, Placar, Home e uma notícia mostram os dados e a faixa com a data do dado salvo (critério 1)', async () => {
     deslocarRelogio(-2 * HORA)
     await abrirOnlineESalvar(agenda('eventos'), 'Lorde Vôlei × Atlética Medicina')
     await abrirOnlineESalvar(agenda('placar'), 'Lorde Futsal')
     await abrirOnlineESalvar(<TelaHome {...navegacaoHome} />, 'Calourada 2026')
+    await abrirOnlineESalvar(<TelaNoticia id="n0" />, 'Calourada 2026')
     const salvoEm = (await lerSalvo()) as unknown as {
       clientState: { queries: { queryKey: unknown[]; state: { dataUpdatedAt: number } }[] }
     }
@@ -393,6 +458,7 @@ describe('telas offline com o cache restaurado', () => {
     jest.mocked(Date.now).mockRestore()
     listarEventos.mockClear()
     listarNoticias.mockClear()
+    buscarNoticia.mockClear()
 
     const { unmount } = await reabrirOffline(agenda('eventos'))
     expect(await screen.findByText('Lorde Vôlei × Atlética Medicina')).toBeOnTheScreen()
@@ -410,8 +476,13 @@ describe('telas offline com o cache restaurado', () => {
     await reabrirOffline(<TelaHome {...navegacaoHome} />)
     expect(await screen.findByText('Calourada 2026')).toBeOnTheScreen()
 
+    await reabrirOffline(<TelaNoticia id="n0" />)
+    expect(await screen.findByText('Calourada 2026')).toBeOnTheScreen()
+    expect(screen.getByText(/^Modo offline · dados de /)).toBeOnTheScreen()
+
     expect(listarEventos).not.toHaveBeenCalled()
     expect(listarNoticias).not.toHaveBeenCalled()
+    expect(buscarNoticia).not.toHaveBeenCalled()
   })
 
   it('a conexão volta: a faixa some e as queries ativas são refeitas (critério 2)', async () => {
@@ -460,6 +531,52 @@ describe('telas offline com o cache restaurado', () => {
     expect(mutationFn).not.toHaveBeenCalled()
     expect(toast.erro).toHaveBeenCalledWith(MENSAGEM_ACAO_OFFLINE)
   })
+
+  it('evento restaurado offline: "Vou" desabilitado e nenhuma requisição (critério 3)', async () => {
+    const put = jest.spyOn(api, 'put')
+    const telaEvento = (
+      <TelaEvento
+        id={JOGO.id}
+        aoGerenciar={jest.fn()}
+        acoesParticipacao={(evento) => (
+          <ParticipacaoAcoes evento={evento} aoAbrirTime={jest.fn()} />
+        )}
+      />
+    )
+    await abrirOnlineESalvar(telaEvento, 'Ginásio')
+
+    await reabrirOffline(telaEvento)
+    const vou = await screen.findByRole('button', { name: 'Vou' })
+    await fireEvent.press(vou)
+
+    expect(vou).toBeDisabled()
+    expect(screen.getByTestId('legenda-participacao')).toHaveTextContent('Sem conexão')
+    expect(put).not.toHaveBeenCalled()
+  })
+
+  it('lista de usuários do painel não volta offline: estado vazio-offline (critério 9)', async () => {
+    listarUsuarios.mockResolvedValue({
+      items: [
+        {
+          id: 'u9',
+          nome: 'José Lima',
+          email: 'jose@ex.com',
+          fotoUrl: null,
+          papel: 'DIRETOR',
+          situacao: 'ATIVO',
+        },
+      ],
+      page: 1,
+      limit: 20,
+      total: 1,
+    })
+    await abrirOnlineESalvar(<ListaUsuarios aoAbrir={jest.fn()} />, 'José Lima')
+
+    await reabrirOffline(<ListaUsuarios aoAbrir={jest.fn()} />)
+
+    expect(await screen.findByText(MENSAGEM_SEM_CONEXAO)).toBeOnTheScreen()
+    expect(screen.queryByText('José Lima')).toBeNull()
+  })
 })
 
 describe('limpeza ao sair da sessão', () => {
@@ -476,21 +593,25 @@ describe('limpeza ao sair da sessão', () => {
   it.each([
     ['logout', 'LOGOUT'],
     ['exclusão de conta', 'CONTA_EXCLUIDA'],
-  ] as const)('%s remove rq-cache:<usuarioId>', async (_, motivo) => {
+  ] as const)('%s remove rq-cache:<usuarioId> e limpa o QueryClient', async (_, motivo) => {
     await comCacheSalvo()
+    const limpar = jest.spyOn(queryClient, 'clear')
 
     await useSessao.getState().encerrarSessao({ motivo })
 
+    expect(limpar).toHaveBeenCalled()
     await waitFor(async () => expect(await AsyncStorage.getItem(chaveCache(usuario.id))).toBeNull())
   })
 
   it('logout offline também apaga o cache local (critério 10)', async () => {
     await comCacheSalvo()
     onlineManager.setOnline(false)
+    const limpar = jest.spyOn(queryClient, 'clear')
 
     await sair()
 
     expect(useSessao.getState().status).toBe('anonimo')
+    expect(limpar).toHaveBeenCalled()
     await waitFor(async () => expect(await AsyncStorage.getItem(chaveCache(usuario.id))).toBeNull())
   })
 
@@ -509,9 +630,12 @@ describe('limpeza ao sair da sessão', () => {
       } as unknown as Response),
     )
 
+    const limpar = jest.spyOn(queryClient, 'clear')
+
     await api.get('/eventos').catch(() => undefined)
 
     expect(useSessao.getState().status).toBe('anonimo')
+    expect(limpar).toHaveBeenCalled()
     await waitFor(async () => expect(await AsyncStorage.getItem(chaveCache(usuario.id))).toBeNull())
   })
 
@@ -533,7 +657,7 @@ describe('limpeza ao sair da sessão', () => {
     await entrar(novoUsuario())
 
     await persisterDeA.persistClient({
-      buster: BUSTER,
+      buster: VERSAO_CACHE,
       timestamp: agoraReal(),
       clientState: { queries: [], mutations: [] },
     })
@@ -544,7 +668,7 @@ describe('limpeza ao sair da sessão', () => {
   it('sem sessão, nada é restaurado nem gravado', async () => {
     await useSessao.getState().encerrarSessao({ motivo: 'LOGOUT' })
     await opcoesPersistencia.persister.persistClient({
-      buster: BUSTER,
+      buster: VERSAO_CACHE,
       timestamp: agoraReal(),
       clientState: { queries: [], mutations: [] },
     })

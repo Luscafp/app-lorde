@@ -302,6 +302,19 @@ describe('EventoForm', () => {
     )
   })
 
+  it('cai offline depois de preencher: Salvar bloqueado e os dados ficam no formulário (#29, critério 4)', async () => {
+    await renderizar(<EventoForm aoSalvar={jest.fn()} />)
+    await preencherJogoDeVolei()
+
+    await act(() => onlineManager.setOnline(false))
+    await salvar()
+
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
+    expect(eventos.criarEvento).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Local')).toHaveDisplayValue('Ginásio Castelinho')
+    expect(screen.getByRole('radio', { name: 'Fênix Vôlei · FNX' })).toBeSelected()
+  })
+
   it('observações têm contador até 500', async () => {
     await renderizar(<EventoForm aoSalvar={jest.fn()} />)
     expect(screen.getByText('0/500')).toBeOnTheScreen()

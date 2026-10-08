@@ -1,8 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import type { Perfil } from '@atletica/shared'
 import * as Sentry from '@sentry/react-native'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import {
   defaultShouldDehydrateQuery,
+  hashKey,
+  partialMatchKey,
   type DehydratedState,
   type Query,
 } from '@tanstack/react-query'
@@ -12,29 +15,31 @@ import { chaves } from '@/infra/query/chaves'
 import { useSessao } from '@/infra/sessao/store'
 
 /** Mude ao alterar o formato de algum dado persistido: o cache antigo é descartado. */
-export const CACHE_SCHEMA_VERSION = 1
-export const MAX_AGE = 7 * 24 * 60 * 60_000
+export const VERSAO_FORMATO_CACHE = 1
+export const IDADE_MAXIMA_CACHE_MS = 7 * 24 * 60 * 60_000
 export const PAGINAS_PERSISTIDAS = 2
-export const BUSTER = `${Application.nativeApplicationVersion ?? '0'}-${CACHE_SCHEMA_VERSION}`
+export const VERSAO_CACHE = `${Application.nativeApplicationVersion ?? '0'}-${VERSAO_FORMATO_CACHE}`
 
 export const metaPersistida = { persistir: true } as const
 
-/** Convenções §10.4: o `gcTime` não pode ser menor que o `maxAge`, senão a query some antes de salvar. */
-export const persistida = { meta: metaPersistida, gcTime: MAX_AGE } as const
+/** `gcTime` ≥ `maxAge`, senão a query some antes de ser salva. */
+export const persistida = { meta: metaPersistida, gcTime: IDADE_MAXIMA_CACHE_MS } as const
 
 export const chaveCache = (usuarioId: string) => `rq-cache:${usuarioId}`
 
-export function shouldDehydrateQuery(query: Query): boolean {
+export function deveDesidratar(query: Query): boolean {
   return defaultShouldDehydrateQuery(query) && query.meta?.persistir === true
 }
 
 type QueryDesidratada = DehydratedState['queries'][number]
+type MePersistido = Pick<Perfil, 'nome' | 'fotoUrl' | 'papel' | 'times'>
 
-const ehMe = (chave: readonly unknown[]) => JSON.stringify(chave) === JSON.stringify(chaves.me())
+const ehMe = (chave: readonly unknown[]) => hashKey(chave) === hashKey(chaves.me())
 
-/** Agenda, Placar e notícias guardam só as 2 primeiras páginas; os times próprios precisam de todas. */
-const ehListaPaginavel = ([recurso, tipo]: readonly unknown[]) =>
-  (recurso === 'eventos' || recurso === 'noticias') && tipo === 'lista'
+/** Os times próprios precisam de todas as páginas. */
+const LISTAS_RECORTADAS = [chaves.eventos.todos(), chaves.noticias.todos()]
+const recortaPaginas = (chave: readonly unknown[]) =>
+  LISTAS_RECORTADAS.some((prefixo) => partialMatchKey(chave, prefixo))
 
 function ehInfinita(dados: unknown): dados is { pages: unknown[]; pageParams: unknown[] } {
   return (
@@ -45,13 +50,16 @@ function ehInfinita(dados: unknown): dados is { pages: unknown[]; pageParams: un
   )
 }
 
-function reduzirDados(query: QueryDesidratada): unknown {
-  const { data } = query.state
-  if (ehMe(query.queryKey) && typeof data === 'object' && data !== null) {
-    const { email: _email, ...semEmail } = data as Record<string, unknown>
-    return semEmail
-  }
-  if (ehListaPaginavel(query.queryKey) && ehInfinita(data)) {
+const reduzirMe = ({ nome, fotoUrl, papel, times }: Perfil): MePersistido => ({
+  nome,
+  fotoUrl,
+  papel,
+  times,
+})
+
+function reduzirDados({ queryKey, state: { data } }: QueryDesidratada): unknown {
+  if (ehMe(queryKey) && data) return reduzirMe(data as Perfil)
+  if (recortaPaginas(queryKey) && ehInfinita(data)) {
     return {
       pages: data.pages.slice(0, PAGINAS_PERSISTIDAS),
       pageParams: data.pageParams.slice(0, PAGINAS_PERSISTIDAS),
@@ -60,12 +68,13 @@ function reduzirDados(query: QueryDesidratada): unknown {
   return data
 }
 
-/** E-mail fora do disco (§10 da #29); a sessão local já o guarda e devolve na restauração. */
-function devolverEmail(query: QueryDesidratada): QueryDesidratada {
-  const email = useSessao.getState().usuario?.email
+/** `id` e e-mail ficam fora do cache; a sessão local os devolve. */
+function completarMe(query: QueryDesidratada): QueryDesidratada {
+  const usuario = useSessao.getState().usuario
   const { data } = query.state
-  if (!ehMe(query.queryKey) || !email || typeof data !== 'object' || data === null) return query
-  return { ...query, state: { ...query.state, data: { ...data, email } } }
+  if (!ehMe(query.queryKey) || !usuario || !data) return query
+  const me = { ...(data as MePersistido), id: usuario.id, email: usuario.email }
+  return { ...query, state: { ...query.state, data: me } }
 }
 
 function mapearQueries(
@@ -89,12 +98,12 @@ export function serializar(cliente: PersistedClient): string {
 }
 
 export function desserializar(texto: string): PersistedClient {
-  return mapearQueries(JSON.parse(texto) as PersistedClient, devolverEmail)
+  return mapearQueries(JSON.parse(texto) as PersistedClient, completarMe)
 }
 
 const usuarioAtual = () => useSessao.getState().usuario?.id
 
-/** Uma gravação atrasada pelo throttle não cai no cache depois que a sessão mudou. */
+/** Gravação atrasada pelo throttle não cai no cache de outra sessão. */
 function armazenamentoDe(usuarioId: string) {
   return {
     getItem: (chave: string) => AsyncStorage.getItem(chave),
@@ -122,7 +131,8 @@ export function criarPersister(usuarioId: string): Persister {
 
 let persisterAtual: { usuarioId: string; persister: Persister } | undefined
 
-function persisterDaSessao(): Persister | undefined {
+/** Recriado quando o usuário da sessão muda; sem sessão, nada é gravado nem restaurado. */
+function persisterDoUsuario(): Persister | undefined {
   const usuarioId = usuarioAtual()
   if (!usuarioId) return undefined
   if (persisterAtual?.usuarioId !== usuarioId) {
@@ -131,18 +141,17 @@ function persisterDaSessao(): Persister | undefined {
   return persisterAtual.persister
 }
 
-/** Sem sessão não grava nem restaura nada; com sessão, usa a chave do usuário atual. */
-export const persister: Persister = {
-  persistClient: async (cliente) => persisterDaSessao()?.persistClient(cliente),
-  restoreClient: async () => persisterDaSessao()?.restoreClient(),
-  removeClient: async () => persisterDaSessao()?.removeClient(),
+export const persisterDaSessao: Persister = {
+  persistClient: async (cliente) => persisterDoUsuario()?.persistClient(cliente),
+  restoreClient: async () => persisterDoUsuario()?.restoreClient(),
+  removeClient: async () => persisterDoUsuario()?.removeClient(),
 }
 
 export const opcoesPersistencia = {
-  persister,
-  maxAge: MAX_AGE,
-  buster: BUSTER,
-  dehydrateOptions: { shouldDehydrateQuery },
+  persister: persisterDaSessao,
+  maxAge: IDADE_MAXIMA_CACHE_MS,
+  buster: VERSAO_CACHE,
+  dehydrateOptions: { shouldDehydrateQuery: deveDesidratar },
 }
 
 export async function limparCachePersistido(usuarioId: string): Promise<void> {
