@@ -13,7 +13,7 @@ import { useAtletica } from '@/features/atletica'
 import { contar, porNome } from '@/features/times/formatacao'
 import { useVePainel } from '@/infra/sessao/use-ve-painel'
 import { ehDetalhe, type EventoEmTela } from '../consultas'
-import { tituloEvento } from '../formatacao'
+import { resultadoPendente, tituloEvento } from '../formatacao'
 import {
   MENSAGEM_RESULTADO_PENDENTE,
   RESULTADO,
@@ -54,7 +54,7 @@ function CartaoPlacar({ evento }: { evento: EventoResumoDto }) {
   const { timeAdversario, placarTime, placarAdversario, resultado } = evento
   if (!timeAdversario) return null
   const temPlacar = placarTime !== null && placarAdversario !== null
-  const pendente = !temPlacar && evento.status === StatusEvento.FINALIZADO
+  const pendente = resultadoPendente(evento)
 
   return (
     <Cartao testID="cartao-placar" className="items-center">

@@ -10,6 +10,7 @@ import * as apiEventos from '@/features/eventos/api'
 import { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { criarQueryClient } from '@/infra/query/query-client'
+import { MENSAGEM_ACAO_OFFLINE } from '@/infra/query/use-acao-online'
 import { useSessao } from '@/infra/sessao/store'
 
 jest.mock('@/components/ui/toast', () => ({
@@ -167,6 +168,28 @@ describe('StatusEventoSelector', () => {
     expect(screen.queryByRole('button', { name: 'Registrar resultado' })).toBeNull()
   })
 
+  it('FINALIZADO com resultado: nenhum destino, como a guarda da API', async () => {
+    eventos.buscarEvento.mockResolvedValue(CORRIGIVEL)
+    await renderizar(<EventoPainel />)
+
+    expect(
+      await screen.findByText('Jogos com resultado registrado não podem mudar de status.'),
+    ).toBeOnTheScreen()
+    for (const destino of ['Agendado', 'Em andamento', 'Cancelado']) {
+      expect(chip(destino)).toBeDisabled()
+    }
+  })
+
+  it('cancelamento em andamento: destinos desabilitados', async () => {
+    eventos.cancelarEvento.mockReturnValue(new Promise(() => undefined))
+    await renderizar(<EventoPainel />)
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Cancelado' }))
+    await tocarNoAlerta('Cancelar evento')
+
+    await waitFor(() => expect(chip('Em andamento')).toBeDisabled())
+    expect(chip('Finalizado')).toBeDisabled()
+  })
+
   it('início futuro: a confirmação avisa a data prevista e só então altera', async () => {
     eventos.alterarStatusEvento.mockResolvedValue({
       id: EVENTO.id,
@@ -239,6 +262,7 @@ describe('StatusEventoSelector', () => {
     for (const destino of ['Em andamento', 'Finalizado', 'Cancelado']) {
       expect(chip(destino)).toBeDisabled()
     }
+    expect(screen.getByText(MENSAGEM_ACAO_OFFLINE)).toBeOnTheScreen()
     await fireEvent.press(chip('Em andamento'))
     expect(Alert.alert).not.toHaveBeenCalled()
     expect(eventos.alterarStatusEvento).not.toHaveBeenCalled()
@@ -390,6 +414,7 @@ describe('Tela de resultado', () => {
     await act(() => onlineManager.setOnline(false))
 
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
+    expect(screen.getByText(MENSAGEM_ACAO_OFFLINE)).toBeOnTheScreen()
     await salvar()
     expect(eventos.registrarResultado).not.toHaveBeenCalled()
   })

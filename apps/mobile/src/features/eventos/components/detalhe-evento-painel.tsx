@@ -14,7 +14,7 @@ import type { ApiErro } from '@/infra/api/cliente'
 import { mostrarErroDaMutacao } from '@/infra/query/query-client'
 import { useOnline } from '@/infra/rede/online'
 import { useTemNivelMinimo } from '@/infra/sessao/use-tem-nivel-minimo'
-import { contarTreinos, rotuloAdversario, tituloEvento } from '../formatacao'
+import { aceitaResultado, contarTreinos, rotuloAdversario, tituloEvento } from '../formatacao'
 import { CodigoEvento, useAgendadosDaSerie, useCancelarEvento, useExcluirEvento } from '../hooks'
 import { ROTULO_TIPO, STATUS } from '../rotulos'
 import { EscopoSheet } from './escopo-sheet'
@@ -157,8 +157,12 @@ export function DetalheEventoPainel({ evento, aoEditar, aoExcluir, aoRegistrarRe
           />
         )}
       </Cartao>
-      <StatusEventoSelector evento={evento} aoCancelar={() => iniciar('cancelar')} />
-      {jogo && evento.status !== StatusEvento.CANCELADO && (
+      <StatusEventoSelector
+        evento={evento}
+        bloqueado={cancelar.isPending || excluir.isPending}
+        aoCancelar={() => iniciar('cancelar')}
+      />
+      {aceitaResultado(evento) && (
         <Botao
           titulo={evento.resultado ? 'Corrigir resultado' : 'Registrar resultado'}
           onPress={aoRegistrarResultado}

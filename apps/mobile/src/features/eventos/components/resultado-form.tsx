@@ -12,6 +12,7 @@ import { Controller, useForm, useWatch, type Control } from 'react-hook-form'
 import { ScrollView, TextInput, View } from 'react-native'
 import {
   Alerta,
+  AvisoOffline,
   Botao,
   BotaoIcone,
   Cartao,
@@ -20,7 +21,7 @@ import {
   Texto,
   toast,
 } from '@/components/ui'
-import { paleta } from '@/features/atletica'
+import { comAlfa, paleta } from '@/features/atletica'
 import { useRegistrarResultado } from '../hooks'
 import { useResultadoLabel } from './placar/use-resultado-label'
 
@@ -30,6 +31,8 @@ export const MENSAGEM_FINALIZAR_E_REGISTRAR =
 const AVISO_AUDITORIA = 'A alteração ficará registrada no histórico de auditoria.'
 
 type Placar = 'placarTime' | 'placarAdversario'
+
+type ControleResultado = Control<RegistrarResultadoForm, unknown, RegistrarResultado>
 
 const paraPlacar = (texto: string) => {
   const digitos = texto.replace(/\D/g, '')
@@ -41,7 +44,7 @@ function CampoPlacar({
   nome,
   rotulo,
 }: {
-  controle: Control<RegistrarResultadoForm, unknown, RegistrarResultado>
+  controle: ControleResultado
   nome: Placar
   rotulo: string
 }) {
@@ -92,11 +95,7 @@ function CampoPlacar({
   )
 }
 
-function Previa({
-  controle,
-}: {
-  controle: Control<RegistrarResultadoForm, unknown, RegistrarResultado>
-}) {
+function Previa({ controle }: { controle: ControleResultado }) {
   const [placarTime, placarAdversario] = useWatch({
     control: controle,
     name: ['placarTime', 'placarAdversario'],
@@ -109,7 +108,7 @@ function Previa({
     <View
       accessibilityLabel={`Prévia: ${frase}`}
       className="items-center rounded-2xl border py-3"
-      style={{ borderColor: cor, backgroundColor: `${cor}18` }}
+      style={{ borderColor: cor, backgroundColor: comAlfa(cor) }}
     >
       <Texto variante="subtitulo" style={{ color: cor }}>
         {frase}
@@ -170,6 +169,7 @@ export function ResultadoForm({ evento, aoSalvar }: Props) {
         <CampoPlacar controle={form.control} nome="placarAdversario" rotulo={adversario} />
       </Cartao>
       <Previa controle={form.control} />
+      <AvisoOffline online={registrar.online} />
       <Botao
         titulo="Salvar"
         carregando={registrar.isPending}

@@ -28,3 +28,8 @@ export function corTextoSobre(hex: string): typeof BRANCO | typeof PRETO {
   const contrastePreto = (luz + 0.05) / 0.05
   return contrasteBranco >= contrastePreto ? BRANCO : PRETO
 }
+
+/** Fundo translúcido de chips e destaques: `#E11D48` → `'#E11D4822'`. */
+export function comAlfa(hex: string): string {
+  return `${hex}22`
+}

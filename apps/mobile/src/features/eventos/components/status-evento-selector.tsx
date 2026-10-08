@@ -4,13 +4,14 @@ import {
   transicaoPermitida,
   type EventoDto,
 } from '@atletica/shared'
-import { Pressable, Text, View } from 'react-native'
-import { confirmar, Texto, toast } from '@/components/ui'
-import { paleta } from '@/features/atletica'
+import { View } from 'react-native'
+import { AvisoOffline, confirmar, Pilula, Texto, toast } from '@/components/ui'
 import { useAlterarStatus } from '../hooks'
 import { STATUS } from '../rotulos'
 
 export const MENSAGEM_CANCELADO_SEM_STATUS = 'Eventos cancelados não podem mudar de status.'
+export const MENSAGEM_COM_RESULTADO_SEM_STATUS =
+  'Jogos com resultado registrado não podem mudar de status.'
 
 const AVISAM_DATA_FUTURA: StatusEvento[] = [StatusEvento.EM_ANDAMENTO, StatusEvento.FINALIZADO]
 
@@ -21,17 +22,28 @@ function mensagemConfirmacao(destino: StatusEvento, inicio: string): string {
   return `${mensagem}.`
 }
 
+function motivoSemTransicao({ status, resultado }: Props['evento']): string | null {
+  if (status === StatusEvento.CANCELADO) return MENSAGEM_CANCELADO_SEM_STATUS
+  if (status === StatusEvento.FINALIZADO && resultado !== null)
+    return MENSAGEM_COM_RESULTADO_SEM_STATUS
+  return null
+}
+
 type Props = {
-  evento: Pick<EventoDto, 'id' | 'status' | 'inicio'>
+  evento: Pick<EventoDto, 'id' | 'status' | 'inicio' | 'resultado'>
+  /** Outra ação do detalhe (cancelar, excluir) em andamento. */
+  bloqueado: boolean
   /** `CANCELADO` segue o fluxo de cancelamento do detalhe (escopo em série). */
   aoCancelar: () => void
 }
 
-export function StatusEventoSelector({ evento, aoCancelar }: Props) {
+export function StatusEventoSelector({ evento, bloqueado, aoCancelar }: Props) {
   const alterar = useAlterarStatus()
-  const ocupado = !alterar.online || alterar.isPending
+  const motivo = motivoSemTransicao(evento)
+  const ocupado = bloqueado || !alterar.online || alterar.isPending
 
   const escolher = (destino: StatusEvento) => {
+    if (destino === evento.status) return
     if (destino === StatusEvento.CANCELADO) return aoCancelar()
     const { rotulo } = STATUS[destino]
     confirmar({
@@ -55,34 +67,23 @@ export function StatusEventoSelector({ evento, aoCancelar }: Props) {
         {Object.values(StatusEvento).map((status) => {
           const { rotulo, cor } = STATUS[status]
           const atual = status === evento.status
-          const desabilitado = !atual && (ocupado || !transicaoPermitida(evento.status, status))
+          const permitido = !motivo && transicaoPermitida(evento.status, status)
           return (
-            <Pressable
+            <Pilula
               key={status}
-              accessibilityRole="radio"
-              accessibilityLabel={rotulo}
-              accessibilityState={{ selected: atual, disabled: desabilitado }}
-              disabled={atual || desabilitado}
-              onPress={() => escolher(status)}
-              className="min-h-[44px] justify-center rounded-full border px-4"
-              style={{
-                borderColor: atual ? cor : paleta.borda,
-                backgroundColor: atual ? `${cor}22` : 'transparent',
-                opacity: desabilitado ? 0.4 : 1,
-              }}
-            >
-              <Text
-                className={`text-sm ${atual ? 'font-semibold' : ''}`}
-                style={{ color: atual ? cor : paleta.texto }}
-              >
-                {rotulo}
-              </Text>
-            </Pressable>
+              rotulo={rotulo}
+              ativa={atual}
+              cor={cor}
+              desabilitada={!atual && (ocupado || !permitido)}
+              aoPressionar={() => escolher(status)}
+            />
           )
         })}
       </View>
-      {evento.status === StatusEvento.CANCELADO && (
-        <Texto variante="legenda">{MENSAGEM_CANCELADO_SEM_STATUS}</Texto>
+      {motivo ? (
+        <Texto variante="legenda">{motivo}</Texto>
+      ) : (
+        <AvisoOffline online={alterar.online} />
       )}
     </View>
   )

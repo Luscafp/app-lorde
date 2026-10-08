@@ -1,17 +1,12 @@
-import {
-  FiltroResultado,
-  PeriodoEventos,
-  StatusEvento,
-  TipoEvento,
-  type EventoResumoDto,
-} from '@atletica/shared'
+import { FiltroResultado, PeriodoEventos, StatusEvento, TipoEvento } from '@atletica/shared'
 import { useState } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { View } from 'react-native'
 import { TelaDados } from '@/components/estado'
-import { Fab, Pilulas, Segmentos, Selo, type Segmento } from '@/components/ui'
+import { Fab, Pilula, Pilulas, Segmentos, Selo, type Segmento } from '@/components/ui'
 import { paleta } from '@/features/atletica'
 import { vazioEventos } from './agenda'
 import { ListaEventosPorDia } from './components'
+import { resultadoPendente } from './formatacao'
 import { useEventosPainel, type FiltrosEventosPainel } from './hooks'
 import { MENSAGEM_RESULTADO_PENDENTE, OPCOES_STATUS, OPCOES_TIPO } from './rotulos'
 
@@ -32,34 +27,6 @@ const FILTROS_PENDENTES: FiltrosEventosPainel = {
   status: StatusEvento.FINALIZADO,
   resultado: FiltroResultado.PENDENTE,
   periodo: PeriodoEventos.TODOS,
-}
-
-const resultadoPendente = (evento: EventoResumoDto) =>
-  evento.tipo === TipoEvento.JOGO &&
-  evento.status === StatusEvento.FINALIZADO &&
-  evento.resultado === null
-
-function ChipResultadoPendente({ ativo, aoAlternar }: { ativo: boolean; aoAlternar: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="checkbox"
-      accessibilityLabel={MENSAGEM_RESULTADO_PENDENTE}
-      accessibilityState={{ checked: ativo }}
-      onPress={aoAlternar}
-      className="min-h-[44px] self-start justify-center rounded-full border px-4"
-      style={{
-        borderColor: ativo ? paleta.alerta : paleta.borda,
-        backgroundColor: ativo ? `${paleta.alerta}22` : 'transparent',
-      }}
-    >
-      <Text
-        className={`text-sm ${ativo ? 'font-semibold' : ''}`}
-        style={{ color: ativo ? paleta.alerta : paleta.texto }}
-      >
-        {MENSAGEM_RESULTADO_PENDENTE}
-      </Text>
-    </Pressable>
-  )
 }
 
 export type NavegacaoEventos = {
@@ -102,7 +69,14 @@ export function ListaEventosPainel({ ir }: { ir: NavegacaoEventos }) {
             />
           </>
         )}
-        <ChipResultadoPendente ativo={pendentes} aoAlternar={() => setPendentes(!pendentes)} />
+        <Pilula
+          papel="checkbox"
+          rotulo={MENSAGEM_RESULTADO_PENDENTE}
+          ativa={pendentes}
+          cor={paleta.alerta}
+          aoPressionar={() => setPendentes(!pendentes)}
+          className="self-start"
+        />
       </View>
       <TelaDados
         consulta={consulta}

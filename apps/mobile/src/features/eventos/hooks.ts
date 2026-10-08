@@ -122,34 +122,35 @@ export function useEditarSeguintes() {
   })
 }
 
-/** Outra pessoa mudou o evento: avisa e recarrega o detalhe e as listas. */
-function useAoConflitar() {
+/** 409: outra pessoa mudou o evento; recarrega o detalhe e as listas. */
+function useRecarregarSeConflito() {
   const invalidar = useInvalidar()
   return (erro: ApiErro) => {
+    if (erro.status !== 409) return
     if (erro.code === CodigoEvento.CONFLITO_STATUS) toast.erro(MENSAGEM_CONFLITO_STATUS)
-    if (erro.status === 409) return invalidar()
+    return invalidar()
   }
 }
 
 export function useAlterarStatus() {
   const invalidar = useInvalidar()
-  const aoConflitar = useAoConflitar()
+  const recarregarSeConflito = useRecarregarSeConflito()
   return useAcaoOnline<StatusEventoAlteradoDto, ApiErro, { id: string; status: StatusEvento }>({
     mutationFn: ({ id, status }) => alterarStatusEvento(id, status),
     meta: { errosNaTela: [CodigoEvento.CONFLITO_STATUS] },
     onSuccess: invalidar,
-    onError: aoConflitar,
+    onError: recarregarSeConflito,
   })
 }
 
 export function useRegistrarResultado() {
   const invalidar = useInvalidar()
-  const aoConflitar = useAoConflitar()
+  const recarregarSeConflito = useRecarregarSeConflito()
   return useAcaoOnline<EventoDto, ApiErro, { id: string; dados: RegistrarResultado }>({
     mutationFn: ({ id, dados }) => registrarResultado(id, dados),
     meta: { errosNaTela: [CodigoEvento.CONFLITO_STATUS] },
     onSuccess: invalidar,
-    onError: aoConflitar,
+    onError: recarregarSeConflito,
   })
 }
 
