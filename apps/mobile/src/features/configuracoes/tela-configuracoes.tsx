@@ -9,6 +9,7 @@ import { SecaoConfiguracoes } from './secao-configuracoes'
 export const ROTAS_CONFIGURACOES = {
   editarPerfil: '/perfil/configuracoes/editar-perfil',
   alterarSenha: '/perfil/configuracoes/alterar-senha',
+  notificacoes: '/perfil/configuracoes/notificacoes',
   termos: '/termos',
   privacidade: '/privacidade',
   sobre: '/perfil/configuracoes/sobre',
@@ -17,7 +18,7 @@ export const ROTAS_CONFIGURACOES = {
 
 type Rota = (typeof ROTAS_CONFIGURACOES)[keyof typeof ROTAS_CONFIGURACOES]
 
-/** Só itens do MVP (seção 3.4); o item Notificações é acrescentado pela #37. */
+/** Itens da seção 3.4; Notificações aparece para todos, mesmo sem push (#37). */
 export function TelaConfiguracoes({ aoAbrir }: { aoAbrir: (rota: Rota) => void }) {
   const online = useOnline()
 
@@ -37,6 +38,11 @@ export function TelaConfiguracoes({ aoAbrir }: { aoAbrir: (rota: Rota) => void }
               icone: 'lock-closed-outline',
               rotulo: 'Alterar senha',
               onPress: () => aoAbrir(ROTAS_CONFIGURACOES.alterarSenha),
+            },
+            {
+              icone: 'notifications-outline',
+              rotulo: 'Notificações',
+              onPress: () => aoAbrir(ROTAS_CONFIGURACOES.notificacoes),
             },
           ]}
         />
