@@ -22,6 +22,7 @@ export default function EventoPainel() {
               )
             }
             aoExcluir={() => router.back()}
+            aoRegistrarResultado={() => router.push(`/painel/eventos/${id}/resultado`)}
           />
         )}
       </TelaDados>

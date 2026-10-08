@@ -8,14 +8,19 @@ import type {
   EventoDto,
   OcorrenciasAlteradasDto,
   PeriodoEventos,
+  RegistrarResultado,
   SerieCriadaDto,
+  StatusEvento,
+  StatusEventoAlteradoDto,
 } from '@atletica/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CodigoApi } from '@/infra/api/api-erro'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
+import { toast } from '@/components/ui'
 import {
+  alterarStatusEvento,
   atualizarEvento,
   buscarEvento,
   cancelarEvento,
@@ -25,6 +30,7 @@ import {
   editarSeguintes,
   excluirEvento,
   filtrosAgendadosDaSerie,
+  registrarResultado,
   type FiltrosEventos,
 } from './api'
 import { useEventos } from './consultas'
@@ -38,7 +44,10 @@ export const CodigoEvento = {
   EVENTO_COM_PARTICIPACOES: 'EVENTO_COM_PARTICIPACOES',
   EVENTO_COM_DEPENDENCIAS: 'EVENTO_COM_DEPENDENCIAS',
   SERIE_SEM_OCORRENCIAS: 'SERIE_SEM_OCORRENCIAS',
+  CONFLITO_STATUS: 'CONFLITO_STATUS',
 } as const
+
+export const MENSAGEM_CONFLITO_STATUS = 'O status foi alterado por outra pessoa'
 
 /** Erros que o formulário mostra no campo (todos trazem `details`). */
 const ERROS_DO_FORMULARIO = [
@@ -52,7 +61,7 @@ const ERROS_DO_FORMULARIO = [
   CodigoEvento.SERIE_SEM_OCORRENCIAS,
 ]
 
-export type FiltrosEventosPainel = Pick<FiltrosEventos, 'tipo' | 'status'> & {
+export type FiltrosEventosPainel = Pick<FiltrosEventos, 'tipo' | 'status' | 'resultado'> & {
   periodo: PeriodoEventos
 }
 
@@ -110,6 +119,37 @@ export function useEditarSeguintes() {
     mutationFn: ({ id, dados }) => editarSeguintes(id, dados),
     meta: { errosNaTela: ERROS_DO_FORMULARIO },
     onSuccess: invalidar,
+  })
+}
+
+/** Outra pessoa mudou o evento: avisa e recarrega o detalhe e as listas. */
+function useAoConflitar() {
+  const invalidar = useInvalidar()
+  return (erro: ApiErro) => {
+    if (erro.code === CodigoEvento.CONFLITO_STATUS) toast.erro(MENSAGEM_CONFLITO_STATUS)
+    if (erro.status === 409) return invalidar()
+  }
+}
+
+export function useAlterarStatus() {
+  const invalidar = useInvalidar()
+  const aoConflitar = useAoConflitar()
+  return useAcaoOnline<StatusEventoAlteradoDto, ApiErro, { id: string; status: StatusEvento }>({
+    mutationFn: ({ id, status }) => alterarStatusEvento(id, status),
+    meta: { errosNaTela: [CodigoEvento.CONFLITO_STATUS] },
+    onSuccess: invalidar,
+    onError: aoConflitar,
+  })
+}
+
+export function useRegistrarResultado() {
+  const invalidar = useInvalidar()
+  const aoConflitar = useAoConflitar()
+  return useAcaoOnline<EventoDto, ApiErro, { id: string; dados: RegistrarResultado }>({
+    mutationFn: ({ id, dados }) => registrarResultado(id, dados),
+    meta: { errosNaTela: [CodigoEvento.CONFLITO_STATUS] },
+    onSuccess: invalidar,
+    onError: aoConflitar,
   })
 }
 

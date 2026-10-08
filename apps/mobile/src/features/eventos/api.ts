@@ -7,6 +7,7 @@ import {
   PeriodoEventos,
   serieCriadaDtoSchema,
   StatusEvento,
+  statusEventoAlteradoDtoSchema,
   type CriarEvento,
   type CriarSerie,
   type EditarEvento,
@@ -18,7 +19,9 @@ import {
   type ListaEventos,
   type ListarEventosQuery,
   type OcorrenciasAlteradasDto,
+  type RegistrarResultado,
   type SerieCriadaDto,
+  type StatusEventoAlteradoDto,
 } from '@atletica/shared'
 import { api } from '@/infra/api/cliente'
 
@@ -59,6 +62,20 @@ export async function cancelarEvento(
 ): Promise<EventoCanceladoDto> {
   const corpo = escopo ? { escopo } : undefined
   return eventoCanceladoDtoSchema.parse(await api.post(`/eventos/${id}/cancelar`, corpo))
+}
+
+export async function alterarStatusEvento(
+  id: string,
+  status: StatusEvento,
+): Promise<StatusEventoAlteradoDto> {
+  return statusEventoAlteradoDtoSchema.parse(await api.patch(`/eventos/${id}/status`, { status }))
+}
+
+export async function registrarResultado(
+  id: string,
+  dados: RegistrarResultado,
+): Promise<EventoDto> {
+  return eventoDtoSchema.parse(await api.put(`/eventos/${id}/resultado`, dados))
 }
 
 export async function criarSerie(dados: CriarSerie): Promise<SerieCriadaDto> {

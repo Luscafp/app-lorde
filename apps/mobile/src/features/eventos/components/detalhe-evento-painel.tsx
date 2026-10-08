@@ -4,6 +4,7 @@ import {
   formatarDataHora,
   Papel,
   StatusEvento,
+  TipoEvento,
   type EventoDto,
 } from '@atletica/shared'
 import { useState } from 'react'
@@ -17,6 +18,8 @@ import { contarTreinos, rotuloAdversario, tituloEvento } from '../formatacao'
 import { CodigoEvento, useAgendadosDaSerie, useCancelarEvento, useExcluirEvento } from '../hooks'
 import { ROTULO_TIPO, STATUS } from '../rotulos'
 import { EscopoSheet } from './escopo-sheet'
+import { useResultadoLabel } from './placar/use-resultado-label'
+import { StatusEventoSelector } from './status-evento-selector'
 
 const MENSAGEM_COM_DEPENDENCIAS =
   'Este evento tem respostas, presenças ou resultado. Cancele-o em vez de excluir.'
@@ -53,9 +56,10 @@ type Props = {
   evento: EventoDto
   aoEditar: (escopo: EscopoOcorrencia) => void
   aoExcluir: () => void
+  aoRegistrarResultado: () => void
 }
 
-export function DetalheEventoPainel({ evento, aoEditar, aoExcluir }: Props) {
+export function DetalheEventoPainel({ evento, aoEditar, aoExcluir, aoRegistrarResultado }: Props) {
   const online = useOnline()
   const podeExcluir = useTemNivelMinimo(Papel.PRESIDENTE)
   const cancelar = useCancelarEvento()
@@ -63,6 +67,9 @@ export function DetalheEventoPainel({ evento, aoEditar, aoExcluir }: Props) {
   const [escolhendo, setEscolhendo] = useState<Acao | null>(null)
   const agendados = useAgendadosDaSerie(escolhendo ? evento.serieId : null, evento.inicio)
   const ocupado = !online || cancelar.isPending || excluir.isPending
+  const resultado = useResultadoLabel(evento.resultado)
+  const jogo = evento.tipo === TipoEvento.JOGO
+  const finalizado = evento.status === StatusEvento.FINALIZADO
 
   const pedirCancelamento = (escopo: EscopoOcorrencia) => {
     const seguintes = ehEstaESeguintes(escopo)
@@ -139,7 +146,24 @@ export function DetalheEventoPainel({ evento, aoEditar, aoExcluir }: Props) {
           <Linha rotulo="Adversário" valor={rotuloAdversario(evento.timeAdversario)} />
         )}
         {evento.observacoes && <Linha rotulo="Observações" valor={evento.observacoes} />}
+        {jogo && finalizado && (
+          <Linha
+            rotulo="Placar"
+            valor={
+              evento.resultado
+                ? resultado.descrever(`${evento.placarTime} × ${evento.placarAdversario}`)
+                : resultado.frase
+            }
+          />
+        )}
       </Cartao>
+      <StatusEventoSelector evento={evento} aoCancelar={() => iniciar('cancelar')} />
+      {jogo && evento.status !== StatusEvento.CANCELADO && (
+        <Botao
+          titulo={evento.resultado ? 'Corrigir resultado' : 'Registrar resultado'}
+          onPress={aoRegistrarResultado}
+        />
+      )}
       {evento.status !== StatusEvento.CANCELADO && (
         <Botao titulo="Editar" variante="secundaria" onPress={() => iniciar('editar')} />
       )}

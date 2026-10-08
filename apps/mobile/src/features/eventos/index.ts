@@ -13,6 +13,7 @@ export {
   MinhaRespostaChip,
   PlacarLista,
   ResultadoCard,
+  ResultadoForm,
   useResultadoLabel,
   type AcoesParticipacao,
   type EventoDoCard,

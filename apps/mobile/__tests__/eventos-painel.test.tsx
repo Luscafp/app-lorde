@@ -499,7 +499,7 @@ describe('Detalhe do evento no Painel', () => {
     comStatus('CANCELADO')
     await renderizar(<EventoPainel />)
 
-    expect(await screen.findByText('Cancelado')).toBeOnTheScreen()
+    expect(await screen.findByRole('radio', { name: 'Cancelado' })).toBeSelected()
     expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Cancelar evento' })).toBeNull()
   })
