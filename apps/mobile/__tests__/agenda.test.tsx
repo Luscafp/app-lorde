@@ -470,7 +470,10 @@ describe('Placar', () => {
     const jogo = finalizado('a')
     await renderizar(<ResultadoCard evento={jogo} aoAbrir={aoAbrirEvento} />)
 
-    expect(await screen.findByText('3 : 1')).toBeOnTheScreen()
+    const card = await screen.findByRole('button', {
+      name: /^Vitória da LORDE por 3 a 1 contra Atlética Medicina, Vôlei, /,
+    })
+    expect(screen.getByText('3 : 1')).toBeOnTheScreen()
     expect(estiloDe('VITÓRIA').color).toBe(paleta.sucesso)
     expect(estiloDe('3').color).toBe(paleta.sucesso)
     expect(screen.getByText('09/10/2030')).toBeOnTheScreen()
@@ -478,9 +481,6 @@ describe('Placar', () => {
     expect(screen.getByText('Atlética Medicina')).toBeOnTheScreen()
     expect(screen.getByText('Vôlei Masculino')).toBeOnTheScreen()
 
-    const card = screen.getByRole('button', {
-      name: /^Vitória da LORDE por 3 a 1 contra Atlética Medicina, Vôlei, /,
-    })
     await fireEvent.press(card)
     expect(aoAbrirEvento).toHaveBeenCalledWith(jogo)
   })
