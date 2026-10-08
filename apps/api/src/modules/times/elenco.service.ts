@@ -3,15 +3,18 @@ import {
   type AcaoDaEntidade,
   type ElencoDto,
   type MembroElencoDto,
+  type SaidaTimeDto,
   type TimeDto,
 } from '@atletica/shared'
 import { Injectable } from '@nestjs/common'
+import { ErroNegocio } from '../../common/erros/erro-negocio'
 import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import { AuditoriaService } from '../auditoria/auditoria.service'
 import { UploadsService } from '../uploads/uploads.service'
 import {
   erroCapitaoForaDoElenco,
   erroMembroNaoEncontrado,
+  erroNaoEMembro,
   erroTimeAdversario,
   erroTimeNaoEncontrado,
 } from './erros'
@@ -41,6 +44,7 @@ export interface EncerramentoVinculo {
 }
 
 export interface VinculoEncerrado {
+  saidaEm: Date
   capitaniaRemovida: boolean
   participacoesRemovidas: number
 }
@@ -107,6 +111,26 @@ export class ElencoService {
     })
   }
 
+  /** O próprio usuário sai do time (RF23); sem vínculo ativo → `409 NAO_E_MEMBRO`. */
+  async sair(timeId: string, usuarioId: string): Promise<SaidaTimeDto> {
+    try {
+      const { saidaEm, ...resultado } = await this.prisma.db.$transaction((tx) =>
+        this.encerrarVinculo(tx, {
+          timeId,
+          usuarioId,
+          motivo: MotivoSaida.SAIU,
+          executorId: usuarioId,
+        }),
+      )
+      return { timeId, saidaEm: saidaEm.toISOString(), ...resultado }
+    } catch (erro) {
+      if (erro instanceof ErroNegocio && erro.code === 'MEMBRO_NAO_ENCONTRADO') {
+        throw erroNaoEMembro()
+      }
+      throw erro
+    }
+  }
+
   /**
    * Ponto único de saída do elenco (convenções §11.6, #12, #34), na transação de quem chama.
    * Passos e auditoria: README da API, seção "Elenco e capitão". Não emite evento de domínio.
@@ -156,7 +180,7 @@ export class ElencoService {
         contexto: { timeId, usuarioId, capitaniaRemovida, participacoesRemovidas },
       },
     })
-    return { capitaniaRemovida, participacoesRemovidas }
+    return { saidaEm, capitaniaRemovida, participacoesRemovidas }
   }
 
   /** `null` remove o capitão; sem mudança, responde sem auditar (convenções §7). */

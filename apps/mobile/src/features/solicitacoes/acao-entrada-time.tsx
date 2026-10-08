@@ -1,13 +1,18 @@
 import type { TimeDetalheDto } from '@atletica/shared'
 import Ionicons from '@expo/vector-icons/Ionicons'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { View } from 'react-native'
 import { AvisoOffline, Botao, confirmar, Texto, toast } from '@/components/ui'
 import { paleta } from '@/features/atletica'
 import type { ApiErro } from '@/infra/api/cliente'
 import { TIME_INATIVO, useCancelarSolicitacao, useSolicitarEntrada } from './hooks'
 
-type Props = { time: TimeDetalheDto; aoTimeIndisponivel: () => void }
+type Props = {
+  time: TimeDetalheDto
+  aoTimeIndisponivel: () => void
+  /** "Sair do time" (#34), abaixo da faixa de membro. */
+  acaoDeMembro?: ReactNode
+}
 
 type PropsFaixa = { cor: string; icone: ComponentProps<typeof Ionicons>['name']; texto: string }
 
@@ -26,8 +31,8 @@ function Faixa({ cor, icone, texto }: PropsFaixa) {
   )
 }
 
-/** Situação do usuário no time (épico #18 §6); o "Sair do time" é da #34. */
-export function AcaoEntradaTime({ time, aoTimeIndisponivel }: Props) {
+/** Situação do usuário no time (épico #18 §6). */
+export function AcaoEntradaTime({ time, aoTimeIndisponivel, acaoDeMembro }: Props) {
   const solicitacao = useSolicitarEntrada(time.id)
   const cancelamento = useCancelarSolicitacao(time.id)
   const situacao = time.minhaSituacao
@@ -66,7 +71,10 @@ export function AcaoEntradaTime({ time, aoTimeIndisponivel }: Props) {
   return (
     <View testID="acao-entrada-time" className="gap-2 border-t border-borda bg-fundo p-4">
       {situacao.membro ? (
-        <Faixa cor={paleta.sucesso} icone="checkmark-circle" texto="Você faz parte deste time" />
+        <>
+          <Faixa cor={paleta.sucesso} icone="checkmark-circle" texto="Você faz parte deste time" />
+          {acaoDeMembro}
+        </>
       ) : pendente ? (
         <>
           <Faixa cor={paleta.alerta} icone="time" texto="Solicitação pendente de aprovação" />
@@ -86,7 +94,7 @@ export function AcaoEntradaTime({ time, aoTimeIndisponivel }: Props) {
           onPress={solicitar}
         />
       )}
-      {!situacao.membro && <AvisoOffline online={solicitacao.online} />}
+      <AvisoOffline online={solicitacao.online} />
     </View>
   )
 }

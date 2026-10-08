@@ -42,6 +42,10 @@ export function erroMembroNaoEncontrado(): ErroNegocio {
   )
 }
 
+export function erroNaoEMembro(): ErroNegocio {
+  return new ErroNegocio(HttpStatus.CONFLICT, 'NAO_E_MEMBRO', 'Você não faz parte deste time.')
+}
+
 export function erroCapitaoForaDoElenco(): ErroNegocio {
   const mensagem = 'O capitão precisa ser membro do elenco atual.'
   return new ErroNegocio(HttpStatus.UNPROCESSABLE_ENTITY, 'CAPITAO_FORA_DO_ELENCO', mensagem, [

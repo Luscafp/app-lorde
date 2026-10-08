@@ -3,6 +3,7 @@ import {
   elencoDtoSchema,
   listaAtleticasAdversariasSchema,
   listaTimesSchema,
+  saidaTimeDtoSchema,
   timeDetalheDtoSchema,
   timeDtoSchema,
   type AtleticaAdversaria,
@@ -11,6 +12,7 @@ import {
   type ElencoDto,
   type ListaAtleticasAdversarias,
   type ListaTimes,
+  type SaidaTimeDto,
   type TimeAtualizacao,
   type TimeCriacao,
   type TimeDetalheDto,
@@ -61,6 +63,10 @@ export async function definirCapitao(timeId: string, usuarioId: string | null): 
 
 export async function removerMembro(timeId: string, usuarioId: string): Promise<void> {
   await api.delete(`/times/${timeId}/elenco/${usuarioId}`)
+}
+
+export async function sairDoTime(timeId: string): Promise<SaidaTimeDto> {
+  return saidaTimeDtoSchema.parse(await api.post(`/times/${timeId}/sair`))
 }
 
 export async function listarAtleticasAdversarias(
