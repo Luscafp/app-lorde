@@ -7,6 +7,7 @@ import {
   TipoEvento,
   type EventoDto,
 } from '@atletica/shared'
+import { router } from 'expo-router'
 import { useState } from 'react'
 import { ScrollView, View } from 'react-native'
 import { Botao, Cartao, confirmar, Selo, Texto, toast } from '@/components/ui'
@@ -61,7 +62,7 @@ type Props = {
 
 export function DetalheEventoPainel({ evento, aoEditar, aoExcluir, aoRegistrarResultado }: Props) {
   const online = useOnline()
-  const podeExcluir = useTemNivelMinimo(Papel.PRESIDENTE)
+  const ehPresidencia = useTemNivelMinimo(Papel.PRESIDENTE)
   const cancelar = useCancelarEvento()
   const excluir = useExcluirEvento()
   const [escolhendo, setEscolhendo] = useState<Acao | null>(null)
@@ -180,7 +181,19 @@ export function DetalheEventoPainel({ evento, aoEditar, aoExcluir, aoRegistrarRe
           onPress={() => iniciar('cancelar')}
         />
       )}
-      {podeExcluir && (
+      {ehPresidencia && (
+        <Botao
+          titulo="Ver histórico"
+          variante="secundaria"
+          onPress={() =>
+            router.push({
+              pathname: '/painel/auditoria',
+              params: { entidade: 'Evento', entidadeId: evento.id },
+            })
+          }
+        />
+      )}
+      {ehPresidencia && (
         <Botao
           titulo="Excluir"
           variante="perigo"

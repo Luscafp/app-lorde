@@ -1,4 +1,4 @@
-import { Papel, StatusSolicitacao } from '@atletica/shared'
+import { Papel, ROTULO_AUTOR_EXCLUIDO, StatusSolicitacao } from '@atletica/shared'
 import { Injectable, Logger } from '@nestjs/common'
 import * as Sentry from '@sentry/nestjs'
 import { ContextoAtletica } from '../../infra/contexto/contexto-atletica.service'
@@ -16,7 +16,7 @@ import { ConfirmacaoSenhaService } from './confirmacao-senha.service'
 import { erroUltimoAdministradorExclusao } from './erros'
 import { bloquearPapeis, ehUltimoAdministrador } from './regras-papel'
 
-export const NOME_ANONIMO = 'Usuário excluído'
+export const NOME_ANONIMO = ROTULO_AUTOR_EXCLUIDO
 /** Não é um hash Argon2id: `SenhaService.verificar` nunca confere. */
 export const SENHA_HASH_INVALIDO = '!'
 

@@ -1,4 +1,5 @@
 import { formatarData, ROTULO_PAPEL, SituacaoUsuario, type UsuarioDetalhe } from '@atletica/shared'
+import { router } from 'expo-router'
 import { ScrollView, View } from 'react-native'
 import { TelaDados } from '@/components/estado'
 import { Botao, Cartao, confirmar, Selo, Texto } from '@/components/ui'
@@ -82,6 +83,16 @@ function Conteudo({ usuario }: { usuario: UsuarioDetalhe }) {
       )}
 
       <Acoes usuario={usuario} />
+      <Botao
+        titulo="Ver histórico"
+        variante="secundaria"
+        onPress={() =>
+          router.push({
+            pathname: '/painel/auditoria',
+            params: { usuarioId: usuario.id, usuarioNome: usuario.nome },
+          })
+        }
+      />
     </ScrollView>
   )
 }

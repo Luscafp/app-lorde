@@ -32,7 +32,11 @@ export const TAMANHO_MAXIMO_DADOS = 16 * 1024
 export const LIMITE_POR_LOTE = 500
 
 /** Entidades em que `nome` é dado de domínio, não de pessoa. */
-const NOME_DE_DOMINIO: ReadonlySet<EntidadeAuditoria> = new Set(['Modalidade', 'Atletica', 'Time'])
+export const NOME_DE_DOMINIO: ReadonlySet<EntidadeAuditoria> = new Set([
+  'Modalidade',
+  'Atletica',
+  'Time',
+])
 
 /** Alteração com diferença vazia não grava (§7); criação e exclusão sempre gravam. */
 function semMudanca({ antes, depois }: DadosAuditoria): boolean {

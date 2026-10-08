@@ -72,12 +72,20 @@ export default function Painel() {
         href="/painel/times"
       />
       {ehPresidencia && (
-        <ItemPainel
-          titulo="Usuários"
-          descricao="Buscar, desativar e reativar contas"
-          icone="people-circle-outline"
-          href="/painel/usuarios"
-        />
+        <>
+          <ItemPainel
+            titulo="Usuários"
+            descricao="Buscar, desativar e reativar contas"
+            icone="people-circle-outline"
+            href="/painel/usuarios"
+          />
+          <ItemPainel
+            titulo="Auditoria"
+            descricao="Histórico de alterações no sistema"
+            icone="document-text-outline"
+            href="/painel/auditoria"
+          />
+        </>
       )}
     </ScrollView>
   )
