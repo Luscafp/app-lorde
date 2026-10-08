@@ -15,6 +15,9 @@ export default function LayoutPainel() {
       }}
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="banners/index" options={{ title: 'Banners' }} />
+      <Stack.Screen name="banners/novo" options={{ title: 'Novo banner' }} />
+      <Stack.Screen name="banners/[id]" options={{ title: 'Editar banner' }} />
       <Stack.Screen name="eventos/index" options={{ title: 'Eventos' }} />
       <Stack.Screen name="eventos/novo" options={{ title: 'Novo evento' }} />
       <Stack.Screen name="eventos/[id]/index" options={{ title: 'Evento' }} />

@@ -15,6 +15,7 @@ import { AtleticasAdversariasModule } from './modules/atleticas/atleticas-advers
 import { AtleticasModule } from './modules/atleticas/atleticas.module'
 import { AuditoriaModule } from './modules/auditoria/auditoria.module'
 import { AuthModule } from './modules/auth/auth.module'
+import { BannersModule } from './modules/banners/banners.module'
 import { DiagnosticoForaDeProducao } from './modules/diagnostico/diagnostico.module'
 import { EventosModule } from './modules/eventos/eventos.module'
 import { HealthModule } from './modules/health/health.module'
@@ -45,6 +46,7 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module'
     AgendadorModule,
     AuditoriaModule,
     AuthModule,
+    BannersModule,
     AtleticasModule,
     AtleticasAdversariasModule,
     EventosModule,

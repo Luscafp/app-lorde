@@ -3,13 +3,13 @@ import { RefreshControl, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { FaixaOffline } from '@/components/estado'
 import { paleta } from '@/features/atletica'
+import { CarrosselBanners, useBanners } from '@/features/banners'
 import { useProximosEventos, type AbaAgenda } from '@/features/eventos'
 import { useUltimasNoticias } from '@/features/noticias'
 import { combinarConsultas } from '@/infra/query/combinar-consultas'
 import { useOnline } from '@/infra/rede/online'
 import { useMarcarHomePronta } from '@/infra/sentry'
 import { HomeAtalhos } from './home-atalhos'
-import { HomeBannersSlot } from './home-banners-slot'
 import { HomeHeader } from './home-header'
 import { SecaoProximosEventos } from './secao-proximos-eventos'
 import { SecaoUltimasNoticias } from './secao-ultimas-noticias'
@@ -28,7 +28,8 @@ type NavegacaoHome = {
 export function TelaHome(navegacao: NavegacaoHome) {
   const eventos = useProximosEventos({ periodo: PeriodoEventos.PROXIMOS }, LIMITE_PROXIMOS_EVENTOS)
   const noticias = useUltimasNoticias()
-  const secoes = combinarConsultas([eventos, noticias])
+  const banners = useBanners()
+  const secoes = combinarConsultas([eventos, noticias, banners])
   const online = useOnline()
   const emCache = [eventos, noticias].filter(({ data }) => data !== undefined)
 
@@ -50,7 +51,7 @@ export function TelaHome(navegacao: NavegacaoHome) {
         }
       >
         <HomeHeader aoAbrirPerfil={navegacao.aoAbrirPerfil} />
-        <HomeBannersSlot />
+        <CarrosselBanners />
         <HomeAtalhos
           aoAbrirAgenda={() => navegacao.aoAbrirAgenda('eventos')}
           aoAbrirPlacar={() => navegacao.aoAbrirAgenda('placar')}
