@@ -12,7 +12,11 @@ import type { CampoAlteradoEvento } from '../../infra/eventos/eventos-dominio'
 import { EventosDominioService } from '../../infra/eventos/eventos-dominio.service'
 import { naoExcluido } from '../../infra/prisma/nao-excluido'
 import type { TransacaoComEscopo } from '../../infra/prisma/prisma.service'
-import { AuditoriaService, type EntradaAuditoria } from '../auditoria/auditoria.service'
+import {
+  AuditoriaService,
+  type DadosAuditoria,
+  type EntradaAuditoria,
+} from '../auditoria/auditoria.service'
 import { diferenca } from '../auditoria/diferenca'
 import type { UsuarioAutenticado } from '../auth/tipos'
 import {
@@ -33,9 +37,14 @@ const CAMPOS_EDITAVEIS = ['inicio', 'local', 'observacoes', 'timeId', 'timeAdver
 type CampoEditavel = (typeof CAMPOS_EDITAVEIS)[number]
 
 /** Só estes geram `evento.alterado` (épico #19 §7). */
-const CAMPOS_NOTIFICADOS = ['inicio', 'local'] as const satisfies CampoAlteradoEvento[]
+export const CAMPOS_NOTIFICADOS = ['inicio', 'local'] as const satisfies CampoAlteradoEvento[]
 
-const CANCELAVEIS: StatusEvento[] = ['AGENDADO', 'EM_ANDAMENTO']
+export const CANCELAVEIS: StatusEvento[] = ['AGENDADO', 'EM_ANDAMENTO']
+
+export interface OpcoesCancelamento {
+  statusAtual?: StatusEvento
+  contexto?: DadosAuditoria['contexto']
+}
 
 function descreverParticipacoes(total: number): string {
   return total === 1 ? '1 resposta' : `${total} respostas`
@@ -153,7 +162,7 @@ export class EventosService {
     tx: TransacaoComEscopo,
     eventoIds: string[],
     usuario: Pick<UsuarioAutenticado, 'id'>,
-    statusAtual?: StatusEvento,
+    { statusAtual, contexto }: OpcoesCancelamento = {},
   ): Promise<string[]> {
     const status = statusAtual ? CANCELAVEIS.filter((s) => s === statusAtual) : CANCELAVEIS
     const where = { id: { in: eventoIds }, status: { in: status }, ...naoExcluido }
@@ -172,7 +181,11 @@ export class EventosService {
         acao: 'EVENTO_CANCELADO',
         entidadeId: id,
         usuarioId: usuario.id,
-        dados: { antes: { status: statusAntes.get(id) ?? null }, depois: { status: 'CANCELADO' } },
+        dados: {
+          antes: { status: statusAntes.get(id) ?? null },
+          depois: { status: 'CANCELADO' },
+          ...(contexto && { contexto }),
+        },
       })),
     )
     return cancelados.map(({ id }) => id)

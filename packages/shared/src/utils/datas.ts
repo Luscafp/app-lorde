@@ -22,8 +22,8 @@ const formatador = new Intl.DateTimeFormat('en-US', {
   hourCycle: 'h23',
 })
 
-const DATA_LOCAL = /^(\d{4})-(\d{2})-(\d{2})$/
-const HORA_LOCAL = /^([01]\d|2[0-3]):([0-5]\d)$/
+export const DATA_LOCAL = /^(\d{4})-(\d{2})-(\d{2})$/
+export const HORARIO_HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/
 const INSTANTE_ISO =
   /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/
 
@@ -99,11 +99,44 @@ export function inicioDoDiaLocal(instante: Instante): Date {
 /** Data (`"aaaa-mm-dd"`) e hora (`"HH:mm"`) no fuso padrão → instante UTC. */
 export function localParaUtc(data: string, hora: string): Date {
   const [, ano, mes, dia] = DATA_LOCAL.exec(data) ?? []
-  const [, h, min] = HORA_LOCAL.exec(hora) ?? []
+  const [, h, min] = HORARIO_HHMM.exec(hora) ?? []
   if (!ano || !mes || !dia || !h || !min) throw new Error(`Data ou hora inválida: ${data} ${hora}`)
   if (!diaExiste(ano, mes, dia)) throw new Error(`Data inválida: ${data}`)
 
   const relogio = Date.UTC(Number(ano), Number(mes) - 1, Number(dia), Number(h), Number(min))
   const estimativa = relogio - deslocamento(relogio)
   return new Date(relogio - deslocamento(estimativa))
+}
+
+function partesData(data: string): [number, number, number] {
+  const [, ano, mes, dia] = DATA_LOCAL.exec(data) ?? []
+  if (!ano || !mes || !dia) throw new Error(`Data inválida: ${data}`)
+  return [Number(ano), Number(mes), Number(dia)]
+}
+
+/** Dia de calendário (`"aaaa-mm-dd"`) de uma coluna `@db.Date` ou de um `Date.UTC`. */
+export function dataIso(data: Date): string {
+  return data.toISOString().slice(0, 10)
+}
+
+export function somarDias(data: string, dias: number): string {
+  const [ano, mes, dia] = partesData(data)
+  return dataIso(new Date(Date.UTC(ano, mes - 1, dia + dias)))
+}
+
+/** Meses de calendário; o dia é limitado ao último do mês (31/08 + 6 = 28/02). */
+export function somarMeses(data: string, meses: number): string {
+  const [ano, mes, dia] = partesData(data)
+  const ultimoDia = new Date(Date.UTC(ano, mes - 1 + meses + 1, 0)).getUTCDate()
+  return dataIso(new Date(Date.UTC(ano, mes - 1 + meses, Math.min(dia, ultimoDia))))
+}
+
+/** 0 = domingo … 6 = sábado, do dia de calendário (sem fuso). */
+export function diaDaSemana(data: string): number {
+  const [ano, mes, dia] = partesData(data)
+  return new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay()
+}
+
+export function hojeLocal(agora: Instante = Date.now()): string {
+  return chaveDiaLocal(agora)
 }

@@ -1,6 +1,8 @@
 import {
   chaveDiaLocal,
+  diaDaSemana,
   formatarData,
+  formatarDataHora,
   formatarHora,
   localParaUtc,
   TipoEvento,
@@ -22,8 +24,6 @@ export function tituloEvento({
   return `${time.nome} × ${timeAdversario?.atletica.nome ?? '—'}`
 }
 
-const diaDaSemana = (dia: string) => localParaUtc(dia, '12:00').getUTCDay()
-
 /** `dia` no formato de `chaveDiaLocal`: "Hoje", "Amanhã" ou "qua, 14/10". */
 export function rotuloDia(dia: string, agora: Instante = Date.now()): string {
   const hoje = chaveDiaLocal(agora)
@@ -36,6 +36,17 @@ export function rotuloDia(dia: string, agora: Instante = Date.now()): string {
 export function rotuloInicio(inicio: Instante): string {
   const dia = DIAS_SEMANA_CAPITALIZADOS[diaDaSemana(chaveDiaLocal(inicio))]
   return `${dia} · ${formatarData(inicio)} · ${formatarHora(inicio)}`
+}
+
+/** `"seg, 05/10/2026 18:30"` no fuso padrão. */
+export function dataHoraComSemana(instante: Instante): string {
+  return `${DIAS_SEMANA[diaDaSemana(chaveDiaLocal(instante))]}, ${formatarDataHora(instante)}`
+}
+
+/** `"1 treino agendado"` / `"3 treinos agendados"`. */
+export function contarTreinos(total: number, adjetivo = ''): string {
+  const plural = total === 1 ? '' : 's'
+  return `${total} treino${plural}${adjetivo && ` ${adjetivo}${plural}`}`
 }
 
 export const rotuloAdversario = ({

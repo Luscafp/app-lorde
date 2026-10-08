@@ -1,6 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { OBSERVACOES_EVENTO_MAX, StatusEvento, TipoEvento, type EventoDto } from '@atletica/shared'
-import { useState, type ReactNode } from 'react'
+import {
+  gerarDatasSerie,
+  OBSERVACOES_EVENTO_MAX,
+  recorrenciaSchema,
+  StatusEvento,
+  TipoEvento,
+  type CriarSerie,
+  type EventoDto,
+} from '@atletica/shared'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { ScrollView, View } from 'react-native'
 import { FaixaOffline } from '@/components/estado'
@@ -18,33 +26,46 @@ import { OpcaoRadio } from '@/features/times'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
 import type { ApiErro } from '@/infra/api/cliente'
 import { mostrarErroDaMutacao } from '@/infra/query/query-client'
-import { useAtualizarEvento, useCriarEvento } from '../hooks'
+import { contarTreinos } from '../formatacao'
+import { useAtualizarEvento, useCriarEvento, useCriarSerie, useEditarSeguintes } from '../hooks'
 import {
   CAMPO_DO_FORM,
   eventoFormSchema,
   observacoesFormSchema,
   paraEdicao,
+  paraEdicaoSeguintes,
+  recorrenciaDoForm,
   valoresIniciais,
   type EventoFormEntrada,
   type EventoFormSaida,
 } from '../schemas'
+import { RecorrenciaCampos, type PreviaSerie } from './recorrencia-campos'
 import { SeletorAdversario } from './seletor-adversario'
 import { SeletorTimeEvento, type TimeEscolhido } from './seletor-time-evento'
 
 const TIPOS: Record<TipoEvento, string> = { JOGO: 'Jogo', TREINO: 'Treino' }
 
+const AVISO_SEGUINTES =
+  'Treinos deste em diante que você alterou individualmente também receberão estas mudanças.'
+
 type Props = {
   /** Sem ele, cadastra um novo. */
   evento?: EventoDto
-  aoSalvar: (evento: EventoDto) => void
+  /** Na criação de série, recebe a 1ª ocorrência. */
+  aoSalvar: (eventoId: string) => void
+  /** "Este e os seguintes" trava data e time (#20 §6). */
+  seguintes?: boolean
   /** Abaixo de Data/Horário. */
   aposDataHora?: ReactNode
 }
 
-export function EventoForm({ evento, aoSalvar, aposDataHora }: Props) {
+export function EventoForm({ evento, aoSalvar, seguintes: emLote, aposDataHora }: Props) {
   const criar = useCriarEvento()
+  const criarSerie = useCriarSerie()
   const atualizar = useAtualizarEvento()
-  const salvar = evento ? atualizar : criar
+  const editarSeguintes = useEditarSeguintes()
+  const seguintes = !!evento?.serieId && !!emLote
+  const salvando = [criar, criarSerie, atualizar, editarSeguintes].some((m) => m.isPending)
   const somenteObservacoes = evento?.status === StatusEvento.FINALIZADO
   const [modalidade, setModalidade] = useState(evento?.modalidade)
   const form = useForm<EventoFormEntrada, unknown, EventoFormSaida>({
@@ -52,26 +73,65 @@ export function EventoForm({ evento, aoSalvar, aposDataHora }: Props) {
     mode: 'onBlur',
     defaultValues: valoresIniciais(evento),
   })
-  const [tipo, observacoes] = useWatch({ control: form.control, name: ['tipo', 'observacoes'] })
-
-  const callbacksDeSalvar = (mensagem: string) => ({
-    onSuccess: (salvo: EventoDto) => {
-      toast.sucesso(mensagem)
-      aoSalvar(salvo)
-    },
-    onError: (erro: ApiErro) => {
-      if (!aplicarErrosDaApi(form, erro, CAMPO_DO_FORM)) mostrarErroDaMutacao(erro)
-    },
+  const [tipo, observacoes, recorrente, data, hora, diasSemana, dataFim] = useWatch({
+    control: form.control,
+    name: ['tipo', 'observacoes', 'recorrente', 'data', 'hora', 'diasSemana', 'dataFim'],
   })
+  const serie = !evento && tipo === TipoEvento.TREINO && recorrente
+  const recorrencia = serie ? recorrenciaDoForm({ data, hora, diasSemana, dataFim }) : undefined
+  /** Só com a recorrência válida: um "Repetir até" em 2099 não trava a tela. */
+  const previa = useMemo((): PreviaSerie | undefined => {
+    if (!serie) return undefined
+    const valida = recorrenciaSchema.safeParse(
+      recorrenciaDoForm({ data, hora, diasSemana, dataFim }),
+    )
+    if (!valida.success) return undefined
+    const datas = gerarDatasSerie(valida.data)
+    return { total: datas.length, primeira: datas[0], ultima: datas.at(-1) }
+  }, [serie, data, hora, diasSemana, dataFim])
+
+  const aoFalhar = (erro: ApiErro) => {
+    if (!aplicarErrosDaApi(form, erro, CAMPO_DO_FORM)) mostrarErroDaMutacao(erro)
+  }
+
+  const concluir = (mensagem: string, eventoId: string) => {
+    toast.sucesso(mensagem)
+    aoSalvar(eventoId)
+  }
+
+  function gravarSerie(dados: CriarSerie) {
+    criarSerie.mutate(dados, {
+      onSuccess: ({ totalOcorrencias, primeiraOcorrencia }) =>
+        concluir(contarTreinos(totalOcorrencias, 'criado'), primeiraOcorrencia.id),
+      onError: aoFalhar,
+    })
+  }
+
+  function gravarEdicao(dados: EventoFormSaida, atual: EventoDto) {
+    if (seguintes) {
+      const mudancas = paraEdicaoSeguintes(dados, atual)
+      if (!mudancas) return aoSalvar(atual.id)
+      return editarSeguintes.mutate(
+        { id: atual.id, dados: mudancas },
+        { onSuccess: () => concluir('Treinos atualizados', atual.id), onError: aoFalhar },
+      )
+    }
+    const mudancas = paraEdicao(dados, atual)
+    if (Object.keys(mudancas).length === 0) return aoSalvar(atual.id)
+    atualizar.mutate(
+      { id: atual.id, dados: mudancas },
+      { onSuccess: ({ id }) => concluir('Evento atualizado', id), onError: aoFalhar },
+    )
+  }
 
   function gravar(dados: EventoFormSaida) {
-    if (!evento) {
-      if ('tipo' in dados) criar.mutate(dados, callbacksDeSalvar('Evento cadastrado'))
-      return
-    }
-    const mudancas = paraEdicao(dados, evento)
-    if (Object.keys(mudancas).length === 0) return aoSalvar(evento)
-    atualizar.mutate({ id: evento.id, dados: mudancas }, callbacksDeSalvar('Evento atualizado'))
+    if (evento) return gravarEdicao(dados, evento)
+    if (!('tipo' in dados)) return
+    if ('recorrencia' in dados) return gravarSerie(dados)
+    criar.mutate(dados, {
+      onSuccess: ({ id }) => concluir('Evento cadastrado', id),
+      onError: aoFalhar,
+    })
   }
 
   function confirmarSeNoPassado(dados: EventoFormSaida) {
@@ -97,13 +157,14 @@ export function EventoForm({ evento, aoSalvar, aposDataHora }: Props) {
   return (
     <View className="flex-1">
       {/* Na edição, a faixa vem do `TelaDados` da rota. */}
-      {!evento && !salvar.online && <FaixaOffline />}
+      {!evento && !criar.online && <FaixaOffline />}
       <ScrollView contentContainerClassName="gap-4 p-4" keyboardShouldPersistTaps="handled">
         {somenteObservacoes && (
           <Alerta variante="alerta">
             Evento finalizado: só as observações podem ser alteradas.
           </Alerta>
         )}
+        {seguintes && <Alerta variante="alerta">{AVISO_SEGUINTES}</Alerta>}
         <Controller
           control={form.control}
           name="tipo"
@@ -136,7 +197,7 @@ export function EventoForm({ evento, aoSalvar, aposDataHora }: Props) {
               valor={field.value}
               aoMudar={(escolha) => escolherTime(escolha, field.onChange)}
               atual={evento}
-              desabilitado={somenteObservacoes}
+              desabilitado={somenteObservacoes || seguintes}
               erro={fieldState.error?.message}
             />
           )}
@@ -162,12 +223,12 @@ export function EventoForm({ evento, aoSalvar, aposDataHora }: Props) {
             <Campo
               controle={form.control}
               nome="data"
-              rotulo="Data"
+              rotulo={serie ? 'Data de início' : 'Data'}
               placeholder="dd/mm/aaaa"
               keyboardType="number-pad"
               maxLength={10}
               mascara={mascararData}
-              editable={!somenteObservacoes}
+              editable={!somenteObservacoes && !seguintes}
             />
           </View>
           <View className="flex-1">
@@ -183,6 +244,14 @@ export function EventoForm({ evento, aoSalvar, aposDataHora }: Props) {
             />
           </View>
         </View>
+        {!evento && tipo === TipoEvento.TREINO && (
+          <RecorrenciaCampos
+            controle={form.control}
+            recorrente={recorrente}
+            recorrencia={recorrencia}
+            previa={previa}
+          />
+        )}
         {aposDataHora}
         <Campo controle={form.control} nome="local" rotulo="Local" editable={!somenteObservacoes} />
         <View className="gap-1">
@@ -200,8 +269,8 @@ export function EventoForm({ evento, aoSalvar, aposDataHora }: Props) {
         </View>
         <Botao
           titulo="Salvar"
-          carregando={salvar.isPending || form.formState.isSubmitting}
-          disabled={!salvar.online}
+          carregando={salvando || form.formState.isSubmitting}
+          disabled={!criar.online || (serie && previa?.total === 0)}
           onPress={() => void form.handleSubmit(confirmarSeNoPassado)()}
         />
       </ScrollView>

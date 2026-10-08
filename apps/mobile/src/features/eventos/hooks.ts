@@ -1,9 +1,14 @@
 import type {
   CriarEvento,
+  CriarSerie,
   EditarEvento,
+  EditarSeguintes,
+  EscopoOcorrencia,
   EventoCanceladoDto,
   EventoDto,
+  OcorrenciasAlteradasDto,
   PeriodoEventos,
+  SerieCriadaDto,
 } from '@atletica/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CodigoApi } from '@/infra/api/api-erro'
@@ -14,8 +19,12 @@ import {
   atualizarEvento,
   buscarEvento,
   cancelarEvento,
+  contarAgendadosDaSerie,
   criarEvento,
+  criarSerie,
+  editarSeguintes,
   excluirEvento,
+  filtrosAgendadosDaSerie,
   type FiltrosEventos,
 } from './api'
 import { useEventos } from './consultas'
@@ -28,6 +37,7 @@ export const CodigoEvento = {
   MODALIDADES_DIFERENTES: 'MODALIDADES_DIFERENTES',
   EVENTO_COM_PARTICIPACOES: 'EVENTO_COM_PARTICIPACOES',
   EVENTO_COM_DEPENDENCIAS: 'EVENTO_COM_DEPENDENCIAS',
+  SERIE_SEM_OCORRENCIAS: 'SERIE_SEM_OCORRENCIAS',
 } as const
 
 /** Erros que o formulário mostra no campo (todos trazem `details`). */
@@ -39,6 +49,7 @@ const ERROS_DO_FORMULARIO = [
   CodigoEvento.ADVERSARIO_INVALIDO,
   CodigoEvento.MODALIDADES_DIFERENTES,
   CodigoEvento.EVENTO_COM_PARTICIPACOES,
+  CodigoEvento.SERIE_SEM_OCORRENCIAS,
 ]
 
 export type FiltrosEventosPainel = Pick<FiltrosEventos, 'tipo' | 'status'> & {
@@ -73,6 +84,15 @@ export function useCriarEvento() {
   })
 }
 
+export function useCriarSerie() {
+  const invalidar = useInvalidar()
+  return useAcaoOnline<SerieCriadaDto, ApiErro, CriarSerie>({
+    mutationFn: (dados) => criarSerie(dados),
+    meta: { errosNaTela: ERROS_DO_FORMULARIO },
+    onSuccess: invalidar,
+  })
+}
+
 type Atualizacao = { id: string; dados: EditarEvento }
 
 export function useAtualizarEvento() {
@@ -84,11 +104,31 @@ export function useAtualizarEvento() {
   })
 }
 
+export function useEditarSeguintes() {
+  const invalidar = useInvalidar()
+  return useAcaoOnline<OcorrenciasAlteradasDto, ApiErro, { id: string; dados: EditarSeguintes }>({
+    mutationFn: ({ id, dados }) => editarSeguintes(id, dados),
+    meta: { errosNaTela: ERROS_DO_FORMULARIO },
+    onSuccess: invalidar,
+  })
+}
+
+type Cancelamento = { id: string; escopo?: EscopoOcorrencia }
+
 export function useCancelarEvento() {
   const invalidar = useInvalidar()
-  return useAcaoOnline<EventoCanceladoDto, ApiErro, string>({
-    mutationFn: (id) => cancelarEvento(id),
+  return useAcaoOnline<EventoCanceladoDto, ApiErro, Cancelamento>({
+    mutationFn: ({ id, escopo }) => cancelarEvento(id, escopo),
     onSuccess: invalidar,
+  })
+}
+
+/** Treinos agendados da série a partir de `inicio` (inclusive); sem série, não consulta. */
+export function useAgendadosDaSerie(serieId: string | null, inicio: string) {
+  return useQuery({
+    queryKey: chaves.eventos.lista(filtrosAgendadosDaSerie(serieId ?? '', inicio)),
+    queryFn: ({ signal }) => contarAgendadosDaSerie(serieId ?? '', inicio, signal),
+    enabled: serieId !== null,
   })
 }
 

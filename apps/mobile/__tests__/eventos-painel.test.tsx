@@ -187,7 +187,7 @@ describe('EventoForm', () => {
     expect(screen.getByLabelText('Horário')).toHaveDisplayValue('19:00')
     await salvar()
 
-    await waitFor(() => expect(aoSalvar).toHaveBeenCalledWith(EVENTO))
+    await waitFor(() => expect(aoSalvar).toHaveBeenCalledWith(EVENTO.id))
     expect(eventos.criarEvento).toHaveBeenCalledWith({
       tipo: 'JOGO',
       timeId: VOLEI_CASA.id,
@@ -492,7 +492,7 @@ describe('Detalhe do evento no Painel', () => {
     )
     await confirmarAlerta('Cancelar evento')
     await waitFor(() => expect(toast.sucesso).toHaveBeenCalledWith('Evento cancelado'))
-    expect(eventos.cancelarEvento).toHaveBeenCalledWith(EVENTO.id)
+    expect(eventos.cancelarEvento).toHaveBeenCalledWith(EVENTO.id, undefined)
   })
 
   it('evento cancelado não mostra Editar nem Cancelar', async () => {

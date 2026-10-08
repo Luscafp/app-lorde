@@ -3,14 +3,22 @@ import {
   eventoDetalheSchema,
   eventoDtoSchema,
   listaEventosSchema,
+  ocorrenciasAlteradasDtoSchema,
+  PeriodoEventos,
+  serieCriadaDtoSchema,
+  StatusEvento,
   type CriarEvento,
+  type CriarSerie,
   type EditarEvento,
+  type EditarSeguintes,
+  type EscopoOcorrencia,
   type EventoCanceladoDto,
   type EventoDetalheDto,
   type EventoDto,
   type ListaEventos,
   type ListarEventosQuery,
-  type StatusEvento,
+  type OcorrenciasAlteradasDto,
+  type SerieCriadaDto,
 } from '@atletica/shared'
 import { api } from '@/infra/api/cliente'
 
@@ -45,8 +53,44 @@ export async function atualizarEvento(id: string, dados: EditarEvento): Promise<
   return eventoDtoSchema.parse(await api.patch(`/eventos/${id}`, dados))
 }
 
-export async function cancelarEvento(id: string): Promise<EventoCanceladoDto> {
-  return eventoCanceladoDtoSchema.parse(await api.post(`/eventos/${id}/cancelar`))
+export async function cancelarEvento(
+  id: string,
+  escopo?: EscopoOcorrencia,
+): Promise<EventoCanceladoDto> {
+  const corpo = escopo ? { escopo } : undefined
+  return eventoCanceladoDtoSchema.parse(await api.post(`/eventos/${id}/cancelar`, corpo))
+}
+
+export async function criarSerie(dados: CriarSerie): Promise<SerieCriadaDto> {
+  return serieCriadaDtoSchema.parse(await api.post('/eventos', dados))
+}
+
+export async function editarSeguintes(
+  id: string,
+  dados: EditarSeguintes,
+): Promise<OcorrenciasAlteradasDto> {
+  return ocorrenciasAlteradasDtoSchema.parse(await api.patch(`/eventos/${id}`, dados))
+}
+
+/** Filtros de `GET /eventos` para as ocorrências agendadas da série a partir de `aPartirDe`. */
+export function filtrosAgendadosDaSerie(serieId: string, aPartirDe: string) {
+  return {
+    serieId,
+    status: StatusEvento.AGENDADO,
+    periodo: PeriodoEventos.TODOS,
+    aPartirDe,
+    limit: 1,
+  }
+}
+
+export async function contarAgendadosDaSerie(
+  serieId: string,
+  aPartirDe: string,
+  sinal?: AbortSignal,
+): Promise<number> {
+  const consulta = filtrosAgendadosDaSerie(serieId, aPartirDe)
+  const resposta = listaEventosSchema.parse(await api.get('/eventos', { consulta, sinal }))
+  return resposta.total
 }
 
 export async function excluirEvento(id: string): Promise<void> {
