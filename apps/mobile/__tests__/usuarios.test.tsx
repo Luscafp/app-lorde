@@ -180,6 +180,33 @@ describe('Detalhe do usuário', () => {
     expect(screen.getByText('Capitão')).toBeOnTheScreen()
   })
 
+  it('estatísticas do usuário no mesmo cartão do Perfil (critério 14)', async () => {
+    jest.mocked(buscarUsuario).mockResolvedValue(
+      detalhe({
+        estatisticas: {
+          jogosParticipados: 0,
+          treinosPresentes: 0,
+          eventosComChamada: 0,
+          taxaPresenca: null,
+        },
+      }),
+    )
+    await renderizar(<DetalheUsuario id={ID} />)
+
+    expect(await screen.findByText('Estatísticas')).toBeOnTheScreen()
+    expect(screen.getByLabelText('Taxa de presença: —')).toBeOnTheScreen()
+    expect(screen.getByText('Ainda não há presenças registradas')).toBeOnTheScreen()
+  })
+
+  it('estatisticas null: seção oculta', async () => {
+    jest.mocked(buscarUsuario).mockResolvedValue(detalhe({ estatisticas: null }))
+    await renderizar(<DetalheUsuario id={ID} />)
+
+    expect(await screen.findByRole('header', { name: 'José Lima' })).toBeOnTheScreen()
+    expect(screen.queryByText('Estatísticas')).toBeNull()
+    expect(screen.queryByTestId('cartao-estatisticas')).toBeNull()
+  })
+
   it('sem permissão: botão desabilitado com o motivo (critério 9)', async () => {
     const motivo = 'Só é possível alterar usuários de nível de acesso inferior ao seu.'
     jest.mocked(buscarUsuario).mockResolvedValue(

@@ -1,6 +1,7 @@
 import type {
   AlterarSenha,
   AtualizarPerfil,
+  EstatisticasAtleta,
   ExcluirConta,
   FotoAtualizada,
   Perfil,
@@ -16,6 +17,7 @@ import { useSessao } from '@/infra/sessao/store'
 import {
   alterarSenha,
   atualizarPerfil,
+  buscarEstatisticas,
   buscarPerfil,
   definirFoto,
   excluirConta,
@@ -54,6 +56,15 @@ export function useMe() {
     if (data) void sincronizarSessao(data)
   }, [data])
   return consulta
+}
+
+export function useEstatisticas() {
+  return useQuery<EstatisticasAtleta>({
+    queryKey: chaves.me.estatisticas(),
+    queryFn: ({ signal }) => buscarEstatisticas(signal),
+    ...persistida,
+    staleTime: MINUTO,
+  })
 }
 
 export function useAtualizarPerfil() {

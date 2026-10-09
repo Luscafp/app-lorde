@@ -288,7 +288,12 @@ describe('Gestão de usuários (#27)', () => {
             capitao: false,
           },
         ],
-        estatisticas: null,
+        estatisticas: {
+          jogosParticipados: 0,
+          treinosPresentes: 0,
+          eventosComChamada: 0,
+          taxaPresenca: null,
+        },
         permissoes: {
           podeAlterarSituacao: true,
           motivoBloqueio: null,

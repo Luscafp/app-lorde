@@ -2,9 +2,11 @@ import {
   alterarSenhaSchema,
   atualizarFotoSchema,
   atualizarPerfilSchema,
+  estatisticasSchema,
   excluirContaSchema,
   fotoAtualizadaSchema,
   perfilSchema,
+  type EstatisticasAtleta,
   type FotoAtualizada,
   type Perfil,
 } from '@atletica/shared'
@@ -35,6 +37,7 @@ import { RESPOSTA_LIMITE_EXCEDIDO } from '../../common/swagger/respostas'
 import { emMinutos } from '../../common/tempo'
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator'
 import type { UsuarioAutenticado } from '../auth/tipos'
+import { EstatisticasService } from '../participacoes/estatisticas.service'
 import { ContaService } from './conta.service'
 import { LIMITE_SENHA_CONFIRMACAO } from './confirmacao-senha.service'
 import { erroUltimoAdministradorExclusao } from './erros'
@@ -46,6 +49,7 @@ class AlterarSenhaDto extends createZodDto(alterarSenhaSchema) {}
 class ExcluirContaDto extends createZodDto(excluirContaSchema) {}
 class PerfilDto extends createZodDto(perfilSchema) {}
 class FotoAtualizadaDto extends createZodDto(fotoAtualizadaSchema) {}
+class EstatisticasDto extends createZodDto(estatisticasSchema) {}
 
 const ID_EXEMPLO = '6b0e2a52-8e5d-4a43-9d6c-1f0f3c2b7a90'
 const FOTO_KEY_EXEMPLO = `usuarios/${ID_EXEMPLO}/perfil/2b7f5c1e-0d4a-4f8e-9b3c-7a6d5e4f3a21.jpg`
@@ -87,6 +91,7 @@ export class MeController {
   constructor(
     private readonly perfil: PerfilService,
     private readonly conta: ContaService,
+    private readonly estatisticas: EstatisticasService,
   ) {}
 
   @Get()
@@ -100,6 +105,23 @@ export class MeController {
   @ApiOkResponse({ type: PerfilDto, example: EXEMPLO_PERFIL })
   obter(@UsuarioAtual() usuario: UsuarioAutenticado): Promise<Perfil> {
     return this.perfil.obter(usuario)
+  }
+
+  @Get('estatisticas')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Estatísticas do atleta na atlética do token (RF26, UC10)',
+    description:
+      'Só presenças registradas pela diretoria contam (RN32); eventos cancelados ou excluídos ' +
+      'ficam fora. `taxaPresenca` = presenças / `eventosComChamada`, em % arredondado; `null` ' +
+      'sem nenhuma chamada.',
+  })
+  @ApiOkResponse({
+    type: EstatisticasDto,
+    example: { jogosParticipados: 2, treinosPresentes: 5, eventosComChamada: 10, taxaPresenca: 70 },
+  })
+  obterEstatisticas(@UsuarioAtual() usuario: UsuarioAutenticado): Promise<EstatisticasAtleta> {
+    return this.estatisticas.calcular(usuario.id, usuario.atleticaId)
   }
 
   @Patch()

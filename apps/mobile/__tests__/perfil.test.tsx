@@ -1,4 +1,4 @@
-import type { EventoResumoDto, Perfil } from '@atletica/shared'
+import type { EstatisticasAtleta, EventoResumoDto, Perfil } from '@atletica/shared'
 import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native'
 import { Alert, type AlertButton } from 'react-native'
@@ -6,7 +6,9 @@ import { toast } from '@/components/ui/toast'
 import {
   AlterarSenha,
   EditarPerfil,
+  MENSAGEM_ERRO_ESTATISTICAS,
   MENSAGEM_PERFIL_ATUALIZADO,
+  MENSAGEM_SEM_PRESENCAS,
   MENSAGEM_SEM_TIMES,
   MENSAGEM_SENHA_ALTERADA,
   TelaPerfil,
@@ -87,6 +89,13 @@ function perfil(parcial: Partial<Perfil> = {}): Perfil {
   }
 }
 
+const SEM_CHAMADA: EstatisticasAtleta = {
+  jogosParticipados: 0,
+  treinosPresentes: 0,
+  eventosComChamada: 0,
+  taxaPresenca: null,
+}
+
 let cliente: QueryClient
 
 function renderizar(elemento: React.ReactElement) {
@@ -108,6 +117,7 @@ beforeEach(() => {
   jest.clearAllMocks()
   jest.mocked(useUploadImagem).mockReturnValue(upload())
   listarEventos.mockResolvedValue({ items: [], page: 1, limit: 5, total: 0 })
+  api.buscarEstatisticas.mockResolvedValue(SEM_CHAMADA)
   useSessao.setState({
     status: 'autenticado',
     usuario: {
@@ -267,6 +277,45 @@ function eventoConfirmado(id: string, inicio: string, local: string): EventoResu
     minhaParticipacao: { confirmado: true, respondidoEm: '2026-10-01T12:00:00.000Z' },
   }
 }
+
+describe('Estatísticas (#85)', () => {
+  const secao = () => within(screen.getByTestId('secao-estatisticas'))
+
+  it('jogos, treinos e taxa de presença', async () => {
+    api.buscarPerfil.mockResolvedValue(perfil())
+    api.buscarEstatisticas.mockResolvedValue({
+      jogosParticipados: 2,
+      treinosPresentes: 5,
+      eventosComChamada: 10,
+      taxaPresenca: 70,
+    })
+    await renderizar(<TelaPerfil {...navegacao()} />)
+
+    expect(await screen.findByLabelText('Jogos participados: 2')).toBeOnTheScreen()
+    expect(secao().getByLabelText('Treinos presentes: 5')).toBeOnTheScreen()
+    expect(secao().getByLabelText('Taxa de presença: 70%')).toBeOnTheScreen()
+    expect(secao().queryByText(MENSAGEM_SEM_PRESENCAS)).toBeNull()
+  })
+
+  it('sem chamada: taxa "—" com a legenda (critério 12)', async () => {
+    api.buscarPerfil.mockResolvedValue(perfil())
+    await renderizar(<TelaPerfil {...navegacao()} />)
+
+    expect(await screen.findByLabelText('Taxa de presença: —')).toBeOnTheScreen()
+    expect(secao().getByLabelText('Jogos participados: 0')).toBeOnTheScreen()
+    expect(secao().getByText(MENSAGEM_SEM_PRESENCAS)).toBeOnTheScreen()
+  })
+
+  it('erro: estado próprio da seção, sem afetar o restante do Perfil', async () => {
+    api.buscarPerfil.mockResolvedValue(perfil())
+    api.buscarEstatisticas.mockRejectedValue(new Error('falhou'))
+    await renderizar(<TelaPerfil {...navegacao()} />)
+
+    expect(await screen.findByText(MENSAGEM_ERRO_ESTATISTICAS)).toBeOnTheScreen()
+    expect(screen.getByText('Ana Souza')).toBeOnTheScreen()
+    expect(cliente.getQueryState(chaves.me.estatisticas())?.status).toBe('error')
+  })
+})
 
 describe('Meus próximos eventos (#24)', () => {
   const PRIMEIRO = '1a1a1a1a-0000-4000-8000-000000000001'

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { SenhaModule } from '../../infra/senha/senha.module'
 import { AuthModule } from '../auth/auth.module'
+import { ParticipacoesModule } from '../participacoes/participacoes.module'
 import { TimesModule } from '../times/times.module'
 import { UploadsModule } from '../uploads/uploads.module'
 import { CargosService } from './cargos.service'
@@ -12,7 +13,7 @@ import { PerfilService } from './perfil.service'
 import { UsuariosController } from './usuarios.controller'
 
 @Module({
-  imports: [AuthModule, UploadsModule, SenhaModule, TimesModule],
+  imports: [AuthModule, UploadsModule, SenhaModule, TimesModule, ParticipacoesModule],
   controllers: [MeController, UsuariosController],
   providers: [
     GestaoUsuariosService,

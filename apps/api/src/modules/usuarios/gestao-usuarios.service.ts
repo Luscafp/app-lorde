@@ -14,6 +14,7 @@ import { EventosDominioService } from '../../infra/eventos/eventos-dominio.servi
 import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import { Prisma } from '../../generated/prisma/client'
 import { AuditoriaService } from '../auditoria/auditoria.service'
+import { EstatisticasService } from '../participacoes/estatisticas.service'
 import { diferenca } from '../auditoria/diferenca'
 import { SessaoService } from '../auth/sessao.service'
 import { UploadsService } from '../uploads/uploads.service'
@@ -70,6 +71,7 @@ export class GestaoUsuariosService {
     private readonly auditoria: AuditoriaService,
     private readonly eventos: EventosDominioService,
     private readonly uploads: UploadsService,
+    private readonly estatisticas: EstatisticasService,
   ) {}
 
   /** `$queryRaw` não passa pela extensão multi-atlética: o `atleticaId` vai no SQL. */
@@ -136,11 +138,13 @@ export class GestaoUsuariosService {
 
     const { usuario, papel, ativo } = vinculo
     const excluido = usuario.excluidoEm !== null
-    const ehUltimoAdmin =
+    const [ehUltimoAdmin, estatisticas] = await Promise.all([
       papel === Papel.ADMINISTRADOR &&
-      ativo &&
-      !excluido &&
-      (await ehUltimoAdministrador(this.prisma.db, atleticaId, id))
+        ativo &&
+        !excluido &&
+        ehUltimoAdministrador(this.prisma.db, atleticaId, id),
+      this.estatisticas.calcular(id, atleticaId),
+    ])
 
     return {
       id,
@@ -156,7 +160,7 @@ export class GestaoUsuariosService {
             ...time,
             capitao: capitaoId === id,
           })),
-      estatisticas: null,
+      estatisticas,
       permissoes: calcularPermissoes(solicitante, { id, papel, excluido }, ehUltimoAdmin),
     }
   }

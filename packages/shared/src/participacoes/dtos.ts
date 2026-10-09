@@ -44,7 +44,18 @@ export const listaPresencaDtoSchema = z
   })
   .strict()
 
+/** `GET /me/estatisticas` e `estatisticas` de `GET /usuarios/:id` (#85); `null` sem chamada. */
+export const estatisticasSchema = z
+  .object({
+    jogosParticipados: z.number().int().min(0),
+    treinosPresentes: z.number().int().min(0),
+    eventosComChamada: z.number().int().min(0),
+    taxaPresenca: z.number().int().min(0).max(100).nullable(),
+  })
+  .strict()
+
 export type ParticipacaoRespondidaDto = z.infer<typeof participacaoRespondidaDtoSchema>
 export type ContagemParticipacao = z.infer<typeof contagemParticipacaoSchema>
 export type ItemPresenca = z.infer<typeof itemPresencaSchema>
 export type ListaPresencaDto = z.infer<typeof listaPresencaDtoSchema>
+export type EstatisticasAtleta = z.infer<typeof estatisticasSchema>
