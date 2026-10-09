@@ -22,7 +22,7 @@ import { EventosModule } from './modules/eventos/eventos.module'
 import { HealthModule } from './modules/health/health.module'
 import { ModalidadesModule } from './modules/modalidades/modalidades.module'
 import { NoticiasModule } from './modules/noticias/noticias.module'
-import { PreferenciasModule } from './modules/notificacoes/preferencias/preferencias.module'
+import { NotificacoesModule } from './modules/notificacoes/notificacoes.module'
 import { ParticipacoesModule } from './modules/participacoes/participacoes.module'
 import { TimesModule } from './modules/times/times.module'
 import { UploadsModule } from './modules/uploads/uploads.module'
@@ -56,8 +56,8 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module'
     HealthModule,
     ModalidadesModule,
     NoticiasModule,
+    NotificacoesModule,
     ParticipacoesModule,
-    PreferenciasModule,
     TimesModule,
     UploadsModule,
     UsuariosModule,

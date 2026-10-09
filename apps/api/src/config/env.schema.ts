@@ -58,6 +58,8 @@ export const envSchema = z
         .default('true')
         .transform((valor) => valor === 'true'),
     ),
+    // Token do Expo Push Service (#87, "Enhanced Security for Push"); valor real na Railway (#96).
+    EXPO_ACCESS_TOKEN: vazioComoAusente(z.string().trim().optional()),
     // Commit do build (#46): build-arg do `docker build`; a Railway define RAILWAY_GIT_COMMIT_SHA.
     GIT_COMMIT_SHA: vazioComoAusente(z.string().trim().optional()),
     RAILWAY_GIT_COMMIT_SHA: vazioComoAusente(z.string().trim().optional()),
@@ -71,6 +73,10 @@ export const envSchema = z
   .refine((env) => env.NODE_ENV !== 'production' || env.EMAIL_PROVIDER === 'resend', {
     path: ['EMAIL_PROVIDER'],
     error: 'deve ser resend com NODE_ENV=production',
+  })
+  .refine((env) => env.APP_ENV !== 'producao' || env.EXPO_ACCESS_TOKEN !== undefined, {
+    path: ['EXPO_ACCESS_TOKEN'],
+    error: 'obrigatória com APP_ENV=producao',
   })
   .transform((env) => ({ ...env, APP_ENV: env.APP_ENV ?? 'local' }))
 
