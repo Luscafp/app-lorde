@@ -37,6 +37,7 @@ export const chaves = {
       detalhe: (id: string) => ['painel', 'noticias', 'detalhe', id] as const,
     },
     banners: {
+      todos: () => ['painel', 'banners'] as const,
       lista: () => ['painel', 'banners', 'lista'] as const,
       detalhe: (id: string) => ['painel', 'banners', 'detalhe', id] as const,
     },

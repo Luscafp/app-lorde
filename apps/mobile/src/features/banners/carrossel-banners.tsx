@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   FlatList,
   Pressable,
-  Text,
   useWindowDimensions,
   View,
   type NativeScrollEvent,
@@ -12,6 +11,7 @@ import {
 } from 'react-native'
 import { paleta, useAtletica } from '@/features/atletica'
 import { Imagem } from '@/components/imagem'
+import { Texto } from '@/components/ui'
 import { useBanners } from './hooks'
 
 export const INTERVALO_CARROSSEL_MS = 5000
@@ -23,9 +23,9 @@ function Slide({ banner, largura }: { banner: BannerDto; largura: number }) {
     <>
       <Imagem uri={banner.imagemUrl} className="h-full w-full" />
       <View className="absolute bottom-0 left-0 right-0 bg-black/50 px-3 py-2">
-        <Text className="font-semibold text-white" numberOfLines={2}>
+        <Texto className="font-semibold text-white" numberOfLines={2}>
           {banner.titulo}
-        </Text>
+        </Texto>
       </View>
     </>
   )
@@ -86,6 +86,7 @@ export function CarrosselBanners() {
   const [atual, setAtual] = useState(0)
   const [arrastando, setArrastando] = useState(false)
   const total = banners.length
+  const indice = Math.min(atual, Math.max(0, total - 1))
 
   useEffect(() => {
     if (total < 2 || arrastando) return
@@ -124,7 +125,7 @@ export function CarrosselBanners() {
         onMomentumScrollEnd={aoParar}
         renderItem={({ item }) => <Slide banner={item} largura={largura} />}
       />
-      {total > 1 && <Indicadores total={total} atual={atual} />}
+      {total > 1 && <Indicadores total={total} atual={indice} />}
     </View>
   )
 }

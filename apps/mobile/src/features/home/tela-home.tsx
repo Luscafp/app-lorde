@@ -31,7 +31,7 @@ export function TelaHome(navegacao: NavegacaoHome) {
   const banners = useBanners()
   const secoes = combinarConsultas([eventos, noticias, banners])
   const online = useOnline()
-  const emCache = [eventos, noticias].filter(({ data }) => data !== undefined)
+  const emCache = [eventos, noticias, banners].filter(({ data }) => data !== undefined)
 
   useMarcarHomePronta(!eventos.isPending && !noticias.isPending)
 

@@ -239,6 +239,17 @@ describe('Home', () => {
     expect(screen.getByText('Notícia n1')).toBeOnTheScreen()
   })
 
+  it('offline só com banners em cache: carrossel e faixa "Modo offline" (#33, critério 15)', async () => {
+    onlineManager.setOnline(false)
+    cliente.setQueryData(chaves.banners(), [
+      { id: 'b1', titulo: 'Banner b1', imagemUrl: 'https://img.exemplo.com/b1.jpg', link: null },
+    ])
+    await abrirHome()
+
+    expect(await screen.findByText('Banner b1')).toBeOnTheScreen()
+    expect(screen.getByText(/^Modo offline · dados de/)).toBeOnTheScreen()
+  })
+
   it('offline sem cache: estado "Sem conexão" em cada seção, sem faixa (critério 14)', async () => {
     onlineManager.setOnline(false)
     await abrirHome()

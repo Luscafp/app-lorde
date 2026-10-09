@@ -15,7 +15,6 @@ import {
 } from './api'
 
 const CINCO_MINUTOS_MS = 5 * 60_000
-const PREFIXO_PAINEL = chaves.painel.banners.lista().slice(0, 2)
 
 export const ERROS_DO_FORMULARIO = [
   'VALIDATION_ERROR',
@@ -53,7 +52,7 @@ function useInvalidar() {
   const cliente = useQueryClient()
   return () =>
     Promise.all([
-      cliente.invalidateQueries({ queryKey: PREFIXO_PAINEL }),
+      cliente.invalidateQueries({ queryKey: chaves.painel.banners.todos() }),
       cliente.invalidateQueries({ queryKey: chaves.banners() }),
     ])
 }
