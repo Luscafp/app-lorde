@@ -186,7 +186,7 @@ describe('Tela Notificações (#37)', () => {
     const leituras = get.mock.calls.length
 
     await act(() => resolverCom(primeira, { ...PADRAO, noticias: false }))
-    expect(interruptor('Resultados')).not.toBeChecked()
+    await waitFor(() => expect(interruptor('Resultados')).not.toBeChecked())
     await waitFor(() => expect(patch).toHaveBeenCalledTimes(2))
     expect(patch).toHaveBeenLastCalledWith('/me/preferencias-notificacao', { resultados: false })
     expect(get).toHaveBeenCalledTimes(leituras)

@@ -67,14 +67,13 @@ function Grupo({ children }: { children: ReactNode }) {
 }
 
 function useAvisoSalvo(sucesso: boolean, enviadoEm: number) {
-  const [visivel, setVisivel] = useState(false)
+  const [expirouEm, setExpirouEm] = useState<number>()
   useEffect(() => {
-    setVisivel(sucesso)
     if (!sucesso) return
-    const temporizador = setTimeout(() => setVisivel(false), TEMPO_SALVO_MS)
+    const temporizador = setTimeout(() => setExpirouEm(enviadoEm), TEMPO_SALVO_MS)
     return () => clearTimeout(temporizador)
   }, [sucesso, enviadoEm])
-  return visivel
+  return sucesso && expirouEm !== enviadoEm
 }
 
 export function TelaPreferenciasNotificacao({ permissao }: { permissao?: FontePermissao }) {
