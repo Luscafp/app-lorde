@@ -26,6 +26,7 @@ class NoticiaDetalheRespostaDto extends createZodDto(noticiaDetalheSchema) {}
 const ID_EXEMPLO = 'b7e1c0de-5a4f-4e2d-8b6a-9c0d1e2f3a4b'
 const TITULO_EXEMPLO = 'Atlética é campeã do torneio de vôlei'
 const CAPA_EXEMPLO = `https://img.exemplo.com/atleticas/exemplo/noticias/${ID_EXEMPLO}.jpg`
+const TAGS_EXEMPLO = [{ id: 'd2f1a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a5b', nome: 'Vôlei' }]
 
 const EXEMPLO_LISTA: ListaNoticias = {
   items: [
@@ -35,6 +36,7 @@ const EXEMPLO_LISTA: ListaNoticias = {
       imagemCapaUrl: CAPA_EXEMPLO,
       publicadaEm: '2026-09-28T18:00:00.000Z',
       resumo: 'A equipe venceu a final por 3 sets a 1 no ginásio…',
+      tags: TAGS_EXEMPLO,
     },
   ],
   page: 1,
@@ -48,6 +50,7 @@ const EXEMPLO_DETALHE: NoticiaDetalheDto = {
   conteudo: 'A equipe **venceu** a final por 3 sets a 1.\n\nO próximo desafio…',
   imagemCapaUrl: CAPA_EXEMPLO,
   publicadaEm: '2026-09-28T18:00:00.000Z',
+  tags: TAGS_EXEMPLO,
 }
 
 @ApiTags('Notícias')
@@ -62,10 +65,13 @@ export class NoticiasPublicasController {
     summary: 'Lista as notícias publicadas, da mais recente para a mais antiga (UC05)',
     description:
       'Só publicadas e não excluídas (RN24). Ordem `publicadaEm` decrescente, desempate por ' +
-      '`id`. `resumo`: até 160 caracteres do conteúdo em texto puro.',
+      '`id`. `resumo`: até 160 caracteres do conteúdo em texto puro. `tagId` filtra por tag ' +
+      '(RF10); tag inexistente ou de outra atlética resulta em lista vazia.',
   })
   @ApiOkResponse({ type: ListaNoticiasDto, example: EXEMPLO_LISTA })
-  @ApiBadRequestResponse({ description: '`VALIDATION_ERROR`: `page` < 1 ou `limit` fora de 1–50.' })
+  @ApiBadRequestResponse({
+    description: '`VALIDATION_ERROR`: `page` < 1, `limit` fora de 1–50 ou `tagId` não-UUID.',
+  })
   listar(@Query() query: ListarNoticiasQueryDto): Promise<ListaNoticias> {
     return this.noticias.listar(query)
   }

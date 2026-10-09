@@ -9,6 +9,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service'
 import { UploadsService } from '../uploads/uploads.service'
 import { erroNoticiaNaoEncontrada } from './erros'
 import { gerarResumo } from './resumo'
+import { CAMPOS_TAGS, paraTags } from './tags-da-noticia'
 
 /** RN24: só publicadas e não excluídas, sempre (convenções §11.9). */
 const VISIVEL = { status: StatusNoticia.PUBLICADA, excluidoEm: null } as const
@@ -21,6 +22,7 @@ const CAMPOS_NOTICIA = {
   conteudo: true,
   imagemCapaKey: true,
   publicadaEm: true,
+  tags: CAMPOS_TAGS,
 } as const
 
 /** O CHECK `noticia_publicada_com_data` garante `publicadaEm` em toda publicada. */
@@ -37,25 +39,28 @@ export class NoticiasPublicasService {
     private readonly uploads: UploadsService,
   ) {}
 
-  async listar({ page, limit }: ListarNoticiasQuery): Promise<ListaNoticias> {
+  /** Só tags da atlética são associadas: `tagId` alheio ou inexistente resulta em lista vazia. */
+  async listar({ page, limit, tagId }: ListarNoticiasQuery): Promise<ListaNoticias> {
+    const where = { ...VISIVEL, ...(tagId && { tags: { some: { tagId } } }) }
     const [noticias, total] = await Promise.all([
       this.prisma.db.noticia.findMany({
-        where: VISIVEL,
+        where,
         orderBy: [...ORDEM],
         skip: (page - 1) * limit,
         take: limit,
         select: CAMPOS_NOTICIA,
       }),
-      this.prisma.db.noticia.count({ where: VISIVEL }),
+      this.prisma.db.noticia.count({ where }),
     ])
 
     return {
-      items: noticias.map(({ id, titulo, conteudo, imagemCapaKey, publicadaEm }) => ({
+      items: noticias.map(({ id, titulo, conteudo, imagemCapaKey, publicadaEm, tags }) => ({
         id,
         titulo,
         imagemCapaUrl: this.uploads.urlPublica(imagemCapaKey),
         publicadaEm: publicadaEmIso(publicadaEm),
         resumo: gerarResumo(conteudo),
+        tags: paraTags(tags),
       })),
       page,
       limit,
@@ -70,13 +75,14 @@ export class NoticiasPublicasService {
     })
     if (!noticia) throw erroNoticiaNaoEncontrada()
 
-    const { titulo, conteudo, imagemCapaKey, publicadaEm } = noticia
+    const { titulo, conteudo, imagemCapaKey, publicadaEm, tags } = noticia
     return {
       id,
       titulo,
       conteudo,
       imagemCapaUrl: this.uploads.urlPublica(imagemCapaKey),
       publicadaEm: publicadaEmIso(publicadaEm),
+      tags: paraTags(tags),
     }
   }
 }

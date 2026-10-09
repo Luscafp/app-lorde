@@ -52,6 +52,7 @@ const noticia = (id: string): NoticiaResumoDto => ({
   imagemCapaUrl: 'https://img.exemplo.com/capa.jpg',
   publicadaEm: '2026-09-28T18:00:00.000Z',
   resumo: 'Resumo.',
+  tags: [],
 })
 
 const listaEventos = (items: EventoResumoDto[]): ListaEventos => ({

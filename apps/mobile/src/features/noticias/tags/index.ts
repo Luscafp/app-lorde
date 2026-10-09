@@ -1,0 +1,5 @@
+export { CampoTags } from './campo-tags'
+export { ChipTag } from './chip-tag'
+export { useTags } from './consultas'
+export { FiltroTags } from './filtro-tags'
+export { ListaTags } from './lista-tags'

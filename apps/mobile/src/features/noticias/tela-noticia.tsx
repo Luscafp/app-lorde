@@ -1,3 +1,4 @@
+import type { TagResumoDto } from '@atletica/shared'
 import { View } from 'react-native'
 import { EstadoVazio, TelaDados } from '@/components/estado'
 import { ehNaoEncontrado } from '@/infra/api/api-erro'
@@ -7,7 +8,12 @@ import { useNoticia } from './consultas'
 export const MENSAGEM_INDISPONIVEL = 'Esta notícia não está mais disponível'
 
 /** O 404 vence o cache: a notícia pode ter sido despublicada depois de carregada. */
-export function TelaNoticia({ id }: { id: string }) {
+type Props = {
+  id: string
+  aoAbrirTag?: (tag: TagResumoDto) => void
+}
+
+export function TelaNoticia({ id, aoAbrirTag }: Props) {
   const consulta = useNoticia(id)
 
   return (
@@ -16,7 +22,7 @@ export function TelaNoticia({ id }: { id: string }) {
         <EstadoVazio mensagem={MENSAGEM_INDISPONIVEL} />
       ) : (
         <TelaDados consulta={consulta} esqueleto="detalhe">
-          {(noticia) => <NoticiaDetalhe noticia={noticia} />}
+          {(noticia) => <NoticiaDetalhe noticia={noticia} aoAbrirTag={aoAbrirTag} />}
         </TelaDados>
       )}
     </View>

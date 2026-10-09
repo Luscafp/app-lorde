@@ -32,6 +32,9 @@ jest.mock('@/features/noticias/painel/api', () => ({
   despublicarNoticia: jest.fn(),
   excluirNoticia: jest.fn(),
 }))
+jest.mock('@/features/noticias/tags/api', () => ({
+  listarTags: jest.fn(() => Promise.resolve({ items: [], page: 1, limit: 50, total: 0 })),
+}))
 jest.mock('@/features/noticias/components/noticia-detalhe', () => ({
   NoticiaDetalhe: jest.fn(() => null),
 }))
@@ -117,6 +120,7 @@ const RASCUNHO: NoticiaPainelDetalheDto = {
   criadoEm: '2026-09-29T12:00:00.000Z',
   atualizadoEm: '2026-09-30T13:30:00.000Z',
   autor: { id: 'c9d8e7f6-a5b4-4c3d-9e2f-1a0b9c8d7e6f', nome: 'Maria Diretora' },
+  tags: [],
 }
 
 const PUBLICADA: NoticiaPainelDetalheDto = {
@@ -200,6 +204,27 @@ describe('Nova notícia', () => {
       publicar: false,
     })
     expect(Alert.alert).not.toHaveBeenCalled()
+  })
+
+  it('envia as tags do CampoTags na criação (RF10)', async () => {
+    api.criarNoticia.mockResolvedValue(RASCUNHO)
+    await renderizar(<NovaNoticia />)
+
+    await preencher('Seletiva de futsal')
+    for (const tag of ['Futsal', 'Seletiva']) {
+      await fireEvent.changeText(screen.getByLabelText('Adicionar tag'), tag)
+      await fireEvent(screen.getByLabelText('Adicionar tag'), 'submitEditing')
+    }
+    await fireEvent.press(botao('Salvar rascunho'))
+
+    await waitFor(() =>
+      expect(api.criarNoticia).toHaveBeenCalledWith({
+        titulo: 'Seletiva de futsal',
+        conteudo: '',
+        tags: ['Futsal', 'Seletiva'],
+        publicar: false,
+      }),
+    )
   })
 
   it('valida a publicação antes de chamar a API', async () => {
@@ -365,6 +390,24 @@ describe('Editar notícia', () => {
 
     await waitFor(() => expect(toast.sucesso).toHaveBeenCalledWith('Rascunho salvo'))
     expect(api.atualizarNoticia).toHaveBeenCalledWith(ID, { titulo: 'Seletiva de vôlei' })
+  })
+
+  it('remover uma tag envia o conjunto novo', async () => {
+    api.buscarNoticiaPainel.mockResolvedValue({
+      ...RASCUNHO,
+      tags: [
+        { id: 't1', nome: 'Futsal' },
+        { id: 't2', nome: 'Seletiva' },
+      ],
+    })
+    api.atualizarNoticia.mockResolvedValue(RASCUNHO)
+    await renderizar(<EditarNoticia />)
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Remover tag Futsal' }))
+    await fireEvent.press(botao('Salvar rascunho'))
+
+    await waitFor(() => expect(toast.sucesso).toHaveBeenCalledWith('Rascunho salvo'))
+    expect(api.atualizarNoticia).toHaveBeenCalledWith(ID, { tags: ['Seletiva'] })
   })
 
   it('publicar rascunho alterado salva antes e depois publica', async () => {
@@ -573,6 +616,7 @@ describe('Prévia', () => {
       conteudo: 'Texto **novo**',
       imagemCapaUrl: RASCUNHO.imagemCapaUrl,
       publicadaEm: null,
+      tags: [],
     })
     expect(api.atualizarNoticia).not.toHaveBeenCalled()
 
@@ -591,6 +635,7 @@ describe('Prévia', () => {
       conteudo: 'Inscrições abertas',
       imagemCapaUrl: URI_LOCAL,
       publicadaEm: null,
+      tags: [],
     })
   })
 })
