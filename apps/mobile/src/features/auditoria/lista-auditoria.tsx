@@ -7,7 +7,7 @@ import { paleta } from '@/features/atletica'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
 import { ChipsFiltrosAtivos, ItemAuditoria } from './componentes'
 import { useListaAuditoria } from './consultas'
-import { FiltrosAuditoria } from './filtros-auditoria'
+import { FiltrosAuditoriaSheet } from './filtros-auditoria'
 import {
   FILTROS_PADRAO,
   filtrosAtivos,
@@ -69,7 +69,7 @@ export function ListaAuditoria({ filtros, aoMudarFiltros, aoAbrir }: Props) {
         }}
       </TelaDados>
       {editando && (
-        <FiltrosAuditoria
+        <FiltrosAuditoriaSheet
           filtros={filtros}
           aoFechar={() => setEditando(false)}
           aoAplicar={(novos) => {

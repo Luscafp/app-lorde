@@ -4,9 +4,11 @@ import {
   formatarDataHora,
   ROTULO_SISTEMA,
   rotuloAcao,
+  rotuloCampo,
   rotuloEntidade,
   type AlteracaoCampo,
   type AutorAuditoria,
+  type RegistroAuditoriaDetalhe,
   type RegistroAuditoriaResumo,
 } from '@atletica/shared'
 import { useQuery } from '@tanstack/react-query'
@@ -26,9 +28,15 @@ export function nomeDoAutor(autor: AutorAuditoria): string {
   return autor?.nome ?? ROTULO_SISTEMA
 }
 
-export function descricaoDoRegistro({ entidade, rotuloRegistro }: RegistroAuditoriaResumo) {
+export function descricaoDoRegistro({ entidade, rotuloRegistro }: RegistroAuditoriaDetalhe) {
   const nome = rotuloEntidade(entidade)
   return rotuloRegistro ? `${nome} · ${rotuloRegistro}` : nome
+}
+
+function descricaoDoResumo({ entidade, resumo }: RegistroAuditoriaResumo) {
+  const nome = rotuloEntidade(entidade)
+  if (resumo.campos.length === 0) return nome
+  return `${nome} · ${resumo.campos.map(rotuloCampo).join(', ')}`
 }
 
 export function ItemAuditoria({
@@ -41,16 +49,17 @@ export function ItemAuditoria({
   const acao = rotuloAcao(registro.acao)
   const autor = nomeDoAutor(registro.autor)
   const quando = formatarDataHora(registro.criadoEm)
+  const descricao = descricaoDoResumo(registro)
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${acao}, ${descricaoDoRegistro(registro)}, por ${autor}, ${quando}`}
+      accessibilityLabel={`${acao}, ${descricao}, por ${autor}, ${quando}`}
       onPress={() => aoAbrir(registro.id)}
       className="min-h-[44px] gap-1 border-b border-borda px-4 py-3"
     >
       <Texto className="font-semibold">{acao}</Texto>
       <Texto variante="legenda" numberOfLines={2}>
-        {descricaoDoRegistro(registro)}
+        {descricao}
       </Texto>
       <Texto variante="legenda">{`${autor} · ${quando}`}</Texto>
     </Pressable>

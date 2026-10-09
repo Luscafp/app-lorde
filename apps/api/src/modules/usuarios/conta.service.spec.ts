@@ -1,4 +1,4 @@
-import { Papel } from '@atletica/shared'
+import { Papel, ROTULO_AUTOR_EXCLUIDO } from '@atletica/shared'
 import * as Sentry from '@sentry/nestjs'
 import { Logger } from '@nestjs/common'
 import { ErroLimiteExcedido, ErroNegocio } from '../../common/erros/erro-negocio'
@@ -13,7 +13,7 @@ import type { SessaoService } from '../auth/sessao.service'
 import type { ElencoService } from '../times/elenco.service'
 import type { UploadsService } from '../uploads/uploads.service'
 import { ConfirmacaoSenhaService } from './confirmacao-senha.service'
-import { ContaService, emailAnonimo, NOME_ANONIMO, SENHA_HASH_INVALIDO } from './conta.service'
+import { ContaService, emailAnonimo, SENHA_HASH_INVALIDO } from './conta.service'
 import { bloquearPapeis, ehUltimoAdministrador } from './regras-papel'
 
 const callbacksAposCommit: (() => unknown)[] = []
@@ -184,7 +184,7 @@ describe('ContaService.excluir', () => {
     expect(tx.usuario.update).toHaveBeenCalledWith({
       where: { id: ID },
       data: expect.objectContaining({
-        nome: NOME_ANONIMO,
+        nome: ROTULO_AUTOR_EXCLUIDO,
         email: emailAnonimo(ID),
         senhaHash: SENHA_HASH_INVALIDO,
         fotoKey: null,

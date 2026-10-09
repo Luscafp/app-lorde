@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { DATA_LOCAL, localParaUtc, somarDias } from '../utils/datas'
-import { paginacaoQuerySchema, respostaPaginadaSchema } from '../utils/paginacao'
+import { DATA_LOCAL, dataLocalValida, localParaUtc, somarDias } from '../utils/datas'
+import { paginacaoQuerySchema } from '../utils/paginacao'
 import { AcaoAuditoria, EntidadeAuditoria } from './acoes'
 
 export const PERIODO_PADRAO_DIAS = 30
@@ -12,14 +12,7 @@ const ACOES = Object.values(AcaoAuditoria)
 const ENTIDADES = Object.values(EntidadeAuditoria)
 
 function limiteValido(valor: string): boolean {
-  if (DATA_LOCAL.test(valor)) {
-    try {
-      localParaUtc(valor, '00:00')
-      return true
-    } catch {
-      return false
-    }
-  }
+  if (DATA_LOCAL.test(valor)) return dataLocalValida(valor)
   return z.iso.datetime({ offset: true }).safeParse(valor).success
 }
 
@@ -38,18 +31,19 @@ export interface Periodo {
   ate: Date
 }
 
+function inicioDoLimite(valor: string): Date {
+  return DATA_LOCAL.test(valor) ? localParaUtc(valor, '00:00') : new Date(valor)
+}
+
+function fimDoLimite(valor: string): Date {
+  if (!DATA_LOCAL.test(valor)) return new Date(valor)
+  return new Date(localParaUtc(somarDias(valor, 1), '00:00').getTime() - 1)
+}
+
 /** Dia local → 00:00 em `de` e 23:59:59.999 em `ate`; sem `de`, os últimos 30 dias até `ate`. */
 export function periodoAuditoria({ de, ate }: LimitesPeriodo, agora = Date.now()): Periodo {
-  const fim = !ate
-    ? new Date(agora)
-    : DATA_LOCAL.test(ate)
-      ? new Date(localParaUtc(somarDias(ate, 1), '00:00').getTime() - 1)
-      : new Date(ate)
-  const inicio = !de
-    ? new Date(fim.getTime() - PERIODO_PADRAO_DIAS * DIA_MS)
-    : DATA_LOCAL.test(de)
-      ? localParaUtc(de, '00:00')
-      : new Date(de)
+  const fim = ate ? fimDoLimite(ate) : new Date(agora)
+  const inicio = de ? inicioDoLimite(de) : new Date(fim.getTime() - PERIODO_PADRAO_DIAS * DIA_MS)
   return { de: inicio, ate: fim }
 }
 
@@ -81,46 +75,11 @@ export const listarAuditoriaQuerySchema = paginacaoQuerySchema
     } else if (ate.getTime() - de.getTime() > PERIODO_MAXIMO_DIAS * DIA_MS) {
       ctx.addIssue({
         code: 'custom',
-        path: ['de'],
+        path: ['ate'],
         message: `O período deve ter no máximo ${PERIODO_MAXIMO_DIAS} dias.`,
       })
     }
   })
 
-/** `null` = ação do sistema (job). Conta excluída: nome anonimizado e `anonimizado: true`. */
-export const autorAuditoriaSchema = z
-  .object({ id: z.uuid(), nome: z.string(), anonimizado: z.boolean() })
-  .strict()
-  .nullable()
-
-/** `acao`/`entidade` como texto: registro antigo com código fora do catálogo continua legível. */
-export const registroAuditoriaResumoSchema = z
-  .object({
-    id: z.uuid(),
-    acao: z.string(),
-    entidade: z.string(),
-    entidadeId: z.uuid(),
-    /** Ex.: "Treino Futsal 12/10/2026 19:00"; `null` quando o registro não existe mais. */
-    rotuloRegistro: z.string().nullable(),
-    autor: autorAuditoriaSchema,
-    criadoEm: z.iso.datetime(),
-  })
-  .strict()
-
-export const listaAuditoriaSchema = respostaPaginadaSchema(registroAuditoriaResumoSchema)
-
-export const registroAuditoriaDetalheSchema = registroAuditoriaResumoSchema
-  .extend({
-    /** `{ antes, depois, contexto? }` sem campos sensíveis. */
-    dados: z.unknown(),
-    /** Ids citados em `dados` → nome (usuário, time, evento...), quando resolvidos. */
-    referencias: z.record(z.string(), z.string()),
-  })
-  .strict()
-
 export type ListarAuditoriaQuery = z.infer<typeof listarAuditoriaQuerySchema>
 export type FiltrosAuditoria = Omit<z.input<typeof listarAuditoriaQuerySchema>, 'page' | 'limit'>
-export type AutorAuditoria = z.infer<typeof autorAuditoriaSchema>
-export type RegistroAuditoriaResumo = z.infer<typeof registroAuditoriaResumoSchema>
-export type ListaAuditoria = z.infer<typeof listaAuditoriaSchema>
-export type RegistroAuditoriaDetalhe = z.infer<typeof registroAuditoriaDetalheSchema>

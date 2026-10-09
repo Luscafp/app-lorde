@@ -16,7 +16,6 @@ import { ConfirmacaoSenhaService } from './confirmacao-senha.service'
 import { erroUltimoAdministradorExclusao } from './erros'
 import { bloquearPapeis, ehUltimoAdministrador } from './regras-papel'
 
-export const NOME_ANONIMO = ROTULO_AUTOR_EXCLUIDO
 /** Não é um hash Argon2id: `SenhaService.verificar` nunca confere. */
 export const SENHA_HASH_INVALIDO = '!'
 
@@ -135,7 +134,7 @@ export class ContaService {
     await tx.usuario.update({
       where: { id: usuarioId },
       data: {
-        nome: NOME_ANONIMO,
+        nome: ROTULO_AUTOR_EXCLUIDO,
         email: emailAnonimo(usuarioId),
         senhaHash: SENHA_HASH_INVALIDO,
         fotoKey: null,

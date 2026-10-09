@@ -30,9 +30,9 @@ const registro = (parcial: Partial<RegistroAuditoriaResumo> = {}): RegistroAudit
   acao: 'RESULTADO_CORRIGIDO',
   entidade: 'Evento',
   entidadeId: EVENTO,
-  rotuloRegistro: 'Jogo Futsal 12/10/2026 19:00',
   autor: { id: EVENTO, nome: 'Ana Souza', anonimizado: false },
   criadoEm: '2026-10-12T23:40:00.000Z',
+  resumo: { campos: ['placarTime', 'resultado'] },
   ...parcial,
 })
 
@@ -101,7 +101,7 @@ describe('Lista da auditoria', () => {
           id: EVENTO,
           acao: 'CONTA_EXCLUIDA',
           entidade: 'Usuario',
-          rotuloRegistro: null,
+          resumo: { campos: [] },
           autor: null,
         }),
       ]),
@@ -111,7 +111,8 @@ describe('Lista da auditoria', () => {
       <ListaAuditoria filtros={FILTROS_PADRAO} aoMudarFiltros={jest.fn()} aoAbrir={aoAbrir} />,
     )
     expect(await screen.findByText('Resultado corrigido')).toBeOnTheScreen()
-    expect(screen.getByText('Evento · Jogo Futsal 12/10/2026 19:00')).toBeOnTheScreen()
+    expect(screen.getByText('Evento · Placar da atlética, Resultado')).toBeOnTheScreen()
+    expect(screen.getByText('Conta')).toBeOnTheScreen()
     expect(screen.getByText('Ana Souza · 12/10/2026 20:40')).toBeOnTheScreen()
     expect(screen.getByText('Sistema · 12/10/2026 20:40')).toBeOnTheScreen()
 
@@ -146,15 +147,68 @@ describe('Lista da auditoria', () => {
   })
 })
 
+describe('Folha de filtros da auditoria', () => {
+  async function abrirFiltros(filtros: FiltrosTela = FILTROS_PADRAO) {
+    jest.mocked(listarAuditoria).mockResolvedValue(lista([registro()]))
+    const aoMudarFiltros = jest.fn()
+    await renderizar(
+      <ListaAuditoria filtros={filtros} aoMudarFiltros={aoMudarFiltros} aoAbrir={jest.fn()} />,
+    )
+    await fireEvent.press(await screen.findByRole('button', { name: /^Filtros/ }))
+    return aoMudarFiltros
+  }
+
+  it('ação sem entidade; escolher uma entidade incompatível limpa a ação', async () => {
+    const aoMudarFiltros = await abrirFiltros()
+    await fireEvent.press(screen.getByRole('radio', { name: 'Presenças registradas' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Aplicar' }))
+    expect(aoMudarFiltros).toHaveBeenLastCalledWith({
+      ...FILTROS_PADRAO,
+      acao: 'PRESENCAS_REGISTRADAS',
+      de: undefined,
+      ate: undefined,
+    })
+
+    await fireEvent.press(screen.getByRole('button', { name: /^Filtros/ }))
+    await fireEvent.press(screen.getByRole('radio', { name: 'Presenças registradas' }))
+    await fireEvent.press(screen.getByRole('radio', { name: 'Evento' }))
+    expect(screen.queryByRole('radio', { name: 'Presenças registradas' })).toBeNull()
+    await fireEvent.press(screen.getByRole('button', { name: 'Aplicar' }))
+    expect(aoMudarFiltros).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entidade: 'Evento', acao: undefined }),
+    )
+  })
+
+  it('atalho de período e período personalizado', async () => {
+    const aoMudarFiltros = await abrirFiltros()
+    await fireEvent.press(screen.getByRole('radio', { name: '7 dias' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Aplicar' }))
+    expect(aoMudarFiltros).toHaveBeenLastCalledWith(expect.objectContaining({ periodo: '7' }))
+
+    await fireEvent.press(screen.getByRole('button', { name: /^Filtros/ }))
+    await fireEvent.press(screen.getByRole('radio', { name: 'Personalizado' }))
+    await fireEvent.changeText(screen.getByLabelText('De'), '01092025')
+    await fireEvent.changeText(screen.getByLabelText('Até (opcional)'), '15092026')
+    expect(screen.getByText('O período deve ter no máximo 366 dias.')).toBeOnTheScreen()
+
+    await fireEvent.changeText(screen.getByLabelText('De'), '01092026')
+    await fireEvent.press(screen.getByRole('button', { name: 'Aplicar' }))
+    expect(aoMudarFiltros).toHaveBeenLastCalledWith(
+      expect.objectContaining({ periodo: 'PERSONALIZADO', de: '2026-09-01', ate: '2026-09-15' }),
+    )
+  })
+})
+
 describe('Detalhe da auditoria', () => {
   const detalhe = (parcial: Partial<RegistroAuditoriaDetalhe> = {}): RegistroAuditoriaDetalhe => ({
     ...registro(),
+    rotuloRegistro: 'Jogo Futsal 12/10/2026 19:00',
     dados: {
       antes: { placarTime: 2, resultado: 'EMPATE' },
       depois: { placarTime: 3, resultado: 'VITORIA' },
       contexto: { usuarioId: ID },
     },
-    referencias: { [ID]: 'José Lima' },
+    referencias: { usuarios: { [ID]: 'José Lima' }, registros: {} },
     ...parcial,
   })
 
@@ -167,6 +221,7 @@ describe('Detalhe da auditoria', () => {
     expect(screen.getByLabelText('Antes: Empate')).toBeOnTheScreen()
     expect(screen.getByLabelText('Depois: Vitória')).toBeOnTheScreen()
     expect(screen.getByText('José Lima')).toBeOnTheScreen()
+    expect(screen.getByText('Evento · Jogo Futsal 12/10/2026 19:00')).toBeOnTheScreen()
   })
 
   it('autor anonimizado e dados fora do formato viram JSON', async () => {

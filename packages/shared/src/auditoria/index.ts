@@ -1,3 +1,4 @@
 export * from './acoes'
-export * from './consulta'
+export * from './dtos'
 export * from './rotulos'
+export * from './schemas'

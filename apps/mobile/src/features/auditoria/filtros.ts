@@ -1,8 +1,9 @@
 import {
   AcaoAuditoria,
+  dataLocalValida,
   EntidadeAuditoria,
+  formatarDataLocal,
   hojeLocal,
-  localParaUtc,
   rotuloAcao,
   rotuloEntidade,
   somarDias,
@@ -21,18 +22,6 @@ export const ROTULO_PERIODO: Readonly<Record<PeriodoAuditoria, string>> = {
   PERSONALIZADO: 'Personalizado',
 }
 
-/** Search params da rota: os atalhos de usuário e evento abrem a lista já filtrada. */
-export type ParametrosAuditoria = {
-  entidade?: string
-  entidadeId?: string
-  usuarioId?: string
-  usuarioNome?: string
-  acao?: string
-  periodo?: string
-  de?: string
-  ate?: string
-}
-
 export type FiltrosTela = {
   entidade?: EntidadeAuditoria
   entidadeId?: string
@@ -45,22 +34,18 @@ export type FiltrosTela = {
   ate?: string
 }
 
+/** Search params da rota: os atalhos de usuário e evento abrem a lista já filtrada. */
+export type ParametrosAuditoria = { [Chave in keyof FiltrosTela]?: string }
+
 export const FILTROS_PADRAO: FiltrosTela = { periodo: PERIODO_PADRAO }
 
 const entidadeSchema = z.enum(Object.values(EntidadeAuditoria))
 const acaoSchema = z.enum(Object.values(AcaoAuditoria))
 const idSchema = z.uuid()
 const periodoSchema = z.enum(PERIODOS)
-const DATA = /^\d{4}-\d{2}-\d{2}$/
 
 function dataValida(data: string | undefined): string | undefined {
-  if (!data || !DATA.test(data)) return undefined
-  try {
-    localParaUtc(data, '00:00')
-    return data
-  } catch {
-    return undefined
-  }
+  return data && dataLocalValida(data) ? data : undefined
 }
 
 /** Parâmetro inválido (deep link antigo, digitado) vale como "sem filtro". */
@@ -68,19 +53,16 @@ export function lerParametros(parametros: ParametrosAuditoria): FiltrosTela {
   const entidade = entidadeSchema.safeParse(parametros.entidade).data
   const usuarioId = idSchema.safeParse(parametros.usuarioId).data
   const de = dataValida(parametros.de)
-  const periodo = periodoSchema.safeParse(parametros.periodo).data ?? PERIODO_PADRAO
-  const personalizado = periodo === 'PERSONALIZADO' && !!de
+  const periodoLido = periodoSchema.safeParse(parametros.periodo).data ?? PERIODO_PADRAO
+  const personalizado = periodoLido === 'PERSONALIZADO' && !!de
+  const periodo = periodoLido === 'PERSONALIZADO' && !de ? PERIODO_PADRAO : periodoLido
   return {
     entidade,
     entidadeId: entidade ? idSchema.safeParse(parametros.entidadeId).data : undefined,
     usuarioId,
     usuarioNome: usuarioId ? parametros.usuarioNome : undefined,
     acao: acaoSchema.safeParse(parametros.acao).data,
-    periodo: personalizado
-      ? 'PERSONALIZADO'
-      : periodo === 'PERSONALIZADO'
-        ? PERIODO_PADRAO
-        : periodo,
+    periodo,
     de: personalizado ? de : undefined,
     ate: personalizado ? dataValida(parametros.ate) : undefined,
   }
@@ -110,9 +92,7 @@ export function dataDigitadaParaIso(texto: string): string | null {
 }
 
 export function isoParaDataDigitada(data: string | undefined): string {
-  if (!data) return ''
-  const [ano, mes, dia] = data.split('-')
-  return `${dia}/${mes}/${ano}`
+  return data ? formatarDataLocal(data) : ''
 }
 
 export type ChaveFiltro = 'entidade' | 'entidadeId' | 'usuarioId' | 'acao' | 'periodo'
@@ -129,7 +109,7 @@ export function filtrosAtivos(filtros: FiltrosTela): FiltroAtivo[] {
   }
   if (filtros.acao) ativos.push({ chave: 'acao', rotulo: rotuloAcao(filtros.acao) })
   if (filtros.periodo === 'PERSONALIZADO') {
-    const fim = filtros.ate ? isoParaDataDigitada(filtros.ate) : 'hoje'
+    const fim = filtros.ate ? formatarDataLocal(filtros.ate) : 'hoje'
     ativos.push({ chave: 'periodo', rotulo: `${isoParaDataDigitada(filtros.de)} a ${fim}` })
   } else if (filtros.periodo !== PERIODO_PADRAO) {
     ativos.push({ chave: 'periodo', rotulo: `Últimos ${ROTULO_PERIODO[filtros.periodo]}` })

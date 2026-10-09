@@ -1,5 +1,5 @@
 import { ROTULO_PAPEL } from '../auth/papeis'
-import { DATA_LOCAL, formatarDataHora } from '../utils/datas'
+import { DATA_LOCAL, formatarDataHora, formatarDataLocal } from '../utils/datas'
 import type { AcaoAuditoria, EntidadeAuditoria } from './acoes'
 
 export const ROTULO_AUTOR_EXCLUIDO = 'Usuário excluído'
@@ -188,8 +188,7 @@ function formatarTexto(campo: string, valor: string, referencias: Referencias): 
   const enumerado = ROTULOS_VALOR_ENUM[campo]?.[valor]
   if (enumerado) return enumerado
   if (referencias[valor]) return referencias[valor]
-  const data = DATA_LOCAL.exec(valor)
-  if (data) return `${data[3]}/${data[2]}/${data[1]}`
+  if (DATA_LOCAL.test(valor)) return formatarDataLocal(valor)
   if (INSTANTE_ISO.test(valor)) {
     try {
       return formatarDataHora(valor)

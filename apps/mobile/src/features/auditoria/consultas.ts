@@ -16,7 +16,7 @@ export function useListaAuditoria(filtros: FiltrosAuditoria) {
 
 export function useRegistroAuditoria(id: string) {
   return useQuery({
-    queryKey: chaves.auditoria({ id }),
+    queryKey: chaves.auditoria.detalhe(id),
     queryFn: ({ signal }) => buscarRegistroAuditoria(id, signal),
   })
 }

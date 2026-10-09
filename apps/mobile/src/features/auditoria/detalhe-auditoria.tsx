@@ -20,7 +20,8 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
 }
 
 function Conteudo({ registro }: { registro: RegistroAuditoriaDetalhe }) {
-  const alteracoes = alteracoesDaAuditoria(registro.dados, registro.referencias)
+  const { usuarios, registros } = registro.referencias
+  const alteracoes = alteracoesDaAuditoria(registro.dados, { ...usuarios, ...registros })
   return (
     <ScrollView contentContainerClassName="gap-4 p-4">
       <Texto variante="titulo">{rotuloAcao(registro.acao)}</Texto>

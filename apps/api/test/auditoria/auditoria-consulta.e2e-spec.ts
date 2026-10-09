@@ -185,7 +185,7 @@ describe('Consulta de auditoria (#39)', () => {
       expect(porRegistro.items.map(({ id }) => id)).toEqual([doEvento.id])
       expect(porRegistro.items[0]).toMatchObject({
         acao: 'EVENTO_ALTERADO',
-        rotuloRegistro: 'Treino Futsal 12/10/2026 19:00',
+        resumo: { campos: ['local'] },
         autor: { id: diretor.id, nome: diretor.nome, anonimizado: false },
       })
       expect(lista(await api.listar({ usuarioId: diretor.id })).total).toBe(1)
@@ -240,7 +240,7 @@ describe('Consulta de auditoria (#39)', () => {
   describe('validação (critérios 6, 14 e 17)', () => {
     it.each([
       [{ de: '2026-09-15', ate: '2026-09-01' }, 'ate'],
-      [{ de: '2025-01-01', ate: '2026-01-10' }, 'de'],
+      [{ de: '2025-01-01', ate: '2026-01-10' }, 'ate'],
       [{ limit: 100 }, 'limit'],
       [{ entidade: 'Sessao' }, 'entidade'],
       [{ acao: 'CRIAR' }, 'acao'],
@@ -283,9 +283,10 @@ describe('Consulta de auditoria (#39)', () => {
         contexto: { usuarioId: presidente.id },
       })
       expect(detalhe.rotuloRegistro).toBe('Jogo Futsal 12/10/2026 19:00')
+      expect(detalhe.resumo.campos).toEqual(['placarTime', 'resultado'])
       expect(detalhe.referencias).toEqual({
-        [evento.id]: 'Jogo Futsal 12/10/2026 19:00',
-        [presidente.id]: 'Ana',
+        usuarios: { [presidente.id]: 'Ana' },
+        registros: { [evento.id]: 'Jogo Futsal 12/10/2026 19:00' },
       })
     })
 

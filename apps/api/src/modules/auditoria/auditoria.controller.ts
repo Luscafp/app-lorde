@@ -33,20 +33,24 @@ const EXEMPLO_RESUMO = {
   acao: 'RESULTADO_CORRIGIDO',
   entidade: 'Evento',
   entidadeId: EVENTO_EXEMPLO,
-  rotuloRegistro: 'Jogo Futsal 12/10/2026 19:00',
   autor: { id: '7c2e4b9a-1d3f-4a5b-8c6d-0e1f2a3b4c5d', nome: 'Ana Souza', anonimizado: false },
   criadoEm: '2026-10-12T23:40:00.000Z',
+  resumo: { campos: ['placarTime', 'resultado'] },
 }
 
 const EXEMPLO_LISTA: ListaAuditoria = { items: [EXEMPLO_RESUMO], page: 1, limit: 20, total: 1 }
 
 const EXEMPLO_DETALHE: RegistroAuditoriaDetalhe = {
   ...EXEMPLO_RESUMO,
+  rotuloRegistro: 'Jogo Futsal 12/10/2026 19:00',
   dados: {
     antes: { placarTime: 2, resultado: 'EMPATE' },
     depois: { placarTime: 3, resultado: 'VITORIA' },
   },
-  referencias: { [EVENTO_EXEMPLO]: 'Jogo Futsal 12/10/2026 19:00' },
+  referencias: {
+    usuarios: {},
+    registros: { [EVENTO_EXEMPLO]: 'Jogo Futsal 12/10/2026 19:00' },
+  },
 }
 
 @ApiTags('Auditoria')
@@ -66,7 +70,8 @@ export class AuditoriaController {
       'Do mais recente ao mais antigo. `de`/`ate`: `aaaa-mm-dd` (dia inteiro em ' +
       'America/Fortaleza) ou instante ISO-8601; sem `de`, os últimos 30 dias; no máximo 366 ' +
       'dias. `entidadeId` exige `entidade` (para `Participacao`, é o `eventoId`). `usuarioId` ' +
-      'filtra pelo autor. `autor: null` = ação do sistema; conta excluída vem anonimizada.',
+      'filtra pelo autor. `autor: null` = ação do sistema; conta excluída vem anonimizada. ' +
+      '`resumo.campos` traz só os nomes dos campos alterados.',
   })
   @ApiOkResponse({ type: ListaAuditoriaDto, example: EXEMPLO_LISTA })
   @ApiBadRequestResponse({

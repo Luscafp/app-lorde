@@ -1,10 +1,10 @@
 import {
+  AcaoAuditoria,
   ACOES_POR_ENTIDADE,
   EntidadeAuditoria,
   listarAuditoriaQuerySchema,
   rotuloAcao,
   rotuloEntidade,
-  type AcaoAuditoria,
 } from '@atletica/shared'
 import { useState } from 'react'
 import { Modal, ScrollView, TextInput, View } from 'react-native'
@@ -35,10 +35,14 @@ const OPCOES_ENTIDADE: readonly Opcao<EntidadeAuditoria>[] = [
   })),
 ]
 
-function opcoesAcao(entidade: EntidadeAuditoria): readonly Opcao<AcaoAuditoria>[] {
+function acoesDe(entidade: EntidadeAuditoria | undefined): readonly AcaoAuditoria[] {
+  return entidade ? ACOES_POR_ENTIDADE[entidade] : Object.values(AcaoAuditoria)
+}
+
+function opcoesAcao(entidade: EntidadeAuditoria | undefined): readonly Opcao<AcaoAuditoria>[] {
   return [
     { valor: undefined, rotulo: 'Todas' },
-    ...ACOES_POR_ENTIDADE[entidade].map((acao) => ({ valor: acao, rotulo: rotuloAcao(acao) })),
+    ...acoesDe(entidade).map((acao) => ({ valor: acao, rotulo: rotuloAcao(acao) })),
   ]
 }
 
@@ -83,7 +87,7 @@ type Props = {
   aoFechar: () => void
 }
 
-export function FiltrosAuditoria({ filtros, aoAplicar, aoFechar }: Props) {
+export function FiltrosAuditoriaSheet({ filtros, aoAplicar, aoFechar }: Props) {
   const [rascunho, setRascunho] = useState(filtros)
   const [de, setDe] = useState(isoParaDataDigitada(filtros.de))
   const [ate, setAte] = useState(isoParaDataDigitada(filtros.ate))
@@ -91,11 +95,11 @@ export function FiltrosAuditoria({ filtros, aoAplicar, aoFechar }: Props) {
   const erroPeriodo = personalizado ? erroDoPeriodo(de, ate) : null
 
   const mudarEntidade = (entidade: EntidadeAuditoria | undefined) =>
-    setRascunho((atual) =>
-      atual.entidade === entidade
-        ? atual
-        : { ...atual, entidade, entidadeId: undefined, acao: undefined },
-    )
+    setRascunho((atual) => {
+      if (atual.entidade === entidade) return atual
+      const acao = atual.acao && acoesDe(entidade).includes(atual.acao) ? atual.acao : undefined
+      return { ...atual, entidade, entidadeId: undefined, acao }
+    })
 
   const aplicar = () => {
     if (erroPeriodo) return
@@ -149,17 +153,15 @@ export function FiltrosAuditoria({ filtros, aoAplicar, aoFechar }: Props) {
               />
             </View>
 
-            {rascunho.entidade && (
-              <View className="gap-2">
-                <Texto variante="rotulo">Ação</Texto>
-                <Pilulas
-                  rotulo="Ação"
-                  opcoes={opcoesAcao(rascunho.entidade)}
-                  valor={rascunho.acao}
-                  aoMudar={(acao) => setRascunho({ ...rascunho, acao })}
-                />
-              </View>
-            )}
+            <View className="gap-2">
+              <Texto variante="rotulo">Ação</Texto>
+              <Pilulas
+                rotulo="Ação"
+                opcoes={opcoesAcao(rascunho.entidade)}
+                valor={rascunho.acao}
+                aoMudar={(acao) => setRascunho({ ...rascunho, acao })}
+              />
+            </View>
 
             <View className="gap-2">
               <Texto variante="rotulo">Autor</Texto>

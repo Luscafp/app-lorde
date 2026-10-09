@@ -1,6 +1,6 @@
 import {
+  alteracoesDaAuditoria,
   periodoAuditoria,
-  ROTULO_AUTOR_EXCLUIDO,
   type AutorAuditoria,
   type EntidadeAuditoria,
   type ListaAuditoria,
@@ -8,12 +8,12 @@ import {
   type RegistroAuditoriaDetalhe,
   type RegistroAuditoriaResumo,
 } from '@atletica/shared'
-import { HttpStatus, Injectable } from '@nestjs/common'
-import { ErroNegocio } from '../../common/erros/erro-negocio'
+import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../infra/prisma/prisma.service'
 import type { Prisma } from '../../generated/prisma/client'
 import { NOME_DE_DOMINIO } from './auditoria.service'
-import { idsCitados, ReferenciasAuditoria } from './referencias'
+import { erroRegistroNaoEncontrado } from './erros'
+import { idsCitados, nomeDe, ReferenciasAuditoria } from './referencias'
 import { sanitizar } from './sanitizar'
 
 const SELECAO = {
@@ -22,6 +22,7 @@ const SELECAO = {
   entidade: true,
   entidadeId: true,
   criadoEm: true,
+  dados: true,
   usuario: { select: { id: true, nome: true, excluidoEm: true } },
 } as const satisfies Prisma.RegistroAuditoriaSelect
 
@@ -29,28 +30,24 @@ type Linha = Prisma.RegistroAuditoriaGetPayload<{ select: typeof SELECAO }>
 
 function autorDe(usuario: Linha['usuario']): AutorAuditoria {
   if (!usuario) return null
-  const anonimizado = usuario.excluidoEm !== null
-  return {
-    id: usuario.id,
-    nome: anonimizado ? ROTULO_AUTOR_EXCLUIDO : usuario.nome,
-    anonimizado,
-  }
+  return { id: usuario.id, nome: nomeDe(usuario), anonimizado: usuario.excluidoEm !== null }
 }
 
-function resumo(linha: Linha, referencias: Record<string, string>): RegistroAuditoriaResumo {
+function dadosSanitizados(linha: Linha): unknown {
+  const nomeDeDominio = NOME_DE_DOMINIO.has(linha.entidade as EntidadeAuditoria)
+  return sanitizar(linha.dados, nomeDeDominio).valor
+}
+
+function resumo(linha: Linha, dados: unknown): RegistroAuditoriaResumo {
   return {
     id: linha.id,
     acao: linha.acao,
     entidade: linha.entidade,
     entidadeId: linha.entidadeId,
-    rotuloRegistro: referencias[linha.entidadeId] ?? null,
     autor: autorDe(linha.usuario),
     criadoEm: linha.criadoEm.toISOString(),
+    resumo: { campos: alteracoesDaAuditoria(dados)?.alteracoes.map(({ campo }) => campo) ?? [] },
   }
-}
-
-export function erroRegistroNaoEncontrado(): ErroNegocio {
-  return new ErroNegocio(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Registro de auditoria não encontrado.')
 }
 
 /** Consulta somente leitura do histórico (RF43, issue #39); não gera auditoria. */
@@ -82,24 +79,24 @@ export class AuditoriaConsultaService {
       }),
       this.prisma.db.registroAuditoria.count({ where }),
     ])
-    const referencias = await this.referencias.resolver(linhas.map((l) => l.entidadeId))
-
-    return { items: linhas.map((linha) => resumo(linha, referencias)), page, limit, total }
+    const items = linhas.map((linha) => resumo(linha, dadosSanitizados(linha)))
+    return { items, page, limit, total }
   }
 
   /** De outra atlética: a extensão multi-atlética não encontra → 404. */
   async detalhar(id: string): Promise<RegistroAuditoriaDetalhe> {
     const linha = await this.prisma.db.registroAuditoria.findFirst({
       where: { id },
-      select: { ...SELECAO, dados: true },
+      select: SELECAO,
     })
     if (!linha) throw erroRegistroNaoEncontrado()
 
-    const nomeDeDominio = NOME_DE_DOMINIO.has(linha.entidade as EntidadeAuditoria)
-    const { valor: dados } = sanitizar(linha.dados, nomeDeDominio)
+    const dados = dadosSanitizados(linha)
     const referencias = await this.referencias.resolver(
       idsCitados(dados, new Set([linha.entidadeId])),
     )
-    return { ...resumo(linha, referencias), dados, referencias }
+    const rotuloRegistro =
+      referencias.registros[linha.entidadeId] ?? referencias.usuarios[linha.entidadeId] ?? null
+    return { ...resumo(linha, dados), rotuloRegistro, dados, referencias }
   }
 }

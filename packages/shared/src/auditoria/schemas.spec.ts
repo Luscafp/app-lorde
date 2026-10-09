@@ -1,4 +1,4 @@
-import { listarAuditoriaQuerySchema, periodoAuditoria } from './consulta'
+import { listarAuditoriaQuerySchema, periodoAuditoria } from './schemas'
 
 const ID = '0b6f8a52-8e5d-4a43-9d6c-1f0f3c2b7a90'
 
@@ -59,7 +59,7 @@ describe('listarAuditoriaQuerySchema', () => {
     [{ de: '2026-02-30' }, 'de'],
     [{ ate: 'ontem' }, 'ate'],
     [{ de: '2026-09-15', ate: '2026-09-01' }, 'ate'],
-    [{ de: '2025-01-01', ate: '2026-01-02' }, 'de'],
+    [{ de: '2025-01-01', ate: '2026-01-02' }, 'ate'],
     [{ autorId: ID }, ''],
   ])('rejeita %o', (query, campo) => {
     expect(campos(listarAuditoriaQuerySchema.safeParse(query))).toEqual([campo])
