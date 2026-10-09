@@ -6,6 +6,15 @@ export interface AtleticaEmail {
   corPrimaria?: string | null
 }
 
+/** A sigla é opcional na `Atletica`; sem ela, o nome ocupa o lugar. */
+export function atleticaEmail({
+  nome,
+  sigla,
+  corPrimaria,
+}: Omit<AtleticaEmail, 'sigla'> & { sigla: string | null }): AtleticaEmail {
+  return { nome, sigla: sigla ?? nome, corPrimaria }
+}
+
 /** Dados de qualquer template: os campos próprios + a atlética remetente. */
 export interface DadosEmail {
   atletica: AtleticaEmail

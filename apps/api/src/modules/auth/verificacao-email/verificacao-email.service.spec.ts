@@ -3,23 +3,29 @@ import { HORA_MS, MINUTO_MS } from '../../../common/tempo'
 import { CodigoVerificacaoService } from '../../../infra/email/codigo-verificacao'
 import { RateLimitService } from '../rate-limit.service'
 import { VerificacaoEmailOuvinte } from './verificacao-email.ouvinte'
-import { MAXIMO_TENTATIVAS_VERIFICACAO, VerificacaoEmailService } from './verificacao-email.service'
+import {
+  MAXIMO_TENTATIVAS_VERIFICACAO,
+  RETENCAO_CODIGOS_EXPIRADOS_MS,
+  VerificacaoEmailService,
+} from './verificacao-email.service'
 
 const USUARIO = { id: 'u1', atleticaId: 'a1' }
 const T0 = new Date('2026-10-01T12:00:00.000Z')
 const em = (ms: number) => new Date(T0.getTime() + ms)
 
 type Registro = Record<string, unknown>
-type Condicao = { gt?: Date; lte?: Date }
+type Condicao = { gt?: Date; lt?: Date; lte?: Date }
 
 function atende(registro: Registro, where: Registro): boolean {
   return Object.entries(where).every(([campo, esperado]) => {
     const valor = registro[campo]
     if (esperado === null || typeof esperado !== 'object') return valor === esperado
-    const { gt, lte } = esperado as Condicao
+    const { gt, lt, lte } = esperado as Condicao
     const tempo = (valor as Date).getTime()
     return (
-      (gt === undefined || tempo > gt.getTime()) && (lte === undefined || tempo <= lte.getTime())
+      (gt === undefined || tempo > gt.getTime()) &&
+      (lt === undefined || tempo < lt.getTime()) &&
+      (lte === undefined || tempo <= lte.getTime())
     )
   })
 }
@@ -65,6 +71,11 @@ function tabela(padrao: () => Registro = () => ({})) {
       if (linha) aplicar(linha, data)
       return Promise.resolve(linha)
     }),
+    deleteMany: jest.fn(({ where }: { where: Registro }) => {
+      const alvos = filtrar(where)
+      alvos.forEach((linha) => linhas.splice(linhas.indexOf(linha), 1))
+      return Promise.resolve({ count: alvos.length })
+    }),
   }
 }
 
@@ -101,22 +112,18 @@ function criarServico({ emailVerificado = false } = {}) {
   const prisma = { semEscopo, db: { atletica } }
   const codigos = new CodigoVerificacaoService({ get: () => 'pepper-de-teste' } as never)
   const email = { enviar: jest.fn().mockResolvedValue(undefined) }
-  const servico = new VerificacaoEmailService(
-    prisma as never,
-    codigos,
-    email as never,
-    new RateLimitService(prisma as never),
-  )
+  const limites = new RateLimitService(prisma as never)
+  const servico = new VerificacaoEmailService(prisma as never, codigos, email as never, limites)
 
   const ultimoCodigo = (): string => {
     const [mensagem] = email.enviar.mock.calls.at(-1) as [{ texto: string }]
     return /\b\d{6}\b/.exec(mensagem.texto)?.[0] ?? ''
   }
 
-  return { servico, usuario, codigoVerificacao, codigos, email, atletica, ultimoCodigo }
+  return { servico, usuario, codigoVerificacao, codigos, email, atletica, limites, ultimoCodigo }
 }
 
-const errado = (codigo: string) => (codigo === '111111' ? '222222' : '111111')
+const outroCodigo = (codigo: string) => (codigo === '111111' ? '222222' : '111111')
 
 describe('VerificacaoEmailService.enviarCodigo', () => {
   it('código de 6 dígitos com zeros à esquerda; só o hash vai ao banco', async () => {
@@ -193,6 +200,37 @@ describe('VerificacaoEmailService.enviarCodigo', () => {
     expect(terceiro.proximoEnvioEm).toBe(em(HORA_MS).toISOString())
   })
 
+  it('3 por hora revalidado sob lock: envio simultâneo que passou da checagem → 429', async () => {
+    const { servico, email, limites } = criarServico()
+    for (const minuto of [0, 2, 4]) await servico.enviarCodigo(USUARIO, em(minuto * MINUTO_MS))
+    jest.spyOn(limites, 'liberadoEm').mockResolvedValueOnce(null)
+
+    await expect(servico.enviarCodigo(USUARIO, em(6 * MINUTO_MS))).rejects.toMatchObject({
+      code: 'RATE_LIMITED',
+      details: [{ field: 'proximoEnvioEm', message: em(HORA_MS).toISOString() }],
+    })
+    expect(email.enviar).toHaveBeenCalledTimes(3)
+  })
+
+  it('apaga os códigos do usuário expirados há mais de 7 dias', async () => {
+    const { servico, codigoVerificacao } = criarServico()
+    await servico.enviarCodigo(USUARIO, T0)
+    const expirado = em(VALIDADE_CODIGO_VERIFICACAO_MS)
+
+    await servico.enviarCodigo(
+      USUARIO,
+      new Date(expirado.getTime() + RETENCAO_CODIGOS_EXPIRADOS_MS),
+    )
+    expect(codigoVerificacao.linhas).toHaveLength(2)
+
+    await servico.enviarCodigo(
+      USUARIO,
+      new Date(expirado.getTime() + RETENCAO_CODIGOS_EXPIRADOS_MS + HORA_MS),
+    )
+    expect(codigoVerificacao.linhas).toHaveLength(2)
+    expect(codigoVerificacao.linhas.map(({ criadoEm }) => criadoEm)).not.toContainEqual(T0)
+  })
+
   it('falha do provedor de e-mail não propaga e o código fica gravado', async () => {
     const { servico, email, codigoVerificacao } = criarServico()
     email.enviar.mockRejectedValue(new Error('Resend fora do ar'))
@@ -219,7 +257,7 @@ describe('VerificacaoEmailService.confirmar', () => {
     await servico.enviarCodigo(USUARIO, T0)
 
     await expect(
-      servico.confirmar(USUARIO.id, { codigo: errado(ultimoCodigo()) }, T0),
+      servico.confirmar(USUARIO.id, { codigo: outroCodigo(ultimoCodigo()) }, T0),
     ).rejects.toMatchObject({ statusCode: 400, code: 'CODIGO_INVALIDO' })
     expect(codigoVerificacao.linhas[0]?.tentativas).toBe(1)
   })
@@ -240,7 +278,7 @@ describe('VerificacaoEmailService.confirmar', () => {
 
     for (let i = 0; i < MAXIMO_TENTATIVAS_VERIFICACAO; i++) {
       await expect(
-        servico.confirmar(USUARIO.id, { codigo: errado(codigo) }, T0),
+        servico.confirmar(USUARIO.id, { codigo: outroCodigo(codigo) }, T0),
       ).rejects.toMatchObject({ code: 'CODIGO_INVALIDO' })
     }
     await expect(servico.confirmar(USUARIO.id, { codigo }, T0)).rejects.toMatchObject({

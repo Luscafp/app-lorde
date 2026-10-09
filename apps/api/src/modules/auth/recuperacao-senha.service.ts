@@ -13,7 +13,7 @@ import { emMinutos, HORA_MS } from '../../common/tempo'
 import { TipoCodigoVerificacao } from '../../generated/prisma/enums'
 import { CodigoVerificacaoService } from '../../infra/email/codigo-verificacao'
 import { EmailService } from '../../infra/email/email.service'
-import { renderizar } from '../../infra/email/templates/base'
+import { atleticaEmail, renderizar } from '../../infra/email/templates/base'
 import { recuperarSenha } from '../../infra/email/templates/recuperar-senha'
 import { TransacaoService } from '../../infra/eventos/apos-commit'
 import type { MotivoRevogacao } from '../../infra/eventos/eventos-dominio'
@@ -86,9 +86,8 @@ export class RecuperacaoSenhaService {
           expiraEm: new Date(Date.now() + VALIDADE_CODIGO_MS),
         },
       })
-      const { nome, sigla, corPrimaria } = await this.atleticaPadrao.obter()
       const conteudo = renderizar(recuperarSenha, {
-        atletica: { nome, sigla: sigla ?? nome, corPrimaria },
+        atletica: atleticaEmail(await this.atleticaPadrao.obter()),
         codigo,
         validadeMinutos: emMinutos(VALIDADE_CODIGO_MS),
       })

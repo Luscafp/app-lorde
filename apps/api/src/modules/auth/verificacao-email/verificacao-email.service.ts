@@ -6,12 +6,12 @@ import {
 } from '@atletica/shared'
 import { Injectable } from '@nestjs/common'
 import { ErroLimiteExcedido } from '../../../common/erros/erro-negocio'
-import { HORA_MS, MINUTO_MS } from '../../../common/tempo'
+import { DIA_MS, HORA_MS, MINUTO_MS } from '../../../common/tempo'
 import { TipoCodigoVerificacao } from '../../../generated/prisma/enums'
 import { CodigoVerificacaoService } from '../../../infra/email/codigo-verificacao'
 import { EmailService } from '../../../infra/email/email.service'
 import { mascararEmail } from '../../../infra/email/mascarar-email'
-import { renderizar } from '../../../infra/email/templates/base'
+import { atleticaEmail, renderizar } from '../../../infra/email/templates/base'
 import { verificacaoEmail } from '../../../infra/email/templates/verificacao-email'
 import { PrismaService } from '../../../infra/prisma/prisma.service'
 import { erroCodigoExpirado, erroCodigoInvalido, erroEmailJaVerificado } from '../erros'
@@ -22,6 +22,7 @@ export const MAXIMO_TENTATIVAS_VERIFICACAO = 5
 /** O envio do cadastro também conta. */
 export const LIMITE_ENVIOS_HORA: LimiteTentativas = { maximo: 3, janelaMs: HORA_MS }
 export const INTERVALO_ENVIO: LimiteTentativas = { maximo: 1, janelaMs: MINUTO_MS }
+export const RETENCAO_CODIGOS_EXPIRADOS_MS = 7 * DIA_MS
 
 const TIPO_CODIGO = TipoCodigoVerificacao.VERIFICAR_EMAIL
 const TIPO_LIMITE = TipoTentativa.VERIFICACAO_ENVIO
@@ -55,13 +56,20 @@ export class VerificacaoEmailService {
     })
     if (usuario.emailVerificado) throw erroEmailJaVerificado()
 
-    const bloqueadoAte = await this.proximoEnvio(usuarioId, agora)
+    const bloqueadoAte = await this.limites.liberadoEm(TIPO_LIMITE, usuarioId, LIMITES_ENVIO, agora)
     if (bloqueadoAte) throw erroLimiteEnvio(bloqueadoAte, agora)
     await this.consumirEnvio(usuarioId, agora)
 
     const codigo = this.codigos.gerarCodigo()
     const expiraEm = new Date(agora.getTime() + VALIDADE_CODIGO_VERIFICACAO_MS)
     await this.prisma.semEscopo.$transaction([
+      this.prisma.semEscopo.codigoVerificacao.deleteMany({
+        where: {
+          usuarioId,
+          tipo: TIPO_CODIGO,
+          expiraEm: { lt: new Date(agora.getTime() - RETENCAO_CODIGOS_EXPIRADOS_MS) },
+        },
+      }),
       this.prisma.semEscopo.codigoVerificacao.updateMany({
         where: { usuarioId, tipo: TIPO_CODIGO, usadoEm: null },
         data: { usadoEm: agora },
@@ -82,13 +90,14 @@ export class VerificacaoEmailService {
       select: { nome: true, sigla: true, corPrimaria: true },
     })
     const conteudo = renderizar(verificacaoEmail, {
-      atletica: { ...atletica, sigla: atletica.sigla ?? atletica.nome },
+      atletica: atleticaEmail(atletica),
       codigo,
       validadeHoras: VALIDADE_CODIGO_VERIFICACAO_MS / HORA_MS,
     })
     await this.email.enviar({ para: usuario.email, ...conteudo }).catch(() => undefined)
 
-    const proximoEnvioEm = (await this.proximoEnvio(usuarioId, agora)) ?? agora
+    const proximoEnvioEm =
+      (await this.limites.liberadoEm(TIPO_LIMITE, usuarioId, LIMITES_ENVIO, agora)) ?? agora
     return {
       enviadoPara: mascararEmail(usuario.email),
       expiraEm: expiraEm.toISOString(),
@@ -114,7 +123,6 @@ export class VerificacaoEmailService {
       take: 1,
       select: { id: true, codigoHash: true, usadoEm: true, expiraEm: true },
     })
-    // Sem código: nunca enviado ou já apagado pela `LimpezaDiariaJob`; nos dois casos, reenviar.
     if (!ultimo || ultimo.usadoEm || ultimo.expiraEm <= agora) throw erroCodigoExpirado()
     if (!this.codigos.codigoConfere(ultimo.codigoHash, usuarioId, codigo)) {
       await this.contarTentativa(ultimo.id, agora)
@@ -132,19 +140,10 @@ export class VerificacaoEmailService {
     return { emailVerificado: true }
   }
 
-  /** O mais tardio entre o limite por hora e o intervalo mínimo; `null` se já pode enviar. */
-  private async proximoEnvio(usuarioId: string, agora: Date): Promise<Date | null> {
-    const liberacoes = await Promise.all(
-      LIMITES_ENVIO.map((limite) => this.limites.liberadoEm(TIPO_LIMITE, usuarioId, limite, agora)),
-    )
-    const instantes = liberacoes.filter((data) => data !== null).map((data) => data.getTime())
-    return instantes.length > 0 ? new Date(Math.max(...instantes)) : null
-  }
-
-  /** O intervalo sob lock serializa envios simultâneos, o que também protege o limite por hora. */
+  /** Revalida os dois limites sob lock: envios simultâneos não passam de nenhum deles. */
   private async consumirEnvio(usuarioId: string, agora: Date): Promise<void> {
     try {
-      await this.limites.consumir(TIPO_LIMITE, usuarioId, INTERVALO_ENVIO, agora)
+      await this.limites.consumir(TIPO_LIMITE, usuarioId, LIMITES_ENVIO, agora)
     } catch (erro) {
       if (!(erro instanceof ErroLimiteExcedido)) throw erro
       const liberadoEm = new Date(agora.getTime() + erro.segundosParaNovaTentativa * 1000)

@@ -1,4 +1,4 @@
-import { escaparHtml, renderizar, type DadosEmail, type TemplateEmail } from './base'
+import { atleticaEmail, escaparHtml, renderizar, type DadosEmail, type TemplateEmail } from './base'
 
 interface DadosExemplo extends DadosEmail {
   codigo: string
@@ -61,6 +61,15 @@ describe('renderizar (template base)', () => {
     expect(invalida.html).toContain('background:#6B7280')
     expect(invalida.html).not.toContain('url(x)')
     expect(email.html).toContain('background:#6B7280')
+  })
+})
+
+describe('atleticaEmail', () => {
+  it('usa o nome quando a atlética não tem sigla', () => {
+    expect(atleticaEmail({ nome: 'Atlética Teste', sigla: null, corPrimaria: null })).toStrictEqual(
+      { nome: 'Atlética Teste', sigla: 'Atlética Teste', corPrimaria: null },
+    )
+    expect(atleticaEmail({ nome: 'Atlética Teste', sigla: 'ATT' }).sigla).toBe('ATT')
   })
 })
 

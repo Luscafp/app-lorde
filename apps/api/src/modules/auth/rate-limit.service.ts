@@ -24,6 +24,9 @@ export interface LimiteTentativas {
   bloqueioMs?: number
 }
 
+/** Vários limites sobre a mesma chave valem juntos (ex.: 3 por hora e 1 por minuto). */
+export type Limites = LimiteTentativas | LimiteTentativas[]
+
 export interface SituacaoLimite {
   restantes: number
   bloqueadoAte: Date | null
@@ -65,15 +68,14 @@ export class RateLimitService {
     return verificarCom(this.prisma.semEscopo, tipo, chave, limite, agora)
   }
 
-  /** Instante em que a chave volta a ter tentativas; `null` se já tem. Não lança. */
+  /** Instante em que a chave volta a ter tentativas em todos os limites; `null` se já tem. Não lança. */
   async liberadoEm(
     tipo: TipoTentativa,
     chave: string,
-    limite: LimiteTentativas,
+    limites: Limites,
     agora: Date = new Date(),
   ): Promise<Date | null> {
-    const recentes = await recentesDe(this.prisma.semEscopo, tipo, chave, limite, agora)
-    return avaliarLimite(recentes, limite, agora).bloqueadoAte
+    return (await situacaoDe(this.prisma.semEscopo, tipo, chave, limites, agora)).bloqueadoAte
   }
 
   async registrar(tipo: TipoTentativa, chave: string, agora: Date = new Date()): Promise<void> {
@@ -84,12 +86,12 @@ export class RateLimitService {
   consumir(
     tipo: TipoTentativa,
     chave: string,
-    limite: LimiteTentativas,
+    limites: Limites,
     agora: Date = new Date(),
   ): Promise<number> {
     return this.prisma.semEscopo.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${tipo}|${chave}`}))`
-      const restantes = await verificarCom(tx, tipo, chave, limite, agora)
+      const restantes = await verificarCom(tx, tipo, chave, limites, agora)
       await tx.tentativaAcesso.create({ data: { tipo, chave, criadoEm: agora } })
       return restantes - 1
     })
@@ -114,15 +116,38 @@ async function verificarCom(
   cliente: Pick<ClienteBase, 'tentativaAcesso'>,
   tipo: TipoTentativa,
   chave: string,
-  limite: LimiteTentativas,
+  limites: Limites,
   agora: Date,
 ): Promise<number> {
-  const recentes = await recentesDe(cliente, tipo, chave, limite, agora)
-  const { restantes, bloqueadoAte } = avaliarLimite(recentes, limite, agora)
+  const { restantes, bloqueadoAte } = await situacaoDe(cliente, tipo, chave, limites, agora)
   if (bloqueadoAte) {
     throw new ErroLimiteExcedido(Math.ceil((bloqueadoAte.getTime() - agora.getTime()) / 1000))
   }
   return restantes
+}
+
+/** Bloqueia até a liberação mais tardia; restam as tentativas do limite mais apertado. */
+async function situacaoDe(
+  cliente: Pick<ClienteBase, 'tentativaAcesso'>,
+  tipo: TipoTentativa,
+  chave: string,
+  limites: Limites,
+  agora: Date,
+): Promise<SituacaoLimite> {
+  let restantes = Infinity
+  let bloqueadoAte: Date | null = null
+  for (const limite of [limites].flat()) {
+    const situacao = avaliarLimite(
+      await recentesDe(cliente, tipo, chave, limite, agora),
+      limite,
+      agora,
+    )
+    restantes = Math.min(restantes, situacao.restantes)
+    if (situacao.bloqueadoAte && (!bloqueadoAte || situacao.bloqueadoAte > bloqueadoAte)) {
+      bloqueadoAte = situacao.bloqueadoAte
+    }
+  }
+  return { restantes, bloqueadoAte }
 }
 
 async function recentesDe(

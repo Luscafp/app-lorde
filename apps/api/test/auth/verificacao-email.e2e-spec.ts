@@ -3,6 +3,7 @@ import {
   TERMOS_VERSAO,
   VALIDADE_CODIGO_VERIFICACAO_MS,
 } from '@atletica/shared'
+import * as Sentry from '@sentry/nestjs'
 import request from 'supertest'
 import { HORA_MS, MINUTO_MS } from '../../src/common/tempo'
 import { EmailProvider } from '../../src/infra/email/email-provider'
@@ -16,6 +17,8 @@ import { tokenPara } from '../fabricas/auth'
 import { criarUsuario, type UsuarioCriado } from '../fabricas/usuario'
 import { criarApp, type AppDeTeste } from '../setup/criar-app'
 import { prismaTeste } from '../setup/prisma-teste'
+
+jest.mock('@sentry/nestjs', () => ({ captureException: jest.fn() }))
 
 const ENVIAR = '/api/v1/auth/verificar-email/enviar'
 const VERIFICAR = '/api/v1/auth/verificar-email'
@@ -81,6 +84,7 @@ describe('Verificação de e-mail (#31)', () => {
     await criarAtletica({ id: padraoId, nome: 'Atlética Teste', sigla: 'ATT' })
     email.limpar()
     enviarCodigo.mockClear()
+    jest.mocked(Sentry.captureException).mockClear()
   })
 
   afterAll(async () => {
@@ -115,14 +119,19 @@ describe('Verificação de e-mail (#31)', () => {
       }
     })
 
-    it('provedor de e-mail falhando → cadastro 201 mesmo assim (critério 2)', async () => {
-      email.simularFalha(new Error('Resend fora do ar'))
+    it('provedor de e-mail falhando → cadastro 201 e erro no Sentry (critério 2)', async () => {
+      const falha = new Error('Resend fora do ar')
+      email.simularFalha(falha)
 
       const resposta = await cadastrar()
       await aguardarEnvioDoCadastro()
 
       expect(resposta.status).toBe(201)
       expect(email.ultimos()).toEqual([])
+      expect(Sentry.captureException).toHaveBeenCalledWith(
+        falha,
+        expect.objectContaining({ tags: { modulo: 'email' } }),
+      )
       const usuario = await prismaTeste.usuario.findUniqueOrThrow({
         where: { email: CADASTRO.email },
       })
