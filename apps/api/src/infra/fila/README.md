@@ -42,9 +42,10 @@ await this.fila.enviar('notificacao.lembrete', payload, { startAfter, singletonK
 - Padrões do pg-boss: `retryLimit: 2`, `retryDelay: 0`, sem backoff, `expireInSeconds: 900`. Defina por fila em `criarFila` ou por job em `enviar`.
 - A tentativa _n_ tem `job.retryCount = n - 1`; o job falha de vez quando `retryCount === retryLimit` (com `retryLimit: 3`, até 4 execuções).
 - Com `retryBackoff: true`, a espera é `retryDelay + 2^c/2 × (1 + aleatório)` segundos (c = nº da tentativa), limitada por `retryDelayMax`.
-- Só a falha da última tentativa vai ao Sentry (`capturarErroJob`, tag `job=<fila>`, sem payload); as anteriores geram `warn` no log.
+- Só a falha da última tentativa vai ao Sentry (`capturarErroJob`, tag `job=<fila>`, sem payload); as anteriores geram `warn` no log. Exceção: a tentativa que estoura `expireInSeconds` é falhada pelo próprio pg-boss e não chega ao Sentry.
+- Erros internos do pg-boss vão ao Sentry com a tag `componente=pg-boss`.
 - Com `batchSize > 1`, cada job do lote falha ou conclui sozinho.
 
 ## Encerramento
 
-`stop({ graceful: true, timeout: 30 s })`: para de buscar jobs, espera os em execução e, passado o limite, marca os restantes como falhos (voltam pelo retry).
+`stop({ graceful: true, timeout: 30 s })` no `onModuleDestroy`: para de buscar jobs, espera os em execução e, passado o limite, marca os restantes como falhos (voltam pelo retry). O `PrismaService` só desconecta depois, no `onApplicationShutdown`.

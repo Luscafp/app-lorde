@@ -10,10 +10,7 @@ export interface OpcoesEspera {
   esperaMs?: number
 }
 
-/**
- * Jobs que ainda vão rodar sem depender do relógio: ativos, em retry (inclusive no backoff) e
- * criados com `startAfter` vencido. Jobs agendados para o futuro e filas internas ficam de fora.
- */
+/** Ativos, em retry e criados com `startAfter` vencido; jobs futuros e filas internas ficam de fora. */
 async function contarPendentes(nome: string | null): Promise<number> {
   const [linha] = await prismaTeste.$queryRaw<{ total: number }[]>`
     SELECT count(*)::int AS total FROM pgboss.job
@@ -23,20 +20,27 @@ async function contarPendentes(nome: string | null): Promise<number> {
   return linha?.total ?? 0
 }
 
-async function aguardar(
-  app: INestApplicationContext,
-  nome: string | null,
-  { esperaMs = ESPERA_PADRAO_MS }: OpcoesEspera,
+export async function aguardarCondicao(
+  condicao: () => Promise<boolean> | boolean,
+  { esperaMs = ESPERA_PADRAO_MS }: OpcoesEspera = {},
 ): Promise<void> {
-  const fila = app.get(FilaService)
   const limite = Date.now() + esperaMs
-  while ((await contarPendentes(nome)) > 0) {
-    if (Date.now() > limite) {
-      throw new Error(`Fila ${nome ?? '(todas)'} ainda com jobs pendentes após ${esperaMs} ms.`)
-    }
-    fila.acordarWorkers()
+  while (!(await condicao())) {
+    if (Date.now() > limite) throw new Error(`Condição não atingida após ${esperaMs} ms.`)
     await esperar(INTERVALO_MS)
   }
+}
+
+function aguardar(
+  app: INestApplicationContext,
+  nome: string | null,
+  opcoes: OpcoesEspera,
+): Promise<void> {
+  const fila = app.get(FilaService)
+  return aguardarCondicao(async () => {
+    fila.acordarWorkers()
+    return (await contarPendentes(nome)) === 0
+  }, opcoes)
 }
 
 /** Espera os workers do pg-boss real esvaziarem a fila `nome` (convenções §9). */

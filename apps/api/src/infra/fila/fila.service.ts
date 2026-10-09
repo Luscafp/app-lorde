@@ -1,17 +1,15 @@
 import { FUSO_PADRAO } from '@atletica/shared'
-import { Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common'
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import PgBoss from 'pg-boss'
 import type { Env } from '../../config/env.schema'
 import { ContextoAtletica } from '../contexto/contexto-atletica.service'
-import { capturarErroJob } from '../sentry/sentry'
+import { capturarErroInfra } from '../sentry/sentry'
 import { executarJob, type HandlerFila } from './executar-job'
 import type { FilasDominio, NomeFila } from './filas-dominio'
 
-/** Schema próprio do pg-boss, fora do Prisma (épico #36 §8). */
-export const SCHEMA_FILA = 'pgboss'
-/** Espera máxima pelos jobs em execução no encerramento (SIGTERM). */
-export const TEMPO_ENCERRAMENTO_MS = 30_000
+const SCHEMA_FILA = 'pgboss'
+const TEMPO_ENCERRAMENTO_MS = 30_000
 
 export type OpcoesFila = Pick<
   PgBoss.Queue,
@@ -50,7 +48,7 @@ export interface OpcoesAgendamento<T> {
 
 /** Único dono do pg-boss (convenções §11.6); workers no mesmo processo da API (épico #36 §9). */
 @Injectable()
-export class FilaService implements OnModuleInit, OnApplicationShutdown {
+export class FilaService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FilaService.name)
   private readonly workersAtivos: boolean
   private readonly instancia: PgBoss
@@ -71,16 +69,17 @@ export class FilaService implements OnModuleInit, OnApplicationShutdown {
     })
     this.instancia.on('error', (erro) => {
       this.logger.error({ err: erro }, 'Erro no pg-boss')
-      capturarErroJob('pg-boss', erro)
+      capturarErroInfra('pg-boss', erro)
     })
     this.instancia.on('warning', ({ message, data }) => this.logger.warn({ data }, message))
   }
 
   async onModuleInit(): Promise<void> {
-    await this.boss()
+    if (this.workersAtivos) await this.boss()
   }
 
-  async onApplicationShutdown(): Promise<void> {
+  /** Antes do `PrismaService` desconectar (`onApplicationShutdown`): os jobs em execução ainda usam o banco. */
+  async onModuleDestroy(): Promise<void> {
     if (!this.inicio) return
     await this.inicio
     await this.instancia.stop({ graceful: true, timeout: TEMPO_ENCERRAMENTO_MS })
@@ -90,7 +89,7 @@ export class FilaService implements OnModuleInit, OnApplicationShutdown {
   async criarFila(nome: NomeFila, opcoes: OpcoesFila = {}): Promise<void> {
     const boss = await this.boss()
     const { policy: _policy, ...ajustaveis } = opcoes
-    await boss.createQueue(nome, { ...opcoes })
+    await boss.createQueue(nome, opcoes)
     if (Object.keys(ajustaveis).length > 0) await boss.updateQueue(nome, ajustaveis)
   }
 

@@ -7,8 +7,9 @@ import { join } from 'node:path'
 import { setTimeout as esperar } from 'node:timers/promises'
 import { ContextoAtletica } from '../../src/infra/contexto/contexto-atletica.service'
 import { FilaService, type OpcoesFila } from '../../src/infra/fila/fila.service'
+import { PrismaService } from '../../src/infra/prisma/prisma.service'
 import { criarApp } from '../setup/criar-app'
-import { aguardarFilaVazia, processarFilas } from '../setup/fila'
+import { aguardarCondicao, aguardarFilaVazia, processarFilas } from '../setup/fila'
 import { prismaTeste } from '../setup/prisma-teste'
 
 jest.mock('@sentry/nestjs', () => ({ captureException: jest.fn() }))
@@ -31,14 +32,6 @@ async function contarJobs(nome: string): Promise<number> {
   const [linha] = await prismaTeste.$queryRaw<{ total: number }[]>`
     SELECT count(*)::int AS total FROM pgboss.job WHERE name = ${nome}`
   return linha?.total ?? 0
-}
-
-async function aguardarCondicao(condicao: () => Promise<boolean> | boolean): Promise<void> {
-  const limite = Date.now() + 15_000
-  while (!(await condicao())) {
-    if (Date.now() > limite) throw new Error('Condição não atingida a tempo.')
-    await esperar(50)
-  }
 }
 
 describe('fila (pg-boss)', () => {
@@ -227,17 +220,20 @@ describe('fila (pg-boss): ciclo de vida da API', () => {
     ).not.toThrow()
   }, 60_000)
 
-  it('o encerramento gracioso aguarda o job em execução', async () => {
+  it('o encerramento gracioso aguarda o job em execução, com o banco ainda conectado', async () => {
     let liberar: () => void = () => undefined
     const bloqueio = new Promise<void>((resolver) => (liberar = resolver))
     let iniciou = false
     let concluiu = false
     const { app } = await criarApp()
     const fila = app.get(FilaService)
+    // eslint-disable-next-line no-restricted-syntax -- o handler só confere que o banco segue no ar
+    const banco = app.get(PrismaService).semEscopo
     await fila.criarFila('teste.encerramento')
     await fila.trabalhar('teste.encerramento', async () => {
       iniciou = true
       await bloqueio
+      await banco.$queryRaw`SELECT 1`
       concluiu = true
     })
 

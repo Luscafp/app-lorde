@@ -25,7 +25,7 @@ Validadas por `src/config/env.schema.ts` (Zod): a API não sobe com variável fa
 | `R2_PUBLIC_BASE_URL`        | sim (https, sem barra final) | URL pública do bucket; as respostas expõem `fotoUrl` = `<base>/<fotoKey>`                                                  |
 | `SENTRY_DSN`                | não                          | DSN do Sentry da API; ausente ou vazia = Sentry desligado (veja [Observabilidade](#observabilidade))                       |
 | `SENTRY_TRACES_SAMPLE_RATE` | não (`0.1`)                  | Fração de traces de 0 a 1: `0.1` em produção, `1.0` em homologação                                                         |
-| `FILA_WORKERS_ATIVOS`       | não (`true`)                 | `false` desliga workers e crons do pg-boss (só enfileira); útil em scripts (veja [Fila](#fila-srcinfrafila))               |
+| `FILA_WORKERS_ATIVOS`       | não (`true`)                 | `false` desliga workers e crons; pg-boss só conecta no 1º envio (veja [Fila](#fila-srcinfrafila))                          |
 | `GIT_COMMIT_SHA`            | não                          | Commit do build, injetado no `docker build` (veja [Docker](#docker)). Ausente = `RAILWAY_GIT_COMMIT_SHA` ou `desconhecido` |
 
 ## Testes
@@ -488,12 +488,12 @@ Nome fora do mapa ou payload com tipo errado (ou sem `autorId`) falha no `pnpm t
 
 ## Fila (`src/infra/fila`)
 
-`FilaModule` (global) é o único dono do pg-boss (convenções §11.6): `FilaService` usa o mesmo `DATABASE_URL`, o schema próprio `pgboss` e roda os workers no processo da API. Inicia no `onModuleInit` e para com `stop({ graceful: true })` no encerramento, esperando até 30 s pelos jobs em execução.
+`FilaModule` (global) é o único dono do pg-boss (convenções §11.6): `FilaService` usa o mesmo `DATABASE_URL`, o schema próprio `pgboss` e roda os workers no processo da API. Inicia no `onModuleInit` e para com `stop({ graceful: true })` no `onModuleDestroy`, esperando até 30 s pelos jobs em execução, antes de o `PrismaService` desconectar (`onApplicationShutdown`).
 
 - **Schema `pgboss`:** criado pelo próprio pg-boss na primeira subida, **fora do Prisma** (o datasource só enxerga `public`; nenhuma migration). Em homologação/produção o usuário do banco precisa de permissão `CREATE` no banco — verificação humana em #96. Sem ela, a API não sobe.
 - **API:** `criarFila(nome, opcoes)`, `enviar(nome, payload, opcoes)`, `trabalhar(nome, handler, { batchSize })`, `agendar(nome, cron, { tz })`. Nomes e payloads tipados pelo mapa `FilasDominio` (`filas-dominio.ts`), que cada issue estende (#87, #90).
 - **Handlers:** rodam no contexto da atlética quando o payload tem `atleticaId`, logam fila/id/tentativa e só a última tentativa vai ao Sentry (`capturarErroJob`).
-- **`FILA_WORKERS_ATIVOS=false`:** `trabalhar` e `agendar` viram no-op e o pg-boss não roda crons nem manutenção; `enviar` continua funcionando.
+- **`FILA_WORKERS_ATIVOS=false`:** `trabalhar` e `agendar` viram no-op, o pg-boss não roda crons nem manutenção e só conecta no primeiro `criarFila`/`enviar`; sem esses usos, sobe sem banco.
 
 Semântica de `singletonKey` por política, retry e versão fixada: [`src/infra/fila/README.md`](src/infra/fila/README.md).
 
@@ -777,7 +777,7 @@ Público (`@Publico()`), usado pelo healthcheck do deploy e pelo monitor de upti
 
 ### Encerramento
 
-`enableShutdownHooks()` faz o `SIGTERM` do deploy chamar `app.close()`: o servidor HTTP para de aceitar conexões, o pg-boss espera os jobs em execução (até 30 s) e o `PrismaService` desconecta (teste em `test/health/health.e2e-spec.ts`; `docker stop` termina com código 0).
+`enableShutdownHooks()` faz o `SIGTERM` do deploy chamar `app.close()`: o pg-boss espera os jobs em execução (até 30 s), o servidor HTTP para de aceitar conexões e o `PrismaService` desconecta por último (teste em `test/health/health.e2e-spec.ts`; `docker stop` termina com código 0).
 
 ## Docker
 

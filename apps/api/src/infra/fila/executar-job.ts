@@ -25,10 +25,7 @@ export function ehUltimaTentativa(
   return job.retryCount >= job.retryLimit
 }
 
-/**
- * Roda um job no contexto da atlética do payload (se houver), loga o resultado e manda ao Sentry só
- * o erro da última tentativa. Relança o erro para o pg-boss registrar a falha e agendar o retry.
- */
+/** Relança o erro para o pg-boss registrar a falha e agendar o retry. */
 export async function executarJob<T>(
   job: JobFila<T>,
   handler: HandlerFila<T>,

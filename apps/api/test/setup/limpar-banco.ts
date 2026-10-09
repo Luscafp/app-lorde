@@ -29,10 +29,7 @@ export async function limparBanco(): Promise<void> {
   await prismaTeste.$executeRawUnsafe(`TRUNCATE TABLE ${nomes} RESTART IDENTITY CASCADE`)
 }
 
-/**
- * Apaga os jobs do schema `pgboss` (filas e crons registrados ficam), já chamado no `beforeEach`
- * de todo teste de integração; o `limparBanco()` só trunca o `public`.
- */
+/** Apaga os jobs do schema `pgboss`; filas e crons registrados ficam. */
 export async function limparFilas(): Promise<void> {
   await prismaTeste.$executeRaw`
     DO $$ BEGIN
