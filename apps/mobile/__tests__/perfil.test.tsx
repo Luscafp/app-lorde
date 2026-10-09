@@ -98,6 +98,7 @@ const navegacao = () => ({
   aoAbrirTime: jest.fn(),
   aoAbrirEvento: jest.fn(),
   aoConhecerTimes: jest.fn(),
+  aoVerificarEmail: jest.fn(),
 })
 
 beforeEach(() => {
@@ -147,6 +148,24 @@ describe('Tela Perfil', () => {
     expect(nav.aoAbrirTime).toHaveBeenCalledWith('0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d')
     await fireEvent.press(screen.getByRole('button', { name: 'Configurações' }))
     expect(nav.aoAbrirConfiguracoes).toHaveBeenCalled()
+  })
+
+  it('e-mail não verificado: selo e botão "Verificar e-mail" (#31)', async () => {
+    api.buscarPerfil.mockResolvedValue(perfil({ emailVerificado: false }))
+    const nav = navegacao()
+    await renderizar(<TelaPerfil {...nav} />)
+
+    expect(await screen.findByText('E-mail não verificado')).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole('button', { name: 'Verificar e-mail' }))
+    expect(nav.aoVerificarEmail).toHaveBeenCalled()
+  })
+
+  it('e-mail verificado: selo sem botão (#31)', async () => {
+    api.buscarPerfil.mockResolvedValue(perfil({ emailVerificado: true }))
+    await renderizar(<TelaPerfil {...navegacao()} />)
+
+    expect(await screen.findByText('E-mail verificado')).toBeOnTheScreen()
+    expect(screen.queryByRole('button', { name: 'Verificar e-mail' })).toBeNull()
   })
 
   it('time inativo: selo "Inativo" e "Sair do time" na linha, sem abrir a tela (#34)', async () => {

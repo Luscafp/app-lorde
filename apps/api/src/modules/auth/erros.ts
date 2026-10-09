@@ -85,6 +85,23 @@ export function erroTermosDesatualizados(): ErroNegocio {
   )
 }
 
+export function erroEmailJaVerificado(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.CONFLICT,
+    'EMAIL_JA_VERIFICADO',
+    'Seu e-mail já está verificado.',
+  )
+}
+
+/** Verificação de e-mail: código expirado, já usado ou bloqueado por tentativas. */
+export function erroCodigoExpirado(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.BAD_REQUEST,
+    'CODIGO_EXPIRADO',
+    'Código expirado. Peça um novo código.',
+  )
+}
+
 /** Código errado, expirado, usado, substituído ou e-mail sem código: mesma resposta (UC09 A1). */
 export function erroCodigoInvalido(): ErroNegocio {
   return new ErroNegocio(HttpStatus.BAD_REQUEST, 'CODIGO_INVALIDO', 'Código inválido ou expirado.')

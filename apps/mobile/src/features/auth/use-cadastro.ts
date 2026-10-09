@@ -1,5 +1,6 @@
 import type { CadastroEntrada } from '@atletica/shared'
 import { toast } from '@/components/ui/toast'
+import { useVerificacaoEmailStore } from '@/features/verificacao-email'
 import { CodigoApi } from '@/infra/api/api-erro'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import { useSessao } from '@/infra/sessao/store'
@@ -12,6 +13,7 @@ export function useCadastro() {
     mutationFn: (dados: CadastroEntrada) => cadastrar(dados),
     onSuccess: async (resposta) => {
       await useSessao.getState().iniciarSessao(resposta)
+      useVerificacaoEmailStore.getState().registrarCadastro(resposta.usuario.email)
       toast.sucesso(MENSAGEM_CONTA_CRIADA)
     },
     meta: { errosNaTela: [CodigoApi.EMAIL_JA_CADASTRADO] },

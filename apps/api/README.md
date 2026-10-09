@@ -210,6 +210,19 @@ Rotas `@Publico()` do `AuthController` (UC09, épico #11), entrada pelos schemas
 - `novaSenha` é validada pelo pipe antes do código: senha fraca → `400 VALIDATION_ERROR` sem gastar tentativa.
 - `429` do limite por e-mail: "Limite de 3 envios por hora atingido. Tente novamente em X min." (o app mostra a `message`).
 
+### Verificação de e-mail (`VerificacaoEmailService`)
+
+Rotas autenticadas de `verificacao-email/` (RF06, #31); só o próprio usuário, sem 403/404. Não bloqueia nada: e-mail não verificado continua usando o app.
+
+| Rota                                      | Resposta                                        | Faz                                                                                                                         |
+| ----------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `POST /auth/verificar-email/enviar`       | `202 { enviadoPara, expiraEm, proximoEnvioEm }` | Invalida os códigos anteriores, grava `CodigoVerificacao` (`VERIFICAR_EMAIL`, 24 h) e envia o template `verificacao-email`. |
+| `POST /auth/verificar-email` `{ codigo }` | `200 { emailVerificado: true }` (idempotente)   | Consome o código e marca `Usuario.emailVerificado`.                                                                         |
+
+- **Cadastro:** `VerificacaoEmailOuvinte` ouve `usuario.cadastrado` (`{ async: true }`) e envia o primeiro código na atlética do payload; erro vai ao log e ao Sentry sem afetar o cadastro. Falha do provedor de e-mail não propaga em nenhum dos dois caminhos (o `EmailService` já registrou).
+- **Limites** (`VERIFICACAO_ENVIO`, chave `usuarioId`, o envio do cadastro conta): 3 por hora e 60 s entre envios, os dois sob o mesmo `consumir`. `429` traz `details: [{ field: 'proximoEnvioEm', message: <ISO> }]`. Já verificado → `409 EMAIL_JA_VERIFICADO`.
+- **Código:** errado → `400 CODIGO_INVALIDO` e soma `tentativas`; na 5ª o código é marcado usado. Expirado, usado ou inexistente → `400 CODIGO_EXPIRADO`. Cada envio apaga os códigos do usuário expirados há mais de 7 dias.
+
 ### Agendador (`src/infra/agendador`)
 
 Único registro do `ScheduleModule` (`@nestjs/schedule`, convenções §11.6). Jobs usam `@Cron(expr, { name, timeZone: FUSO_PADRAO })` e recebem o relógio por parâmetro num método separado (o `cron` passa argumentos próprios ao `onTick`). `LimpezaDiariaJob` (`manutencao.limpeza-diaria`, 03:00) apaga `TentativaAcesso` e `CodigoVerificacao` com mais de 24 h e `Sessao` expiradas ou revogadas há mais de 30 dias. `LimpezaOrfaosJob` (`uploads.limpeza-orfaos`, 03:30) fica no `UploadsModule` (ver [Limpeza de órfãos](#limpeza-de-órfãos)).
@@ -221,13 +234,15 @@ Rotas `@Publico()` do `AuthController` (UC09, épico #11), entrada pelos schemas
 ```ts
 verificar(tipo, chave, { maximo, janelaMs, bloqueioMs? }, agora?): Promise<number> // tentativas restantes
 registrar(tipo, chave, agora?): Promise<void>
-consumir(tipo, chave, limite, agora?): Promise<number> // verificar + registrar atômicos
+consumir(tipo, chave, limites, agora?): Promise<number> // verificar + registrar atômicos
+liberadoEm(tipo, chave, limites, agora?): Promise<Date | null> // fim do bloqueio, sem lançar
 limpar(tipo, chave): Promise<void>
 limparPorPrefixo(tipo, prefixo, cliente?): Promise<void> // ex.: falhas de login `email|*`; aceita a `tx`
 ```
 
 - Bloqueado quando as `maximo` tentativas mais recentes cabem em `janelaMs`: sem `bloqueioMs`, até a mais antiga delas sair da janela (janela deslizante, ex.: 10 cadastros/h); com `bloqueioMs`, até `última + bloqueioMs` (login: 15 min após a 5ª falha). `verificar` lança `ErroLimiteExcedido` → `429 RATE_LIMITED` com `Retry-After` em segundos (o filtro global põe o cabeçalho).
 - Fluxo: `consumir` quando toda tentativa conta (cadastro: `verificar` + `registrar` sob `pg_advisory_xact_lock`, sem furo com requisições simultâneas); `verificar` antes e `registrar` depois do resultado (login registra a falha; presign registra a URL emitida, nunca a falha do R2); `limpar` quando o sucesso zera a contagem.
+- `limites` aceita um limite ou uma lista sobre a mesma chave (ex.: 3/h e 1/min): bloqueia até a liberação mais tardia.
 - `tipo` ∈ `TipoTentativa`: `LOGIN_FALHA`, `CADASTRO`, `RECUPERACAO_ENVIO`, `CODIGO_TENTATIVA`, `SENHA_CONFIRMACAO_FALHA`, `PRESIGN`, `VERIFICACAO_ENVIO`, `AVISO_ENVIO`. Tipo novo: acrescente ao catálogo (sem migration; `VarChar(30)`). `chave` até 300 caracteres (ex.: `email|ip`, `usuarioId`).
 
 ## Uploads (`src/modules/uploads`)

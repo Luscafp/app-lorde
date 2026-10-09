@@ -172,7 +172,7 @@ describe('Painel > Solicitações', () => {
 
     expect(api.rejeitarSolicitacao).toHaveBeenCalledWith('s2')
     await waitFor(() => expect(toast.sucesso).toHaveBeenCalledWith('Solicitação rejeitada'))
-    expect(screen.queryByText('Ana Souza')).toBeNull()
+    await waitFor(() => expect(screen.queryByText('Ana Souza')).toBeNull())
   })
 
   it('erro inesperado: o item volta (rollback)', async () => {
