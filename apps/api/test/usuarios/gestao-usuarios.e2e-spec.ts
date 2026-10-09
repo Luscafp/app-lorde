@@ -15,6 +15,7 @@ import { bloquearPapeis } from '../../src/modules/usuarios/regras-papel'
 import { aguardarOuvintes, espiarEventos, type EspiaoEventos } from '../eventos'
 import { criarAtletica } from '../fabricas/atletica'
 import { criarSessao, tokenPara } from '../fabricas/auth'
+import { ESTATISTICAS_SEM_CHAMADA } from '../fabricas/estatisticas'
 import { criarUsuario, type DadosUsuario, type UsuarioCriado } from '../fabricas/usuario'
 import { criarApp, type AppDeTeste } from '../setup/criar-app'
 import { prismaTeste } from '../setup/prisma-teste'
@@ -288,12 +289,7 @@ describe('Gestão de usuários (#27)', () => {
             capitao: false,
           },
         ],
-        estatisticas: {
-          jogosParticipados: 0,
-          treinosPresentes: 0,
-          eventosComChamada: 0,
-          taxaPresenca: null,
-        },
+        estatisticas: ESTATISTICAS_SEM_CHAMADA,
         permissoes: {
           podeAlterarSituacao: true,
           motivoBloqueio: null,

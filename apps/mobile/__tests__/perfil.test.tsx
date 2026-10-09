@@ -1,4 +1,4 @@
-import type { EstatisticasAtleta, EventoResumoDto, Perfil } from '@atletica/shared'
+import type { EventoResumoDto, Perfil } from '@atletica/shared'
 import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native'
 import { Alert, type AlertButton } from 'react-native'
@@ -22,6 +22,7 @@ import { chaves } from '@/infra/query/chaves'
 import { criarQueryClient } from '@/infra/query/query-client'
 import { MENSAGEM_ACAO_OFFLINE } from '@/infra/query/use-acao-online'
 import { useSessao } from '@/infra/sessao/store'
+import { ESTATISTICAS_SEM_CHAMADA } from '../test-utils/estatisticas'
 
 jest.mock('@/components/ui/toast', () => ({
   toast: { sucesso: jest.fn(), erro: jest.fn(), info: jest.fn() },
@@ -89,13 +90,6 @@ function perfil(parcial: Partial<Perfil> = {}): Perfil {
   }
 }
 
-const SEM_CHAMADA: EstatisticasAtleta = {
-  jogosParticipados: 0,
-  treinosPresentes: 0,
-  eventosComChamada: 0,
-  taxaPresenca: null,
-}
-
 let cliente: QueryClient
 
 function renderizar(elemento: React.ReactElement) {
@@ -117,7 +111,7 @@ beforeEach(() => {
   jest.clearAllMocks()
   jest.mocked(useUploadImagem).mockReturnValue(upload())
   listarEventos.mockResolvedValue({ items: [], page: 1, limit: 5, total: 0 })
-  api.buscarEstatisticas.mockResolvedValue(SEM_CHAMADA)
+  api.buscarEstatisticas.mockResolvedValue(ESTATISTICAS_SEM_CHAMADA)
   useSessao.setState({
     status: 'autenticado',
     usuario: {

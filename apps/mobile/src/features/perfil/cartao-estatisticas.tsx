@@ -1,11 +1,9 @@
 import type { EstatisticasAtleta } from '@atletica/shared'
+import type { ReactNode } from 'react'
 import { View } from 'react-native'
-import { TelaDados } from '@/components/estado'
 import { Cartao, Texto } from '@/components/ui'
-import { useEstatisticas } from './consultas'
 
 export const MENSAGEM_SEM_PRESENCAS = 'Ainda não há presenças registradas'
-export const MENSAGEM_ERRO_ESTATISTICAS = 'Não foi possível carregar suas estatísticas'
 
 function Numero({ valor, rotulo }: { valor: string; rotulo: string }) {
   return (
@@ -44,20 +42,11 @@ export function CartaoEstatisticas({ estatisticas }: { estatisticas: Estatistica
   )
 }
 
-/** Perfil (UC10 passo 3): estado próprio, sem afetar o restante da tela. */
-export function SecaoEstatisticas() {
-  const consulta = useEstatisticas()
+export function BlocoEstatisticas({ children, testID }: { children: ReactNode; testID?: string }) {
   return (
-    <View testID="secao-estatisticas" className="gap-2">
+    <View testID={testID} className="gap-2">
       <Texto variante="subtitulo">Estatísticas</Texto>
-      <TelaDados
-        consulta={consulta}
-        esqueleto="cartao"
-        faixaOffline={false}
-        mensagemErro={MENSAGEM_ERRO_ESTATISTICAS}
-      >
-        {(estatisticas) => <CartaoEstatisticas estatisticas={estatisticas} />}
-      </TelaDados>
+      {children}
     </View>
   )
 }

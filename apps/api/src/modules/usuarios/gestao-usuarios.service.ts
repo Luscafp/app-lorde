@@ -14,9 +14,9 @@ import { EventosDominioService } from '../../infra/eventos/eventos-dominio.servi
 import { PrismaService, type TransacaoComEscopo } from '../../infra/prisma/prisma.service'
 import { Prisma } from '../../generated/prisma/client'
 import { AuditoriaService } from '../auditoria/auditoria.service'
-import { EstatisticasService } from '../participacoes/estatisticas.service'
 import { diferenca } from '../auditoria/diferenca'
 import { SessaoService } from '../auth/sessao.service'
+import { EstatisticasService } from '../participacoes/estatisticas.service'
 import { UploadsService } from '../uploads/uploads.service'
 import { erroDeBloqueio, erroUsuarioNaoEncontrado } from './erros'
 import {

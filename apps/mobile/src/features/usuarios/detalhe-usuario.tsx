@@ -4,7 +4,7 @@ import { ScrollView, View } from 'react-native'
 import { TelaDados } from '@/components/estado'
 import { Botao, Cartao, confirmar, Selo, Texto } from '@/components/ui'
 import { paleta } from '@/features/atletica'
-import { CartaoEstatisticas } from '@/features/perfil'
+import { BlocoEstatisticas, CartaoEstatisticas } from '@/features/perfil'
 import { AlterarCargo } from './alterar-cargo'
 import { Avatar } from './componentes'
 import { useAlterarSituacao, useUsuario } from './consultas'
@@ -84,10 +84,9 @@ function Conteudo({ usuario }: { usuario: UsuarioDetalhe }) {
       )}
 
       {usuario.estatisticas && (
-        <View className="gap-2">
-          <Texto variante="subtitulo">Estatísticas</Texto>
+        <BlocoEstatisticas>
           <CartaoEstatisticas estatisticas={usuario.estatisticas} />
-        </View>
+        </BlocoEstatisticas>
       )}
 
       <Acoes usuario={usuario} />

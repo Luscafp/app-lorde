@@ -1,9 +1,10 @@
-import { estatisticasSchema, usuarioDetalheSchema } from '@atletica/shared'
+import { estatisticasAtletaSchema, usuarioDetalheSchema } from '@atletica/shared'
 import request from 'supertest'
 import type { RespostaErro } from '../../src/common/erros/erro-negocio'
 import type { Time } from '../../src/generated/prisma/client'
 import { criarAtletica } from '../fabricas/atletica'
 import { tokenPara } from '../fabricas/auth'
+import { ESTATISTICAS_SEM_CHAMADA } from '../fabricas/estatisticas'
 import { criarJogo, criarTreino, type DadosEvento } from '../fabricas/eventos'
 import { adicionarMembro, criarTime } from '../fabricas/times'
 import { criarUsuario, type UsuarioCriado } from '../fabricas/usuario'
@@ -11,12 +12,6 @@ import { criarApp, type AppDeTeste } from '../setup/criar-app'
 
 const HORA_MS = 60 * 60 * 1000
 const INICIO = new Date(Date.now() - 2 * HORA_MS)
-const SEM_CHAMADA = {
-  jogosParticipados: 0,
-  treinosPresentes: 0,
-  eventosComChamada: 0,
-  taxaPresenca: null,
-}
 
 describe('Estatísticas do atleta (#85)', () => {
   let contexto: AppDeTeste
@@ -67,7 +62,7 @@ describe('Estatísticas do atleta (#85)', () => {
     const resposta = await (await autenticado(ana)).estatisticas()
     expect(resposta.status).toBe(200)
     expect(resposta.headers['cache-control']).toBe('no-store')
-    return estatisticasSchema.parse(resposta.body)
+    return estatisticasAtletaSchema.parse(resposta.body)
   }
 
   describe('GET /me/estatisticas', () => {
@@ -78,10 +73,10 @@ describe('Estatísticas do atleta (#85)', () => {
       expect((resposta.body as RespostaErro).code).toBe('UNAUTHENTICATED')
     })
 
-    it('só confirmou, sem chamada: zeros e taxa null (critério 12)', async () => {
+    it('só confirmou, sem chamada: não conta e taxa null (RN32, critério 12)', async () => {
       await criarTreino(evento(null))
 
-      await expect(estatisticasDaAna()).resolves.toEqual(SEM_CHAMADA)
+      await expect(estatisticasDaAna()).resolves.toEqual(ESTATISTICAS_SEM_CHAMADA)
     })
 
     it('2 presenças em 3 chamadas → jogo e treino separados, taxa 67', async () => {
@@ -152,7 +147,9 @@ describe('Estatísticas do atleta (#85)', () => {
 
       const resposta = await (await autenticado(presidente)).detalharUsuario(ana.id)
 
-      expect(usuarioDetalheSchema.parse(resposta.body).estatisticas).toEqual(SEM_CHAMADA)
+      expect(usuarioDetalheSchema.parse(resposta.body).estatisticas).toEqual(
+        ESTATISTICAS_SEM_CHAMADA,
+      )
     })
   })
 })

@@ -8,6 +8,7 @@ import { criarQueryClient } from '@/infra/query/query-client'
 import { alterarSituacao, buscarUsuario, listarUsuarios } from '@/features/usuarios/api'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
 import { DetalheUsuario, ListaUsuarios as TelaLista } from '@/features/usuarios'
+import { ESTATISTICAS_SEM_CHAMADA } from '../test-utils/estatisticas'
 
 jest.mock('@/components/ui/toast', () => ({
   toast: { sucesso: jest.fn(), erro: jest.fn(), info: jest.fn() },
@@ -181,16 +182,9 @@ describe('Detalhe do usuário', () => {
   })
 
   it('estatísticas do usuário no mesmo cartão do Perfil (critério 14)', async () => {
-    jest.mocked(buscarUsuario).mockResolvedValue(
-      detalhe({
-        estatisticas: {
-          jogosParticipados: 0,
-          treinosPresentes: 0,
-          eventosComChamada: 0,
-          taxaPresenca: null,
-        },
-      }),
-    )
+    jest
+      .mocked(buscarUsuario)
+      .mockResolvedValue(detalhe({ estatisticas: ESTATISTICAS_SEM_CHAMADA }))
     await renderizar(<DetalheUsuario id={ID} />)
 
     expect(await screen.findByText('Estatísticas')).toBeOnTheScreen()

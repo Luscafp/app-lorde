@@ -2,7 +2,7 @@ import {
   alterarSenhaSchema,
   atualizarFotoSchema,
   atualizarPerfilSchema,
-  estatisticasSchema,
+  estatisticasAtletaSchema,
   excluirContaSchema,
   fotoAtualizadaSchema,
   perfilSchema,
@@ -49,7 +49,7 @@ class AlterarSenhaDto extends createZodDto(alterarSenhaSchema) {}
 class ExcluirContaDto extends createZodDto(excluirContaSchema) {}
 class PerfilDto extends createZodDto(perfilSchema) {}
 class FotoAtualizadaDto extends createZodDto(fotoAtualizadaSchema) {}
-class EstatisticasDto extends createZodDto(estatisticasSchema) {}
+class EstatisticasDto extends createZodDto(estatisticasAtletaSchema) {}
 
 const ID_EXEMPLO = '6b0e2a52-8e5d-4a43-9d6c-1f0f3c2b7a90'
 const FOTO_KEY_EXEMPLO = `usuarios/${ID_EXEMPLO}/perfil/2b7f5c1e-0d4a-4f8e-9b3c-7a6d5e4f3a21.jpg`

@@ -1,5 +1,5 @@
 import {
-  estatisticasSchema,
+  estatisticasAtletaSchema,
   fotoAtualizadaSchema,
   perfilSchema,
   type AlterarSenha,
@@ -16,7 +16,7 @@ export async function buscarPerfil(sinal?: AbortSignal): Promise<Perfil> {
 }
 
 export async function buscarEstatisticas(sinal?: AbortSignal): Promise<EstatisticasAtleta> {
-  return estatisticasSchema.parse(await api.get('/me/estatisticas', { sinal }))
+  return estatisticasAtletaSchema.parse(await api.get('/me/estatisticas', { sinal }))
 }
 
 export async function atualizarPerfil(dados: AtualizarPerfil): Promise<Perfil> {

@@ -8,8 +8,8 @@ import { paleta } from '@/features/atletica'
 import { SecaoMeusProximosEventos } from '@/features/participacoes'
 import { BotaoSairDoTime } from '@/features/times'
 import { SeloEmailVerificado } from '@/features/verificacao-email'
-import { SecaoEstatisticas } from './cartao-estatisticas'
 import { useMe } from './consultas'
+import { SecaoEstatisticas } from './secao-estatisticas'
 
 export const MENSAGEM_SEM_TIMES = 'Você ainda não faz parte de nenhum time.'
 
