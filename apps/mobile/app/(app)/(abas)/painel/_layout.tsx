@@ -17,11 +17,15 @@ export default function LayoutPainel() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="auditoria/index" options={{ title: 'Auditoria' }} />
       <Stack.Screen name="auditoria/[id]" options={{ title: 'Registro' }} />
+      <Stack.Screen name="banners/index" options={{ title: 'Banners' }} />
+      <Stack.Screen name="banners/novo" options={{ title: 'Novo banner' }} />
+      <Stack.Screen name="banners/[id]" options={{ title: 'Editar banner' }} />
       <Stack.Screen name="eventos/index" options={{ title: 'Eventos' }} />
       <Stack.Screen name="eventos/novo" options={{ title: 'Novo evento' }} />
       <Stack.Screen name="eventos/[id]/index" options={{ title: 'Evento' }} />
       <Stack.Screen name="eventos/[id]/editar" options={{ title: 'Editar evento' }} />
       <Stack.Screen name="eventos/[id]/resultado" options={{ title: 'Resultado' }} />
+      <Stack.Screen name="eventos/[id]/presenca" options={{ title: 'Presença' }} />
       <Stack.Screen name="modalidades/index" options={{ title: 'Modalidades' }} />
       <Stack.Screen name="modalidades/nova" options={{ title: 'Nova modalidade' }} />
       <Stack.Screen name="modalidades/[id]" options={{ title: 'Editar modalidade' }} />

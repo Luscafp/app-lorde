@@ -103,7 +103,7 @@ export class EventosStatusService {
     }
   }
 
-  /** Presença é gravada pela #84; até lá a guarda sempre passa. */
+  /** Presença gravada pelo `PresencasService` (#84). */
   private async temPresenca(tx: TransacaoComEscopo, eventoId: string): Promise<boolean> {
     const total = await tx.participacao.count({ where: { eventoId, presente: { not: null } } })
     return total > 0

@@ -8,6 +8,7 @@ import { ModalidadeIcone } from '@/features/modalidades'
 import { AcaoEntradaTime } from '@/features/solicitacoes'
 import { ehNaoEncontrado } from '@/infra/api/api-erro'
 import { combinarConsultas } from '@/infra/query/combinar-consultas'
+import { BotaoSairDoTimeNaTela } from './botao-sair-do-time'
 import { contar } from './formatacao'
 import { useElenco, useProximosTreinos, useTime } from './hooks'
 import { ListaElenco } from './lista-elenco'
@@ -81,7 +82,11 @@ export function TelaTime({ timeId, aoVoltar, aoAbrirEvento, aoVerAgenda }: Props
                 }
               />
             </ScrollView>
-            <AcaoEntradaTime time={dados} aoTimeIndisponivel={aoVoltar} />
+            <AcaoEntradaTime
+              time={dados}
+              aoTimeIndisponivel={aoVoltar}
+              acaoDeMembro={<BotaoSairDoTimeNaTela time={dados} />}
+            />
           </>
         )}
       </TelaDados>

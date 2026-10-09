@@ -31,6 +31,7 @@ export interface DadosPerfil {
     time: {
       id: string
       nome: string
+      ativo: boolean
       capitaoId: string | null
       modalidade: { id: string; nome: string; icone: string }
     }
@@ -38,7 +39,7 @@ export interface DadosPerfil {
   aceitesTermos: { versao: string; aceitoEm: Date }[]
 }
 
-/** Vínculos encerrados e times inativos já vêm filtrados da consulta. */
+/** Vínculos encerrados já vêm filtrados; times inativos seguem para a saída (#34). */
 function camposPerfil(atleticaId: string) {
   return {
     id: true,
@@ -52,7 +53,7 @@ function camposPerfil(atleticaId: string) {
       select: { papel: true, atletica: { select: { id: true, nome: true, sigla: true } } },
     },
     membrosTime: {
-      where: { atleticaId, saidaEm: null, time: { ativo: true } },
+      where: { atleticaId, saidaEm: null },
       orderBy: { time: { nome: 'asc' } },
       select: {
         entradaEm: true,
@@ -60,6 +61,7 @@ function camposPerfil(atleticaId: string) {
           select: {
             id: true,
             nome: true,
+            ativo: true,
             capitaoId: true,
             modalidade: { select: { id: true, nome: true, icone: true } },
           },

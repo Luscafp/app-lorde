@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router'
 import { View } from 'react-native'
 import { TelaDados } from '@/components/estado'
 import { DetalheEventoPainel, useEventoPainel } from '@/features/eventos'
+import { SecaoPresenca } from '@/features/participacoes'
 
 export default function EventoPainel() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -23,6 +24,12 @@ export default function EventoPainel() {
             }
             aoExcluir={() => router.back()}
             aoRegistrarResultado={() => router.push(`/painel/eventos/${id}/resultado`)}
+            presenca={
+              <SecaoPresenca
+                evento={evento}
+                aoRegistrar={() => router.push(`/painel/eventos/${id}/presenca`)}
+              />
+            }
           />
         )}
       </TelaDados>

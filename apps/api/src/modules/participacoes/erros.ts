@@ -1,4 +1,4 @@
-import { MotivoBloqueioResposta } from '@atletica/shared'
+import { MENSAGEM_PRESENCA_BLOQUEADA, MotivoBloqueioResposta } from '@atletica/shared'
 import { HttpStatus } from '@nestjs/common'
 import { ErroNegocio } from '../../common/erros/erro-negocio'
 
@@ -16,4 +16,22 @@ export function erroRespostaBloqueada(motivo: MotivoBloqueioResposta): ErroNegoc
       ? HttpStatus.FORBIDDEN
       : HttpStatus.UNPROCESSABLE_ENTITY
   return new ErroNegocio(status, motivo, MENSAGENS[motivo])
+}
+
+export function erroStatusSemPresenca(): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.UNPROCESSABLE_ENTITY,
+    'EVENTO_STATUS_INVALIDO',
+    MENSAGEM_PRESENCA_BLOQUEADA,
+  )
+}
+
+/** Um `details` por id fora do elenco do evento, inclusive de outra atlética. */
+export function erroAtletaForaDoElenco(usuarioIds: string[]): ErroNegocio {
+  return new ErroNegocio(
+    HttpStatus.UNPROCESSABLE_ENTITY,
+    'ATLETA_FORA_DO_ELENCO',
+    'Há atletas que não estavam no elenco do time no início do evento.',
+    usuarioIds.map((id) => ({ field: 'presentes', message: id })),
+  )
 }

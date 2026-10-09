@@ -2,6 +2,7 @@ import {
   PeriodoEventos,
   type ContagemParticipacao,
   type EventoDetalheDto,
+  type ListaPresencaDto,
   type ParticipacaoRespondidaDto,
 } from '@atletica/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -15,7 +16,7 @@ import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { persistida } from '@/infra/query/persistencia'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
-import { responderParticipacao } from './api'
+import { listarPresencas, registrarPresencas, responderParticipacao } from './api'
 
 export const LIMITE_MEUS_PROXIMOS = 5
 
@@ -92,5 +93,32 @@ export function useMeusProximosEventos() {
       listarEventos(FILTROS_MEUS_PROXIMOS, { page: 1, limit: LIMITE_MEUS_PROXIMOS }, signal),
     select: ({ items }) => items,
     ...persistida,
+  })
+}
+
+/** Lista de presença (Diretor+); não persistida (convenções §10.4). */
+export function usePresencas(eventoId: string, habilitada = true) {
+  return useQuery({
+    queryKey: chaves.eventos.presencas(eventoId),
+    queryFn: ({ signal }) => listarPresencas(eventoId, signal),
+    enabled: habilitada,
+  })
+}
+
+/** O 422 indica status ou elenco desatualizados: relê a lista e o detalhe. */
+export function useRegistrarPresencas(eventoId: string) {
+  const cliente = useQueryClient()
+  const recarregar = () => cliente.invalidateQueries({ queryKey: chaves.eventos.detalhe(eventoId) })
+
+  return useAcaoOnline<ListaPresencaDto, ApiErro, string[]>({
+    mutationFn: (presentes) => registrarPresencas(eventoId, { presentes }),
+    onSuccess: (lista) => {
+      cliente.setQueryData(chaves.eventos.presencas(eventoId), lista)
+      void recarregar()
+      void cliente.invalidateQueries({ queryKey: chaves.me.estatisticas() })
+    },
+    onError: (erro) => {
+      if (erro.status === 422) void recarregar()
+    },
   })
 }

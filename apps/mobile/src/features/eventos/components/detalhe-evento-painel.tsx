@@ -8,7 +8,7 @@ import {
   type EventoDto,
 } from '@atletica/shared'
 import { router } from 'expo-router'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ScrollView, View } from 'react-native'
 import { Botao, Cartao, confirmar, Selo, Texto, toast } from '@/components/ui'
 import type { ApiErro } from '@/infra/api/cliente'
@@ -58,9 +58,16 @@ type Props = {
   aoEditar: (escopo: EscopoOcorrencia) => void
   aoExcluir: () => void
   aoRegistrarResultado: () => void
+  presenca?: ReactNode
 }
 
-export function DetalheEventoPainel({ evento, aoEditar, aoExcluir, aoRegistrarResultado }: Props) {
+export function DetalheEventoPainel({
+  evento,
+  aoEditar,
+  aoExcluir,
+  aoRegistrarResultado,
+  presenca,
+}: Props) {
   const online = useOnline()
   const ehPresidencia = useTemNivelMinimo(Papel.PRESIDENTE)
   const cancelar = useCancelarEvento()
@@ -169,6 +176,7 @@ export function DetalheEventoPainel({ evento, aoEditar, aoExcluir, aoRegistrarRe
           onPress={aoRegistrarResultado}
         />
       )}
+      {presenca}
       {evento.status !== StatusEvento.CANCELADO && (
         <Botao titulo="Editar" variante="secundaria" onPress={() => iniciar('editar')} />
       )}

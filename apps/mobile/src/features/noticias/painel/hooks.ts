@@ -36,13 +36,14 @@ export function useNoticiaPainel(id: string) {
   })
 }
 
-/** O Painel e a leitura pública (#78) mostram a mesma notícia. */
+/** O Painel e a leitura pública (#78) mostram a mesma notícia; `tags({})` casa com todos os filtros. */
 function useInvalidar() {
   const cliente = useQueryClient()
   return () =>
     Promise.all([
       cliente.invalidateQueries({ queryKey: chaves.painel.noticias.todos() }),
       cliente.invalidateQueries({ queryKey: chaves.noticias.todos() }),
+      cliente.invalidateQueries({ queryKey: chaves.tags({}) }),
     ])
 }
 

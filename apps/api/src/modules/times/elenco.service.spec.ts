@@ -208,6 +208,53 @@ describe('ElencoService', () => {
     })
   })
 
+  describe('sair', () => {
+    it('encerra com SAIU e o próprio usuário como executor; devolve o resumo', async () => {
+      const { servico, db, auditoria } = criarServico({ capitaoId: ANA, participacoes: 2 })
+      const saida = await servico.sair(TIME, ANA)
+
+      expect(db.$transaction).toHaveBeenCalledTimes(1)
+      expect(auditoria.registrar).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ acao: 'MEMBRO_SAIU', usuarioId: ANA }),
+      )
+      expect(saida).toEqual({
+        timeId: TIME,
+        saidaEm: AGORA_DO_BANCO.toISOString(),
+        capitaniaRemovida: true,
+        participacoesRemovidas: 2,
+      })
+    })
+
+    it('chama encerrarVinculo com motivo SAIU e executor = usuário', async () => {
+      const { servico } = criarServico()
+      const encerrarVinculo = jest.spyOn(servico, 'encerrarVinculo')
+      await servico.sair(TIME, ANA)
+
+      expect(encerrarVinculo).toHaveBeenCalledWith(expect.anything(), {
+        timeId: TIME,
+        usuarioId: ANA,
+        motivo: MotivoSaida.SAIU,
+        executorId: ANA,
+      })
+    })
+
+    it('sem vínculo ativo → 409 NAO_E_MEMBRO', async () => {
+      const { servico } = criarServico({ membroAtivo: false })
+      const erro = await servico.sair(TIME, ANA).catch((e: unknown) => e as ErroNegocio)
+      expect(erro).toMatchObject({ statusCode: 409, code: 'NAO_E_MEMBRO' })
+    })
+
+    it('time adversário → TIME_ADVERSARIO; inexistente → NOT_FOUND', async () => {
+      await expect(
+        codigoDe(criarServico({ usaAplicativo: false }).servico.sair(TIME, ANA)),
+      ).resolves.toBe('TIME_ADVERSARIO')
+      await expect(
+        codigoDe(criarServico({ usaAplicativo: null }).servico.sair(TIME, ANA)),
+      ).resolves.toBe('NOT_FOUND')
+    })
+  })
+
   describe('definirCapitao', () => {
     it('membro ativo: troca o capitão, trava antes de checar o vínculo e audita', async () => {
       const { servico, tx, auditoria } = criarServico({ capitaoId: ANA })

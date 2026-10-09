@@ -5,6 +5,7 @@ import { EstadoVazio, ListaInfinita, TelaDados } from '@/components/estado'
 import { Botao, CampoBusca, Pilulas, type Opcao } from '@/components/ui'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
 import { useValorAtrasado } from '@/infra/use-valor-atrasado'
+import { FiltroTags } from '../tags'
 import { useNoticiasPainel } from './hooks'
 import { ItemNoticiaPainel } from './item-noticia-painel'
 
@@ -23,13 +24,15 @@ export type NavegacaoNoticias = {
 
 export function ListaNoticiasPainel({ ir }: { ir: NavegacaoNoticias }) {
   const [status, setStatus] = useState<StatusNoticia>()
+  const [tagId, setTagId] = useState<string>()
   const [termo, setTermo] = useState('')
   const busca = useValorAtrasado(termo.trim(), ATRASO_BUSCA_MS) || undefined
-  const consulta = useNoticiasPainel({ status, q: busca })
-  const comFiltro = !!status || !!busca
+  const consulta = useNoticiasPainel({ status, q: busca, tagId })
+  const comFiltro = !!status || !!busca || !!tagId
 
   const limparFiltros = () => {
     setStatus(undefined)
+    setTagId(undefined)
     setTermo('')
   }
 
@@ -43,6 +46,7 @@ export function ListaNoticiasPainel({ ir }: { ir: NavegacaoNoticias }) {
           valor={status}
           aoMudar={setStatus}
         />
+        <FiltroTags tagId={tagId} aoMudar={(tag) => setTagId(tag?.id)} incluirSemUso />
         <Botao titulo="Nova notícia" onPress={ir.nova} />
       </View>
       <TelaDados consulta={consulta} esqueleto="lista">

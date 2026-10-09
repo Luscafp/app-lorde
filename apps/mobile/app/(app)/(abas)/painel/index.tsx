@@ -59,6 +59,12 @@ export default function Painel() {
         href="/painel/noticias"
       />
       <ItemPainel
+        titulo="Banners"
+        descricao="Carrossel da Home: cadastrar, ordenar e desativar"
+        icone="images-outline"
+        href="/painel/banners"
+      />
+      <ItemPainel
         titulo="Solicitações"
         descricao="Aceitar ou rejeitar entradas nos times"
         icone="person-add-outline"

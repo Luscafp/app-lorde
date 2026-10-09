@@ -155,7 +155,7 @@ describe('Perfil /me (#13)', () => {
       expect((await perfil(await usuario())).times).toEqual([])
     })
 
-    it('vínculo encerrado, time inativo e time de outra atlética não aparecem (critério 3)', async () => {
+    it('vínculo encerrado e time de outra atlética não aparecem; time inativo vem marcado (critério 3, #34)', async () => {
       const atleta = await usuario()
       const encerrado = await criarTime('Basquete')
       const inativo = await criarTime('Handebol', { ativo: false })
@@ -180,7 +180,10 @@ describe('Perfil /me (#13)', () => {
         ],
       })
 
-      expect((await perfil(atleta)).times.map(({ id }) => id)).toEqual([atual.id])
+      expect((await perfil(atleta)).times.map(({ id, ativo }) => ({ id, ativo }))).toEqual([
+        { id: inativo.id, ativo: false },
+        { id: atual.id, ativo: true },
+      ])
     })
 
     it('papel alterado no banco aparece na próxima chamada, com o mesmo token (critério 4)', async () => {

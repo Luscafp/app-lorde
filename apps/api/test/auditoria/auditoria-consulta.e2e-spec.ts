@@ -283,7 +283,7 @@ describe('Consulta de auditoria (#39)', () => {
         contexto: { usuarioId: presidente.id },
       })
       expect(detalhe.rotuloRegistro).toBe('Jogo Futsal 12/10/2026 19:00')
-      expect(detalhe.resumo.campos).toEqual(['placarTime', 'resultado'])
+      expect([...detalhe.resumo.campos].sort()).toEqual(['placarTime', 'resultado'])
       expect(detalhe.referencias).toEqual({
         usuarios: { [presidente.id]: 'Ana' },
         registros: { [evento.id]: 'Jogo Futsal 12/10/2026 19:00' },

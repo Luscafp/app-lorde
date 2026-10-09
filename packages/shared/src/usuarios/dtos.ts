@@ -75,6 +75,7 @@ export const timeDoPerfilSchema = z
     nome: z.string(),
     modalidade: z.object({ id: z.uuid(), nome: z.string(), icone: z.string() }).strict(),
     capitao: z.boolean(),
+    ativo: z.boolean(),
     entradaEm: z.iso.datetime(),
   })
   .strict()

@@ -17,6 +17,7 @@ import { SeletorImagem } from '@/components/imagem'
 import { Botao, Campo, confirmar, Texto, toast } from '@/components/ui'
 import { ApiErro } from '@/infra/api/api-erro'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
+import { useAvisoAlteracoes } from '@/infra/navegacao/use-aviso-alteracoes'
 import { useOnline } from '@/infra/rede/online'
 import { useTemNivelMinimo } from '@/infra/sessao/use-tem-nivel-minimo'
 import { BarraMarkdown } from './barra-markdown'
@@ -27,7 +28,8 @@ import {
   type DadosNoticia,
   type NomeCampo,
 } from './dados-noticia'
-import { CAMPO_DO_ERRO, MENSAGEM_CAPA_INVALIDA } from './erros'
+import { CampoTags } from '../tags'
+import { CAMPO_DO_ERRO, CAMPOS_DA_API, MENSAGEM_CAPA_INVALIDA } from './erros'
 import {
   useAtualizarNoticia,
   useCriarNoticia,
@@ -37,7 +39,6 @@ import {
 } from './hooks'
 import { aplicarMarcacao, type Marcacao, type Selecao } from './marcacao'
 import { PreviaNoticia } from './previa-noticia'
-import { useAvisoAlteracoes } from './use-aviso-alteracoes'
 
 type Acao = 'rascunho' | 'salvar' | 'publicar' | 'despublicar' | 'excluir'
 
@@ -84,11 +85,12 @@ export function FormNoticia({ noticia, aoConcluir }: Props) {
       titulo: noticia?.titulo ?? '',
       conteudo: noticia?.conteudo ?? '',
       imagemCapaKey: undefined,
+      tags: noticia?.tags.map(({ nome }) => nome) ?? [],
     },
   })
-  const [titulo = '', conteudo = ''] = useWatch({
+  const [titulo = '', conteudo = '', tags = []] = useWatch({
     control: form.control,
-    name: ['titulo', 'conteudo'],
+    name: ['titulo', 'conteudo', 'tags'],
   })
   const { isDirty } = form.formState
   const liberarSaida = useAvisoAlteracoes(isDirty)
@@ -98,7 +100,7 @@ export function FormNoticia({ noticia, aoConcluir }: Props) {
   const semAlteracoes = !!noticia && !isDirty
 
   function tratarErro(erro: unknown) {
-    if (!(erro instanceof ApiErro) || aplicarErrosDaApi(form, erro)) return
+    if (!(erro instanceof ApiErro) || aplicarErrosDaApi(form, erro, CAMPOS_DA_API)) return
     const campo = CAMPO_DO_ERRO[erro.code]
     if (campo) form.setError(campo, { type: 'api', message: erro.message })
     else if (erro.code === 'VALIDATION_ERROR') toast.erro(erro.message)
@@ -236,6 +238,18 @@ export function FormNoticia({ noticia, aoConcluir }: Props) {
           />
           <Contador atual={conteudo.length} maximo={CONTEUDO_NOTICIA_MAX} />
         </View>
+        <Controller
+          control={form.control}
+          name="tags"
+          render={({ field, fieldState }) => (
+            <CampoTags
+              valor={field.value ?? []}
+              aoMudar={field.onChange}
+              erro={fieldState.error?.message}
+              desabilitado={!!emCurso}
+            />
+          )}
+        />
         {publicada ? (
           <>
             <Botao
@@ -285,6 +299,7 @@ export function FormNoticia({ noticia, aoConcluir }: Props) {
             titulo,
             conteudo,
             imagemCapaUrl: capaExibida,
+            tags: tags.map((nome) => ({ id: nome, nome })),
             publicadaEm: noticia?.publicadaEm ?? null,
           }}
           aoFechar={() => setVendoPrevia(false)}

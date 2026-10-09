@@ -7,16 +7,20 @@ export function Segmentos<T extends string>({
   opcoes,
   valor,
   aoMudar,
+  desabilitado = false,
 }: {
   opcoes: readonly Segmento<T>[]
   valor: T
   aoMudar: (valor: T) => void
+  desabilitado?: boolean
 }) {
   const { corPrimaria } = useAtletica()
   return (
     <View
       accessibilityRole="tablist"
-      className="flex-row overflow-hidden rounded-xl border border-borda bg-cartao"
+      className={`flex-row overflow-hidden rounded-xl border border-borda bg-cartao ${
+        desabilitado ? 'opacity-50' : ''
+      }`}
     >
       {opcoes.map((opcao) => {
         const ativo = opcao.valor === valor
@@ -25,7 +29,8 @@ export function Segmentos<T extends string>({
             key={opcao.valor}
             accessibilityRole="tab"
             accessibilityLabel={opcao.rotulo}
-            accessibilityState={{ selected: ativo }}
+            accessibilityState={{ selected: ativo, disabled: desabilitado }}
+            disabled={desabilitado}
             onPress={() => aoMudar(opcao.valor)}
             className="min-h-[44px] flex-1 items-center justify-center"
             style={ativo && { backgroundColor: corPrimaria }}

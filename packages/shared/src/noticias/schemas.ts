@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { StatusNoticia } from '../enums/noticia'
 import { paginacaoQuerySchema } from '../utils/paginacao'
+import { tagsNoticiaSchema } from './tags'
 
 export const TITULO_NOTICIA_MIN = 3
 export const TITULO_NOTICIA_MAX = 120
@@ -15,8 +16,12 @@ function semControle(texto: string): boolean {
   return ![...texto].some((c) => (c < ' ' || c === '\u007f') && !PERMITIDOS.has(c))
 }
 
-/** Query de `GET /noticias`; a #32 acrescenta `tagId`. */
+export const tagIdSchema = z.uuid({ error: 'Tag inválida.' })
+
+/** Query de `GET /noticias`; `tagId` de outra atlética resulta em lista vazia. */
 export const listarNoticiasQuerySchema = paginacaoQuerySchema
+  .extend({ tagId: tagIdSchema.optional() })
+  .strict()
 
 export const tituloNoticiaSchema = z
   .string({ error: 'Informe o título.' })
@@ -47,6 +52,7 @@ const camposRascunho = {
   titulo: tituloNoticiaSchema,
   conteudo: conteudoNoticiaSchema.optional(),
   imagemCapaKey: chaveCapaSchema.nullish(),
+  tags: tagsNoticiaSchema.optional(),
 }
 
 export const noticiaRascunhoSchema = z.object(camposRascunho).strict()
@@ -77,6 +83,8 @@ export const noticiaUpdateSchema = z
     titulo: tituloNoticiaSchema,
     conteudo: conteudoNoticiaSchema,
     imagemCapaKey: chaveCapaSchema.nullable(),
+    /** Substitui o conjunto; `[]` remove todas. */
+    tags: tagsNoticiaSchema,
   })
   .partial()
   .strict()
@@ -93,6 +101,7 @@ export const noticiasPainelQuerySchema = paginacaoQuerySchema
       })
       .transform((valor) => valor || undefined)
       .optional(),
+    tagId: tagIdSchema.optional(),
   })
   .strict()
 

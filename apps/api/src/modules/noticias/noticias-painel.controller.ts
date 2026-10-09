@@ -62,6 +62,10 @@ const EXEMPLO: NoticiaPainelDetalheDto = {
   criadoEm: '2026-09-29T18:00:00.000Z',
   atualizadoEm: '2026-09-30T12:00:00.000Z',
   autor: { id: AUTOR_EXEMPLO, nome: 'Maria Diretora' },
+  tags: [
+    { id: 'd2f1a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a5b', nome: 'Futsal' },
+    { id: 'e3a2b4c5-6d7e-4f80-9b1c-2d3e4f5a6b7c', nome: 'Seletiva' },
+  ],
 }
 
 const { conteudo: _, ...ITEM_EXEMPLO } = EXEMPLO
@@ -73,6 +77,9 @@ const INVALIDO = '`VALIDATION_ERROR`: corpo inválido, campo extra ou id não-UU
 const ERROS_CAPA =
   '`UPLOAD_INVALIDO` (chave de outra atlética, finalidade ou usuário; tamanho ou tipo) ou ' +
   '`UPLOAD_NAO_ENCONTRADO` (upload não concluído).'
+const TAGS_POR_NOME =
+  '`tags`: até 5 nomes (2–30 caracteres: letras, números, espaço e hífen); a tag é criada na ' +
+  'atlética se não existir, reaproveitada sem diferenciar acentos nem maiúsculas.'
 const ERROS_PUBLICACAO = '`CAPA_OBRIGATORIA` ou `CONTEUDO_OBRIGATORIO`.'
 
 @ApiTags('Painel — Notícias')
@@ -88,14 +95,15 @@ export class NoticiasPainelController {
   @ApiOperation({
     summary: 'Lista rascunhos e publicadas, da edição mais recente para a mais antiga',
     description:
-      '`q` busca no título sem diferenciar acentos nem maiúsculas. Excluídas não aparecem.',
+      '`q` busca no título sem diferenciar acentos nem maiúsculas; `tagId` filtra por tag. ' +
+      'Excluídas não aparecem.',
   })
   @ApiOkResponse({
     type: ListaNoticiasPainelDto,
     example: { items: [ITEM_EXEMPLO], page: 1, limit: 20, total: 1 },
   })
   @ApiBadRequestResponse({
-    description: '`VALIDATION_ERROR`: `status`, `q` ou paginação inválidos.',
+    description: '`VALIDATION_ERROR`: `status`, `q`, `tagId` ou paginação inválidos.',
   })
   listar(
     @Query() query: NoticiasPainelQueryDto,
@@ -120,7 +128,8 @@ export class NoticiasPainelController {
     summary: 'Cria um rascunho ou, com `publicar: true`, uma notícia já publicada',
     description:
       'O autor é o usuário logado. `imagemCapaKey` é a chave do presign com finalidade ' +
-      '`NOTICIA`. Publicar exige conteúdo (após `trim`) e capa e emite `noticia.publicada`.',
+      '`NOTICIA`. Publicar exige conteúdo (após `trim`) e capa e emite `noticia.publicada`. ' +
+      TAGS_POR_NOME,
   })
   @ApiBody({
     type: NoticiaCriacaoDto,
@@ -131,6 +140,7 @@ export class NoticiasPainelController {
           titulo: 'Seletiva de futsal',
           conteudo: 'Inscrições até **sexta**.',
           imagemCapaKey: CHAVE_EXEMPLO,
+          tags: ['Futsal', 'Seletiva'],
           publicar: true,
         },
       },
@@ -149,10 +159,12 @@ export class NoticiasPainelController {
   @Patch(':id')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Altera título, conteúdo e/ou capa (ao menos um campo)',
+    summary: 'Altera título, conteúdo, capa e/ou tags (ao menos um campo)',
     description:
       '`imagemCapaKey: null` remove a capa. Publicada continua publicada, com o mesmo ' +
-      '`publicadaEm`, e precisa manter conteúdo e capa. A capa só é validada quando muda.',
+      '`publicadaEm`, e precisa manter conteúdo e capa. A capa só é validada quando muda. ' +
+      '`tags` substitui o conjunto (`[]` remove todas; omitido mantém as atuais). ' +
+      TAGS_POR_NOME,
   })
   @ApiOkResponse({ type: NoticiaPainelRespostaDto, example: EXEMPLO })
   @ApiBadRequestResponse({ description: INVALIDO })
