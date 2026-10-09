@@ -151,19 +151,20 @@ afterEach(() => {
 })
 
 describe('Tela Configurações', () => {
-  it('seções Conta e Sobre, "Sair da conta" e "Excluir conta", sem Notificações (critérios 1 e 2)', async () => {
+  it('seções Conta e Sobre, Notificações, "Sair da conta" e "Excluir conta" (critérios 1 e 2; #37)', async () => {
     await renderizar(<TelaConfiguracoes aoAbrir={jest.fn()} />)
 
     expect(screen.getByRole('header', { name: 'Conta' })).toBeOnTheScreen()
     expect(screen.getByRole('header', { name: 'Sobre' })).toBeOnTheScreen()
     expect(screen.getByRole('button', { name: 'Sair da conta' })).toBeOnTheScreen()
     expect(screen.getByRole('button', { name: 'Excluir conta' })).toBeOnTheScreen()
-    expect(screen.queryByText(/Notifica/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Notificações' })).toBeOnTheScreen()
   })
 
   it.each([
     ['Editar perfil', '/perfil/configuracoes/editar-perfil'],
     ['Alterar senha', '/perfil/configuracoes/alterar-senha'],
+    ['Notificações', '/perfil/configuracoes/notificacoes'],
     ['Termos de Uso', '/termos'],
     ['Política de Privacidade', '/privacidade'],
     ['Sobre o aplicativo', '/perfil/configuracoes/sobre'],
