@@ -10,11 +10,7 @@ export {
   MENSAGEM_SEM_PROXIMOS,
   SecaoMeusProximosEventos,
 } from './components/secao-meus-proximos-eventos'
-export {
-  MENSAGEM_ELENCO_VAZIO,
-  MENSAGEM_PRESENCA_BLOQUEADA,
-  TelaPresenca,
-} from './components/tela-presenca'
+export { MENSAGEM_ELENCO_VAZIO, TelaPresenca } from './components/tela-presenca'
 export {
   useMeusProximosEventos,
   usePresencas,

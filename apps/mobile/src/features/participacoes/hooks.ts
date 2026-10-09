@@ -108,7 +108,6 @@ export function usePresencas(eventoId: string, habilitada = true) {
 /** O 422 indica status ou elenco desatualizados: relê a lista e o detalhe. */
 export function useRegistrarPresencas(eventoId: string) {
   const cliente = useQueryClient()
-  // O prefixo `detalhe(id)` cobre também `presencas(id)`.
   const recarregar = () => cliente.invalidateQueries({ queryKey: chaves.eventos.detalhe(eventoId) })
 
   return useAcaoOnline<ListaPresencaDto, ApiErro, string[]>({

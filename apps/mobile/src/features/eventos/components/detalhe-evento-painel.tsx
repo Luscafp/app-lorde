@@ -57,7 +57,6 @@ type Props = {
   aoEditar: (escopo: EscopoOcorrencia) => void
   aoExcluir: () => void
   aoRegistrarResultado: () => void
-  /** Registro de presença, composto pela rota (feature `participacoes`). */
   presenca?: ReactNode
 }
 

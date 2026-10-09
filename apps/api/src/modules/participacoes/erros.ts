@@ -1,4 +1,4 @@
-import { MotivoBloqueioResposta } from '@atletica/shared'
+import { MENSAGEM_PRESENCA_BLOQUEADA, MotivoBloqueioResposta } from '@atletica/shared'
 import { HttpStatus } from '@nestjs/common'
 import { ErroNegocio } from '../../common/erros/erro-negocio'
 
@@ -22,7 +22,7 @@ export function erroStatusSemPresenca(): ErroNegocio {
   return new ErroNegocio(
     HttpStatus.UNPROCESSABLE_ENTITY,
     'EVENTO_STATUS_INVALIDO',
-    'A presença só pode ser registrada em eventos em andamento ou finalizados.',
+    MENSAGEM_PRESENCA_BLOQUEADA,
   )
 }
 

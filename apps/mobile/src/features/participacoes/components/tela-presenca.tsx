@@ -1,6 +1,7 @@
 import {
   aceitaPresenca,
   formatarDataHora,
+  MENSAGEM_PRESENCA_BLOQUEADA,
   RespostaPresenca,
   type EventoDto,
   type ItemPresenca,
@@ -16,8 +17,6 @@ import { ROTULO_TIPO, STATUS, tituloEvento, useEventoPainel } from '@/features/e
 import { useAvisoAlteracoes } from '@/infra/navegacao/use-aviso-alteracoes'
 import { usePresencas, useRegistrarPresencas } from '../hooks'
 
-export const MENSAGEM_PRESENCA_BLOQUEADA =
-  'A presença só pode ser registrada em eventos em andamento ou finalizados.'
 export const MENSAGEM_ELENCO_VAZIO = 'O time não tinha atletas no elenco no início do evento.'
 
 const RESPOSTA: Record<RespostaPresenca, { rotulo: string; cor: string }> = {

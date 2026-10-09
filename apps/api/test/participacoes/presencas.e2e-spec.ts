@@ -89,9 +89,13 @@ describe('/eventos/:id/presencas (#84)', () => {
 
   /** 5 membros, 3 confirmados (critério 1 do épico). */
   async function cenarioCincoMembros() {
-    const [ana, bia, caio, davi, eva] = await Promise.all(
-      ['Ana', 'Bia', 'Caio', 'Davi', 'Eva'].map((nome) => membro(nome)),
-    )
+    const [ana, bia, caio, davi, eva] = await Promise.all([
+      membro('Ana'),
+      membro('Bia'),
+      membro('Caio'),
+      membro('Davi'),
+      membro('Eva'),
+    ])
     const evento = await treino({
       participantes: [
         { usuarioId: ana.id, confirmado: true },

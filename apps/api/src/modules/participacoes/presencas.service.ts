@@ -17,7 +17,7 @@ import { CAMPOS_MEMBRO, identidadeMembro } from '../times/membro'
 import { UploadsService } from '../uploads/uploads.service'
 import { erroAtletaForaDoElenco, erroStatusSemPresenca } from './erros'
 
-type Banco = Pick<TransacaoComEscopo, 'membroTime' | 'participacao'>
+type LeitorChamada = Pick<TransacaoComEscopo, 'membroTime' | 'participacao'>
 
 interface EventoDaChamada {
   id: string
@@ -60,9 +60,9 @@ function elencoNoInicio({ timeId, inicio }: EventoDaChamada): Prisma.MembroTimeW
   }
 }
 
-function presentesSalvos({ participacoes }: Chamada): string[] {
+function presentesSalvos({ membros, participacoes }: Chamada): string[] {
   return [...participacoes.values()]
-    .filter(({ presente }) => presente === true)
+    .filter(({ usuarioId, presente }) => presente === true && membros.has(usuarioId))
     .map(({ usuarioId }) => usuarioId)
     .sort()
 }
@@ -114,8 +114,8 @@ export class PresencasService {
       if (!aceitaPresenca(evento.status)) throw erroStatusSemPresenca()
 
       const chamada = await this.lerChamada(tx, evento)
-      const fora = presentes.filter((id) => !chamada.membros.has(id))
-      if (fora.length > 0) throw erroAtletaForaDoElenco(fora)
+      const foraDoElenco = presentes.filter((id) => !chamada.membros.has(id))
+      if (foraDoElenco.length > 0) throw erroAtletaForaDoElenco(foraDoElenco)
 
       const antes = presentesSalvos(chamada)
       const depois = [...presentes].sort()
@@ -146,7 +146,7 @@ export class PresencasService {
     return evento
   }
 
-  private async lerChamada(db: Banco, evento: EventoDaChamada): Promise<Chamada> {
+  private async lerChamada(db: LeitorChamada, evento: EventoDaChamada): Promise<Chamada> {
     const [vinculos, participacoes] = await Promise.all([
       db.membroTime.findMany({
         where: elencoNoInicio(evento),
@@ -159,7 +159,7 @@ export class PresencasService {
   }
 
   private async participacoes(
-    db: Banco,
+    db: LeitorChamada,
     eventoId: string,
   ): Promise<Map<string, LinhaParticipacao>> {
     const linhas = await db.participacao.findMany({
@@ -191,17 +191,21 @@ export class PresencasService {
         skipDuplicates: true,
       })
     }
-    const grupos: [string[], boolean][] = [
-      [elenco.filter((id) => presentes.has(id)), true],
-      [elenco.filter((id) => !presentes.has(id)), false],
-    ]
-    for (const [usuarioIds, presente] of grupos) {
-      if (usuarioIds.length === 0) continue
+    const marcar = async (usuarioIds: string[], presente: boolean) => {
+      if (usuarioIds.length === 0) return
       await tx.participacao.updateMany({
         where: { eventoId: evento.id, usuarioId: { in: usuarioIds } },
         data: { presente, ...registro },
       })
     }
+    await marcar(
+      elenco.filter((id) => presentes.has(id)),
+      true,
+    )
+    await marcar(
+      elenco.filter((id) => !presentes.has(id)),
+      false,
+    )
   }
 
   private paraDto({ evento, membros, participacoes }: Chamada): ListaPresencaDto {

@@ -1,4 +1,9 @@
-import type { AtleticaPublica, EventoDetalheDto, ListaPresencaDto } from '@atletica/shared'
+import {
+  MENSAGEM_PRESENCA_BLOQUEADA,
+  type AtleticaPublica,
+  type EventoDetalheDto,
+  type ListaPresencaDto,
+} from '@atletica/shared'
 import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import type { ReactElement } from 'react'
@@ -7,7 +12,6 @@ import PresencaEvento from '../app/(app)/(abas)/painel/eventos/[id]/presenca'
 import { toast } from '@/components/ui/toast'
 import * as apiEventos from '@/features/eventos/api'
 import * as apiParticipacoes from '@/features/participacoes/api'
-import { MENSAGEM_PRESENCA_BLOQUEADA } from '@/features/participacoes'
 import { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { criarQueryClient } from '@/infra/query/query-client'
@@ -145,13 +149,13 @@ describe('detalhe do evento no Painel', () => {
     expect(router.push).toHaveBeenCalledWith(`/painel/eventos/${ID}/presenca`)
   })
 
-  it('com presença registrada: resumo "Presença registrada · N presentes" e "Corrigir presença"', async () => {
+  it('com presença registrada: resumo "Presença registrada · N presentes" e o botão segue habilitado', async () => {
     participacoes.listarPresencas.mockResolvedValue(REGISTRADA)
     eventos.buscarEvento.mockResolvedValue({ ...EVENTO, status: 'FINALIZADO' })
     await renderizar(<EventoPainel />)
 
     expect(await screen.findByText('Presença registrada · 2 presentes')).toBeOnTheScreen()
-    expect(botao('Corrigir presença')).toBeEnabled()
+    expect(botao('Registrar presença')).toBeEnabled()
   })
 })
 

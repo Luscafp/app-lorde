@@ -1,13 +1,12 @@
-import { aceitaPresenca, type StatusEvento } from '@atletica/shared'
+import { aceitaPresenca, MENSAGEM_PRESENCA_BLOQUEADA, type EventoDto } from '@atletica/shared'
 import { View } from 'react-native'
 import { Botao, Texto } from '@/components/ui'
 import { usePresencas } from '../hooks'
-import { MENSAGEM_PRESENCA_BLOQUEADA } from './tela-presenca'
 
 const contarPresentes = (total: number) => (total === 1 ? '1 presente' : `${total} presentes`)
 
 type Props = {
-  evento: { id: string; status: StatusEvento }
+  evento: Pick<EventoDto, 'id' | 'status'>
   aoRegistrar: () => void
 }
 
@@ -24,7 +23,7 @@ export function SecaoPresenca({ evento, aoRegistrar }: Props) {
         <Texto variante="legenda">{`Presença registrada · ${contarPresentes(presentes)}`}</Texto>
       )}
       <Botao
-        titulo={registrada ? 'Corrigir presença' : 'Registrar presença'}
+        titulo="Registrar presença"
         variante="secundaria"
         disabled={!permitida}
         onPress={aoRegistrar}

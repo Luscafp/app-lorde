@@ -11,6 +11,9 @@ export type RespostaPresenca = (typeof RespostaPresenca)[keyof typeof RespostaPr
 
 export const MAXIMO_PRESENTES = 200
 
+export const MENSAGEM_PRESENCA_BLOQUEADA =
+  'A presença só pode ser registrada em eventos em andamento ou finalizados.'
+
 const STATUS_COM_PRESENCA: readonly StatusEvento[] = [
   StatusEvento.EM_ANDAMENTO,
   StatusEvento.FINALIZADO,

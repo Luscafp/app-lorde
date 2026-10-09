@@ -76,6 +76,25 @@ function criarServico({
   return { servico, db, tx, auditoria }
 }
 
+const HORA = 60 * 60 * 1000
+const antesDoInicio = new Date(INICIO.getTime() - HORA)
+const depoisDoInicio = new Date(INICIO.getTime() + HORA)
+
+interface Vinculo {
+  entradaEm: Date
+  saidaEm: Date | null
+}
+
+interface FiltroElenco {
+  entradaEm: { lte: Date }
+  OR: [{ saidaEm: null }, { saidaEm: { gt: Date } }]
+}
+
+function cobreFiltro(where: FiltroElenco, { entradaEm, saidaEm }: Vinculo): boolean {
+  const saiuDepois = saidaEm === null || saidaEm > where.OR[1].saidaEm.gt
+  return entradaEm <= where.entradaEm.lte && saiuDepois
+}
+
 describe('PresencasService', () => {
   beforeEach(() => {
     jest.useFakeTimers({ now: AGORA, doNotFake: ['nextTick', 'setImmediate'] })
@@ -98,6 +117,20 @@ describe('PresencasService', () => {
           },
         }),
       )
+    })
+
+    it.each<[string, Vinculo, boolean]>([
+      ['entrou antes do início, sem saída', { entradaEm: antesDoInicio, saidaEm: null }, true],
+      ['entrou no próprio início', { entradaEm: INICIO, saidaEm: null }, true],
+      ['entrou depois do início', { entradaEm: depoisDoInicio, saidaEm: null }, false],
+      ['saiu antes do início', { entradaEm: antesDoInicio, saidaEm: antesDoInicio }, false],
+      ['saiu no próprio início', { entradaEm: antesDoInicio, saidaEm: INICIO }, false],
+      ['saiu depois do início', { entradaEm: antesDoInicio, saidaEm: depoisDoInicio }, true],
+    ])('elenco do evento: %s → %s', async (_caso, vinculo, noElenco) => {
+      const { servico, db } = criarServico()
+      await servico.listar(EVENTO)
+      const [{ where }] = db.membroTime.findMany.mock.calls[0] as [{ where: FiltroElenco }]
+      expect(cobreFiltro(where, vinculo)).toBe(noElenco)
     })
 
     it('sem chamada: pré-preenche com quem confirmou, etiqueta a resposta e ordena por nome', async () => {
@@ -250,6 +283,31 @@ describe('PresencasService', () => {
       expect(tx.participacao.createMany).not.toHaveBeenCalled()
       expect(tx.participacao.updateMany).not.toHaveBeenCalled()
       expect(auditoria.registrar).not.toHaveBeenCalled()
+    })
+
+    it('linha de quem saiu do elenco não impede o no-op nem entra na auditoria', async () => {
+      const ex = 'c1c1c1c1-0000-4000-8000-000000000009'
+      const { servico, tx, auditoria } = criarServico({
+        linhas: [
+          { usuarioId: ANA, presente: true },
+          { usuarioId: BIA, presente: false },
+          { usuarioId: CAIO, presente: false },
+          { usuarioId: EXCLUIDO, presente: false },
+          { usuarioId: ex, presente: true },
+        ],
+      })
+
+      await servico.registrar(EVENTO, [ANA], DIRETOR)
+      expect(tx.participacao.updateMany).not.toHaveBeenCalled()
+      expect(auditoria.registrar).not.toHaveBeenCalled()
+
+      await servico.registrar(EVENTO, [ANA, BIA], DIRETOR)
+      expect(auditoria.registrar).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({
+          dados: { antes: { presentes: [ANA] }, depois: { presentes: [ANA, BIA].sort() } },
+        }),
+      )
     })
 
     it('sem chamada, enviar exatamente os confirmados ainda registra', async () => {
