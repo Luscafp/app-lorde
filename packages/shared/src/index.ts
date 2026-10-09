@@ -1,6 +1,7 @@
 export * from './atletica'
 export * from './auditoria'
 export * from './auth'
+export * from './banners'
 export * from './enums'
 export * from './eventos'
 export * from './legal'

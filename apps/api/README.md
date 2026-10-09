@@ -623,6 +623,25 @@ A avaliação (`SolicitacoesPainelService`) usa `updateManyAndReturn` com `statu
 - **Auditoria** (entidade `Noticia`): `NOTICIA_CRIADA` (`{ titulo, status }`), `NOTICIA_ALTERADA` (título e os indicadores `conteudoAlterado`/`capaAlterada`, nunca o texto nem a chave), `NOTICIA_PUBLICADA` (`contexto.primeiraPublicacao`), `NOTICIA_DESPUBLICADA` e `NOTICIA_EXCLUIDA`.
 - Fábricas: `criarNoticia` e `chaveDeCapa` em `test/fabricas/noticias.ts`.
 
+## Banners (`src/modules/banners`)
+
+`BannersModule` reúne o carrossel da Home (`/banners`) e a gestão pelo Painel (`/painel/banners`), issue #33. Schemas e DTOs em `@atletica/shared` (`banners/`): título `trim` 3–80; link opcional, só `https://` com domínio e sem credenciais, até 500 caracteres (limite da coluna); vazio ou `null` remove. Exclusão física (sem `excluidoEm`).
+
+| Rota                         | Papel mínimo | Resposta                                                                            |
+| ---------------------------- | ------------ | ----------------------------------------------------------------------------------- |
+| `GET /banners`               | autenticado  | `200 { items }` só ativos, por `ordem` e depois `criadoEm`; sem paginação (máx. 10) |
+| `GET /painel/banners`        | DIRETOR      | `200` paginado, ativos e inativos, na mesma ordem                                   |
+| `GET /painel/banners/:id`    | DIRETOR      | `200`                                                                               |
+| `POST /painel/banners`       | DIRETOR      | `201` no fim da ordem; `ativo` padrão `true`                                        |
+| `PATCH /painel/banners/:id`  | DIRETOR      | `200`; `titulo`, `imagemKey`, `link`, `ativo`; sem mudança não grava nem audita     |
+| `PUT /painel/banners/ordem`  | DIRETOR      | `200 { items }`; regrava `ordem` 0..n-1; lista incompleta → `400 ORDEM_INCOMPLETA`  |
+| `DELETE /painel/banners/:id` | PRESIDENTE   | `204`; a imagem fica para a limpeza de órfãos                                       |
+
+- **Limite:** no máximo 10 ativos; criar ou ativar o 11º → `409 LIMITE_BANNERS_ATIVOS`. Toda escrita pega `pg_advisory_xact_lock('banners:' || atleticaId)`, que serializa o limite e a ordem.
+- **Imagem:** `UploadsService.validarKey` (finalidade `BANNER`) só no `POST` e quando a chave muda; a anterior sai do R2 via `aposCommit`.
+- **Auditoria** (entidade `Banner`): `BANNER_CRIADO` (`{ titulo, link, ordem, ativo }`), `BANNER_ALTERADO` (campos alterados; troca de imagem vira `depois.imagemAlterada`, nunca a chave), `BANNER_REORDENADO` (`entidadeId` = primeiro da nova ordem, `{ antes: { ids }, depois: { ids } }`) e `BANNER_EXCLUIDO`.
+- Fábricas: `criarBanner` e `chaveDeBanner` em `test/fabricas/banners.ts`.
+
 ## Eventos (`src/modules/eventos`)
 
 Jogos e treinos avulsos (épico #19; escrita da #70). Schemas (`criarEventoSchema`, união discriminada por `tipo`; `editarEventoSchema`) e `EventoDto` em `@atletica/shared` (`eventos/`): `inicio` ISO com fuso entre hoje − 365 e hoje + 730 dias, `local` 2–120, `observacoes` até 500 (vazio → `null`). A modalidade é a do time (RN10). Exclusão **lógica** (`excluidoEm`): toda leitura e escrita filtra `naoExcluido`.

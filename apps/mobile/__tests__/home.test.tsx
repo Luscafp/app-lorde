@@ -8,8 +8,9 @@ import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import type { ReactElement, ReactNode } from 'react'
 import type { RefreshControlProps } from 'react-native'
+import { listarBanners } from '@/features/banners/api'
 import { listarEventos } from '@/features/eventos/api'
-import { HomeBannersSlot, TelaHome } from '@/features/home'
+import { TelaHome } from '@/features/home'
 import { listarNoticias } from '@/features/noticias/api'
 import { ApiErro } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
@@ -19,6 +20,7 @@ import { useSessao } from '@/infra/sessao/store'
 
 jest.mock('@/features/eventos/api', () => ({ LIMITE_PAGINA: 20, listarEventos: jest.fn() }))
 jest.mock('@/features/noticias/api', () => ({ LIMITE_PAGINA: 20, listarNoticias: jest.fn() }))
+jest.mock('@/features/banners/api', () => ({ listarBanners: jest.fn() }))
 
 jest.mock('@/infra/sentry', () => ({
   ...jest.requireActual<object>('@/infra/sentry'),
@@ -27,6 +29,7 @@ jest.mock('@/infra/sentry', () => ({
 
 const eventosApi = jest.mocked(listarEventos)
 const noticiasApi = jest.mocked(listarNoticias)
+const bannersApi = jest.mocked(listarBanners)
 
 const evento = (id: string, parcial: Partial<EventoResumoDto> = {}): EventoResumoDto => ({
   id,
@@ -102,6 +105,7 @@ beforeEach(() => {
   jest.clearAllMocks()
   eventosApi.mockReset().mockResolvedValue(listaEventos([evento('a')]))
   noticiasApi.mockReset().mockResolvedValue(listaNoticias([noticia('n1')]))
+  bannersApi.mockReset().mockResolvedValue([])
   useSessao.setState({
     usuario: {
       id: 'u1',
@@ -237,6 +241,17 @@ describe('Home', () => {
     expect(screen.getByText('Notícia n1')).toBeOnTheScreen()
   })
 
+  it('offline só com banners em cache: carrossel e faixa "Modo offline" (#33, critério 15)', async () => {
+    onlineManager.setOnline(false)
+    cliente.setQueryData(chaves.banners(), [
+      { id: 'b1', titulo: 'Banner b1', imagemUrl: 'https://img.exemplo.com/b1.jpg', link: null },
+    ])
+    await abrirHome()
+
+    expect(await screen.findByText('Banner b1')).toBeOnTheScreen()
+    expect(screen.getByText(/^Modo offline · dados de/)).toBeOnTheScreen()
+  })
+
   it('offline sem cache: estado "Sem conexão" em cada seção, sem faixa (critério 14)', async () => {
     onlineManager.setOnline(false)
     await abrirHome()
@@ -247,7 +262,7 @@ describe('Home', () => {
     expect(screen.queryByText(/^Modo offline/)).toBeNull()
   })
 
-  it('pull-to-refresh recarrega as duas seções', async () => {
+  it('pull-to-refresh recarrega as seções e os banners', async () => {
     await abrirHome()
     await screen.findByText('Notícia n1')
     await screen.findByText('Treino — Time a')
@@ -256,6 +271,25 @@ describe('Home', () => {
 
     await waitFor(() => expect(eventosApi).toHaveBeenCalledTimes(2))
     expect(noticiasApi).toHaveBeenCalledTimes(2)
+    expect(bannersApi).toHaveBeenCalledTimes(2)
+  })
+
+  it('sem banner ativo: sem carrossel e o restante normal (#33 critério 4)', async () => {
+    await abrirHome()
+    await screen.findByText('Notícia n1')
+    expect(screen.queryByTestId('carrossel-banners')).toBeNull()
+  })
+
+  it('carrossel no topo, antes dos atalhos (#33 critério 1)', async () => {
+    bannersApi.mockResolvedValue([
+      { id: 'b1', titulo: 'Inscrições JUBS', imagemUrl: 'https://img/b1.webp', link: null },
+    ])
+    await abrirHome()
+    expect(await screen.findByText('Inscrições JUBS')).toBeOnTheScreen()
+    const marcos = screen
+      .getAllByText(/^(Inscrições JUBS|Placar)$/)
+      .map(({ props }) => props.children as string)
+    expect(marcos).toEqual(['Inscrições JUBS', 'Placar'])
   })
 
   it.each([
@@ -312,12 +346,5 @@ describe('Home', () => {
 
     expect(screen.getByRole('header', { name: 'Atlética de Computação' })).toBeOnTheScreen()
     expect(screen.getByText('AAC')).toBeOnTheScreen()
-  })
-})
-
-describe('HomeBannersSlot', () => {
-  it('não renderiza nada no MVP', async () => {
-    await renderizar(<HomeBannersSlot />)
-    expect(screen.toJSON()).toBeNull()
   })
 })
