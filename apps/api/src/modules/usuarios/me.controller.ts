@@ -65,6 +65,7 @@ const EXEMPLO_PERFIL: Perfil = {
       nome: 'Futsal Masculino',
       modalidade: { id: '6f1c2a7e-2f5b-4c39-9a0e-3f3b1b8d2c11', nome: 'Futsal', icone: 'futsal' },
       capitao: true,
+      ativo: true,
       entradaEm: '2026-08-02T13:00:00.000Z',
     },
   ],

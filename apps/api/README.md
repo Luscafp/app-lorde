@@ -319,7 +319,7 @@ Perfil do usuário autenticado (UC10, UC11, #13). Só `@UsuarioAtual()`, sem `:i
 | `DELETE /api/v1/me/foto` | `204`, idempotente                                                                    |
 | `PUT /api/v1/me/senha`   | `{ senhaAtual, novaSenha }` → `204`; `400 SENHA_INCORRETA`/`SENHA_IGUAL_ATUAL`, `429` |
 
-- `GET /me` é uma consulta só: vínculos com `saidaEm` e times inativos ficam de fora, capitão por `Time.capitaoId`, times por nome.
+- `GET /me` é uma consulta só: vínculos com `saidaEm` ficam de fora, times inativos vêm com `ativo: false` (para a saída pelo Perfil, #34), capitão por `Time.capitaoId`, times por nome.
 - Foto: `UploadsService.validarKey` só quando a chave muda; a anterior é removida do R2 em `aposCommit`.
 - Senha: 5 senhas atuais erradas em 15 min por usuário (`SENHA_CONFIRMACAO_FALHA`, chave `usuarioId`, o mesmo contador da #12). A troca revoga as outras sessões com `TROCA_SENHA` (`exceto` = sessão do token) e emite `usuario.sessaoEncerrada` só com as revogadas. `SENHA_INCORRETA` é 400 para o app não tentar o refresh.
 - Sem auditoria (convenções §7).
@@ -553,15 +553,16 @@ As listas paginadas (`/times`, `/atleticas-adversarias`) ordenam e filtram por n
 
 Só times da atlética ativa: time adversário → `422 TIME_ADVERSARIO`; de outra atlética que usa o app → `404`.
 
-| Rota                                  | Papel mínimo         | Resposta                                                                                                                      |
-| ------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `GET /times/:id/elenco`               | qualquer autenticado | `200 { items, total }` sem paginação, capitão primeiro e depois por nome; sem e-mail; fora da Diretoria, time inativo → `404` |
-| `DELETE /times/:id/elenco/:usuarioId` | DIRETOR              | `204`; sem vínculo ativo → `404 MEMBRO_NAO_ENCONTRADO`                                                                        |
-| `PUT /times/:id/capitao`              | DIRETOR              | `200` com o time; `{ usuarioId: null }` remove; fora do elenco → `422 CAPITAO_FORA_DO_ELENCO`                                 |
+| Rota                                  | Papel mínimo         | Resposta                                                                                                                                  |
+| ------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /times/:id/elenco`               | qualquer autenticado | `200 { items, total }` sem paginação, capitão primeiro e depois por nome; sem e-mail; fora da Diretoria, time inativo → `404`             |
+| `DELETE /times/:id/elenco/:usuarioId` | DIRETOR              | `204`; sem vínculo ativo → `404 MEMBRO_NAO_ENCONTRADO`                                                                                    |
+| `PUT /times/:id/capitao`              | DIRETOR              | `200` com o time; `{ usuarioId: null }` remove; fora do elenco → `422 CAPITAO_FORA_DO_ELENCO`                                             |
+| `POST /times/:id/sair`                | qualquer autenticado | `200 { timeId, saidaEm, capitaniaRemovida, participacoesRemovidas }`; o próprio usuário sai (#34); sem vínculo ativo → `409 NAO_E_MEMBRO` |
 
 Auditoria: `CAPITAO_DEFINIDO`/`CAPITAO_REMOVIDO` (entidade `Time`, `{ antes: { capitaoId }, depois: { capitaoId } }`; sem mudança não audita). Usuário excluído aparece como "Usuário excluído", sem foto.
 
-**`encerrarVinculo(tx, { timeId, usuarioId, motivo, executorId })`** — ponto único de saída do elenco (#12 e #34 o chamam; importe `TimesModule`). Roda na transação de quem chama e devolve `{ capitaniaRemovida, participacoesRemovidas }`:
+**`encerrarVinculo(tx, { timeId, usuarioId, motivo, executorId })`** — ponto único de saída do elenco (#12 e #34 o chamam; importe `TimesModule`). Roda na transação de quem chama e devolve `{ saidaEm, capitaniaRemovida, participacoesRemovidas }`:
 
 1. trava o `Time` com `FOR UPDATE` (o `PUT /capitao` também trava, então capitão e remoção não se cruzam);
 2. preenche `saidaEm` no vínculo ativo; sem vínculo → `404 MEMBRO_NAO_ENCONTRADO`;
@@ -569,18 +570,7 @@ Auditoria: `CAPITAO_DEFINIDO`/`CAPITAO_REMOVIDO` (entidade `Time`, `{ antes: { c
 4. apaga as `Participacao` do usuário em eventos do time `AGENDADO`, futuros e sem presença;
 5. audita na entidade `MembroTime` com ator `executorId`: `REMOVIDO_PELA_DIRETORIA` → `MEMBRO_REMOVIDO`, `SAIU` → `MEMBRO_SAIU`, `EXCLUSAO_CONTA` → `MEMBRO_REMOVIDO_EXCLUSAO_CONTA`, com `contexto: { timeId, usuarioId, capitaniaRemovida, participacoesRemovidas }`.
 
-Não emite evento de domínio. Para #34 (`MotivoSaida` exportado por `elenco.service.ts`):
-
-```ts
-await this.prisma.db.$transaction((tx) =>
-  this.elenco.encerrarVinculo(tx, {
-    timeId,
-    usuarioId,
-    motivo: MotivoSaida.SAIU,
-    executorId: usuarioId,
-  }),
-)
-```
+Não emite evento de domínio. O `POST /times/:id/sair` (`ElencoService.sair`) chama com `MotivoSaida.SAIU` e `executorId` = o próprio usuário.
 
 ## Solicitações de entrada (`src/modules/solicitacoes`)
 

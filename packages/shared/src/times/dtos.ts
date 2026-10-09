@@ -47,8 +47,19 @@ export const elencoDtoSchema = z
   .object({ items: z.array(membroElencoDtoSchema), total: z.number().int() })
   .strict()
 
+/** Resposta de `POST /times/:id/sair` (#34). */
+export const saidaTimeDtoSchema = z
+  .object({
+    timeId: z.uuid(),
+    saidaEm: z.iso.datetime(),
+    capitaniaRemovida: z.boolean(),
+    participacoesRemovidas: z.number().int(),
+  })
+  .strict()
+
 export type TimeDto = z.infer<typeof timeDtoSchema>
 export type TimeDetalheDto = z.infer<typeof timeDetalheDtoSchema>
 export type ListaTimes = z.infer<typeof listaTimesSchema>
 export type MembroElencoDto = z.infer<typeof membroElencoDtoSchema>
 export type ElencoDto = z.infer<typeof elencoDtoSchema>
+export type SaidaTimeDto = z.infer<typeof saidaTimeDtoSchema>

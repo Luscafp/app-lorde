@@ -4,9 +4,11 @@ import {
   elencoDtoSchema,
   membroElencoParamsSchema,
   Papel,
+  saidaTimeDtoSchema,
   timeDtoSchema,
   timeIdSchema,
   type ElencoDto,
+  type SaidaTimeDto,
   type TimeDto,
 } from '@atletica/shared'
 import {
@@ -18,10 +20,12 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Post,
   Put,
 } from '@nestjs/common'
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -41,6 +45,7 @@ class MembroElencoParamsDto extends createZodDto(membroElencoParamsSchema) {}
 class CapitaoAtualizacaoDto extends createZodDto(capitaoUpdateSchema) {}
 class ElencoRespostaDto extends createZodDto(elencoDtoSchema) {}
 class TimeRespostaDto extends createZodDto(timeDtoSchema) {}
+class SaidaRespostaDto extends createZodDto(saidaTimeDtoSchema) {}
 
 const EXEMPLO_ELENCO: ElencoDto = {
   items: [
@@ -53,6 +58,13 @@ const EXEMPLO_ELENCO: ElencoDto = {
     },
   ],
   total: 1,
+}
+
+const EXEMPLO_SAIDA: SaidaTimeDto = {
+  timeId: 'b2a1c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d',
+  saidaEm: '2026-11-02T18:30:00.000Z',
+  capitaniaRemovida: true,
+  participacoesRemovidas: 2,
 }
 
 const NAO_AUTENTICADO = '`UNAUTHENTICATED` ou `TOKEN_EXPIRED`.'
@@ -103,6 +115,24 @@ export class ElencoController {
     @UsuarioAtual('id') executorId: string,
   ): Promise<void> {
     return this.elenco.removerMembro(id, usuarioId, executorId)
+  }
+
+  @Post(':id/sair')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'O próprio usuário sai do time (qualquer papel)',
+    description:
+      'Sem corpo; o usuário é sempre o do token. Preenche `saidaEm`, tira a capitania se for o ' +
+      'capitão e apaga as confirmações em eventos agendados futuros sem presença.',
+  })
+  @ApiOkResponse({ type: SaidaRespostaDto, example: EXEMPLO_SAIDA })
+  @ApiBadRequestResponse({ description: '`VALIDATION_ERROR`: id não-UUID.' })
+  @ApiNotFoundResponse({ description: NAO_ENCONTRADO })
+  @ApiConflictResponse({ description: '`NAO_E_MEMBRO`: sem vínculo ativo no time.' })
+  @ApiUnprocessableEntityResponse({ description: ADVERSARIO })
+  sair(@Param() { id }: TimeIdDto, @UsuarioAtual('id') usuarioId: string): Promise<SaidaTimeDto> {
+    return this.elenco.sair(id, usuarioId)
   }
 
   @Put(':id/capitao')
