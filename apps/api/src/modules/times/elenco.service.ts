@@ -17,6 +17,7 @@ import {
   erroNaoEMembro,
   erroTimeAdversario,
   erroTimeNaoEncontrado,
+  MEMBRO_NAO_ENCONTRADO,
 } from './erros'
 import { CAMPOS_TIME, paraDto, VISIVEL_PARA_TODOS } from './linha-time'
 import { CAMPOS_MEMBRO, ELENCO_ATUAL, identidadeMembro } from './membro'
@@ -124,7 +125,7 @@ export class ElencoService {
       )
       return { timeId, saidaEm: saidaEm.toISOString(), ...resultado }
     } catch (erro) {
-      if (erro instanceof ErroNegocio && erro.code === 'MEMBRO_NAO_ENCONTRADO') {
+      if (erro instanceof ErroNegocio && erro.code === MEMBRO_NAO_ENCONTRADO) {
         throw erroNaoEMembro()
       }
       throw erro

@@ -1,3 +1,4 @@
+export { BotaoSairDoTime } from './botao-sair-do-time'
 export { CartaoTime } from './cartao-time'
 export { ElencoPainel } from './elenco-painel'
 export { FormAtleticaAdversaria, SheetAtleticaAdversaria } from './form-atletica-adversaria'

@@ -10,7 +10,6 @@ import { TIME_INATIVO, useCancelarSolicitacao, useSolicitarEntrada } from './hoo
 type Props = {
   time: TimeDetalheDto
   aoTimeIndisponivel: () => void
-  /** "Sair do time" (#34), abaixo da faixa de membro. */
   acaoDeMembro?: ReactNode
 }
 

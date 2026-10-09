@@ -155,12 +155,17 @@ export function useRemoverMembro(timeId: string) {
   return useAcaoDeElenco((usuarioId: string) => removerMembro(timeId, usuarioId))
 }
 
-export const NAO_E_MEMBRO = 'NAO_E_MEMBRO'
+const NAO_E_MEMBRO = 'NAO_E_MEMBRO'
 const ERROS_DE_REDE: string[] = [CodigoLocal.SEM_CONEXAO, CodigoLocal.TEMPO_ESGOTADO]
 
 /** Já fora do elenco (`NAO_E_MEMBRO`): só recarrega a tela, sem toast. */
 export function useSairDoTime(timeId: string) {
-  const invalidar = useInvalidar([chaves.times.todos(), chaves.me(), chaves.eventos.todos()])
+  const invalidar = useInvalidar([
+    chaves.times.detalhe(timeId),
+    ['times', 'lista'],
+    chaves.me(),
+    chaves.eventos.todos(),
+  ])
   return useAcaoOnline<SaidaTimeDto, ApiErro>({
     mutationFn: () => sairDoTime(timeId),
     meta: { errosNaTela: [NAO_E_MEMBRO, ...ERROS_DE_REDE] },

@@ -316,7 +316,7 @@ Perfil do usuário autenticado (UC10, UC11, #13). Só `@UsuarioAtual()`, sem `:i
 | `DELETE /api/v1/me/foto` | `204`, idempotente                                                                    |
 | `PUT /api/v1/me/senha`   | `{ senhaAtual, novaSenha }` → `204`; `400 SENHA_INCORRETA`/`SENHA_IGUAL_ATUAL`, `429` |
 
-- `GET /me` é uma consulta só: vínculos com `saidaEm` e times inativos ficam de fora, capitão por `Time.capitaoId`, times por nome.
+- `GET /me` é uma consulta só: vínculos com `saidaEm` ficam de fora, times inativos vêm com `ativo: false` (para a saída pelo Perfil, #34), capitão por `Time.capitaoId`, times por nome.
 - Foto: `UploadsService.validarKey` só quando a chave muda; a anterior é removida do R2 em `aposCommit`.
 - Senha: 5 senhas atuais erradas em 15 min por usuário (`SENHA_CONFIRMACAO_FALHA`, chave `usuarioId`, o mesmo contador da #12). A troca revoga as outras sessões com `TROCA_SENHA` (`exceto` = sessão do token) e emite `usuario.sessaoEncerrada` só com as revogadas. `SENHA_INCORRETA` é 400 para o app não tentar o refresh.
 - Sem auditoria (convenções §7).

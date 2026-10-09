@@ -26,6 +26,7 @@ export function BotaoSairDoTime(props: Props) {
   return (
     <Botao
       titulo="Sair do time"
+      icone="close"
       variante="perigo"
       carregando={saida.isPending}
       disabled={!saida.online}
@@ -41,12 +42,15 @@ export function BotaoSairDoTime(props: Props) {
   )
 }
 
-/** As respostas apagadas pela API são as dos eventos agendados futuros (#34 §14). */
 export function BotaoSairDoTimeNaTela({ time }: { time: TimeDto }) {
   const meuId = useSessao((estado) => estado.usuario?.id)
   const proximos = useProximosEventos({ timeId: time.id }, LIMITE_MAXIMO)
+  const agora = Date.now()
   const temConfirmacoesFuturas = proximos.data?.items.some(
-    (evento) => evento.status === StatusEvento.AGENDADO && evento.minhaParticipacao !== null,
+    (evento) =>
+      evento.status === StatusEvento.AGENDADO &&
+      new Date(evento.inicio).getTime() > agora &&
+      evento.minhaParticipacao !== null,
   )
 
   return (

@@ -226,6 +226,19 @@ describe('ElencoService', () => {
       })
     })
 
+    it('chama encerrarVinculo com motivo SAIU e executor = usuário', async () => {
+      const { servico } = criarServico()
+      const encerrarVinculo = jest.spyOn(servico, 'encerrarVinculo')
+      await servico.sair(TIME, ANA)
+
+      expect(encerrarVinculo).toHaveBeenCalledWith(expect.anything(), {
+        timeId: TIME,
+        usuarioId: ANA,
+        motivo: MotivoSaida.SAIU,
+        executorId: ANA,
+      })
+    })
+
     it('sem vínculo ativo → 409 NAO_E_MEMBRO', async () => {
       const { servico } = criarServico({ membroAtivo: false })
       const erro = await servico.sair(TIME, ANA).catch((e: unknown) => e as ErroNegocio)

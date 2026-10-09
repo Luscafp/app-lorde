@@ -34,10 +34,12 @@ export function erroTimeAdversario(): ErroNegocio {
   )
 }
 
+export const MEMBRO_NAO_ENCONTRADO = 'MEMBRO_NAO_ENCONTRADO'
+
 export function erroMembroNaoEncontrado(): ErroNegocio {
   return new ErroNegocio(
     HttpStatus.NOT_FOUND,
-    'MEMBRO_NAO_ENCONTRADO',
+    MEMBRO_NAO_ENCONTRADO,
     'Este usuário não faz parte do elenco do time.',
   )
 }

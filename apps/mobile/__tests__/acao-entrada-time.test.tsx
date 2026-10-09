@@ -259,9 +259,12 @@ describe('Sair do time (#34)', () => {
     expect(toast.sucesso).toHaveBeenCalledWith('Você saiu do time')
     expect(await screen.findByRole('button', { name: 'Solicitar entrada' })).toBeOnTheScreen()
     const chavesInvalidadas = invalidar.mock.calls.map(([filtro]) => filtro?.queryKey)
-    expect(chavesInvalidadas).toEqual(
-      expect.arrayContaining([chaves.times.todos(), chaves.me(), chaves.eventos.todos()]),
-    )
+    expect(chavesInvalidadas).toEqual([
+      chaves.times.detalhe('t-masc'),
+      ['times', 'lista'],
+      chaves.me(),
+      chaves.eventos.todos(),
+    ])
   })
 
   it('capitão com confirmação futura: o diálogo traz os dois avisos (critério 2)', async () => {
@@ -280,6 +283,22 @@ describe('Sair do time (#34)', () => {
       `${AVISO_BASE} Você é o capitão; o time ficará sem capitão. ` +
         'Suas confirmações nos próximos eventos deste time serão removidas.',
     )
+  })
+
+  it('evento já iniciado não conta como confirmação futura', async () => {
+    jest.mocked(apiEventos.listarEventos).mockResolvedValue(
+      paginaEventos([
+        eventoResumo('e1', {
+          inicio: '2020-01-01T12:00:00.000Z',
+          minhaParticipacao: { confirmado: true, respondidoEm: SAIDA.saidaEm },
+        }),
+      ]),
+    )
+    await abrirTime(MEMBRO)
+
+    await waitFor(() => expect(apiEventos.listarEventos).toHaveBeenCalledTimes(2))
+    await fireEvent.press(botao('Sair do time'))
+    expect(ultimoAlerta()?.[1]).toBe(AVISO_BASE)
   })
 
   it('cancelar o diálogo não chama a API (critério 12)', async () => {
