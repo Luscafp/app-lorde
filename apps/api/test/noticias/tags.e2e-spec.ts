@@ -297,6 +297,16 @@ describe('Tags de notícias (#32)', () => {
       expect(lista).toMatchObject({ page: 1, limit: 20, total: 1 })
     })
 
+    it('?tagId= de tag usada só em rascunho → lista vazia (RN24)', async () => {
+      const rascunho = await criarComTags(['Calouros'], false)
+      const [tag] = rascunho.tags
+      const api = await como(await papel('ATLETA'))
+
+      const resposta = await api.publicas(`?tagId=${tag?.id}`)
+      expect(resposta.status).toBe(200)
+      expect(listaNoticiasSchema.parse(resposta.body)).toMatchObject({ items: [], total: 0 })
+    })
+
     it('despublicada some do filtro e a tag sai de /tags (critério 10)', async () => {
       const criada = await criarComTags(['Futsal'])
       const [tag] = criada.tags

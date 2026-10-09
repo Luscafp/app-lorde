@@ -4,6 +4,7 @@ import type { PrismaService } from '../../infra/prisma/prisma.service'
 import type { AuditoriaService, EntradaAuditoria } from '../auditoria/auditoria.service'
 import type { UploadsService } from '../uploads/uploads.service'
 import { NoticiasPainelService } from './noticias-painel.service'
+import type { TagDaNoticia } from './tags-da-noticia'
 
 const callbacksAposCommit: (() => unknown)[] = []
 
@@ -29,7 +30,7 @@ type Linha = {
   criadoEm: Date
   atualizadoEm: Date
   autor: { id: string; nome: string }
-  tags: { tag: { id: string; nome: string } }[]
+  tags: TagDaNoticia[]
 }
 
 const FUTSAL = { id: 'tag-futsal', nome: 'Futsal' }

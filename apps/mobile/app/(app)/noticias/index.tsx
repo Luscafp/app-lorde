@@ -1,13 +1,12 @@
-import { z } from 'zod'
+import { tagIdSchema } from '@atletica/shared'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { ListaNoticias } from '@/features/noticias'
-
-const uuid = z.uuid()
 
 export default function Noticias() {
   const router = useRouter()
   const { tagId, tag } = useLocalSearchParams<{ tagId?: string; tag?: string }>()
-  const filtro = uuid.safeParse(tagId).success && tagId ? { id: tagId, nome: tag } : undefined
+  const tagValida = tagIdSchema.safeParse(tagId)
+  const filtro = tagValida.success ? { id: tagValida.data, nome: tag } : undefined
 
   return (
     <ListaNoticias

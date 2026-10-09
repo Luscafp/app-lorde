@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons'
 import {
   MENSAGEM_MAXIMO_TAGS,
   nomeTagSchema,
@@ -8,8 +7,9 @@ import {
 import { useState } from 'react'
 import { Pressable, Text, TextInput, View } from 'react-native'
 import { ErroCampo, Texto } from '@/components/ui'
-import { comAlfa, paleta, useAtletica } from '@/features/atletica'
+import { paleta } from '@/features/atletica'
 import { useValorAtrasado } from '@/infra/use-valor-atrasado'
+import { ChipTag } from './chip-tag'
 import { useTags } from './consultas'
 
 const ATRASO_BUSCA_MS = 300
@@ -37,7 +37,6 @@ function Sugestao({ rotulo, aoPressionar }: { rotulo: string; aoPressionar: () =
 
 /** Controlado pelo formulário; as tags novas são criadas pela API ao salvar a notícia. */
 export function CampoTags({ valor, aoMudar, erro, desabilitado = false }: Props) {
-  const { corPrimaria } = useAtletica()
   const [texto, setTexto] = useState('')
   const [erroLocal, setErroLocal] = useState<string>()
   const busca = useValorAtrasado(texto.trim(), ATRASO_BUSCA_MS)
@@ -76,24 +75,12 @@ export function CampoTags({ valor, aoMudar, erro, desabilitado = false }: Props)
       {valor.length > 0 && (
         <View className="flex-row flex-wrap gap-2">
           {valor.map((nome) => (
-            <View
+            <ChipTag
               key={nome}
-              className="flex-row items-center gap-1 rounded-full pl-3"
-              style={{ backgroundColor: comAlfa(corPrimaria) }}
-            >
-              <Text className="text-sm font-semibold" style={{ color: corPrimaria }}>
-                {nome}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Remover tag ${nome}`}
-                disabled={desabilitado}
-                onPress={() => remover(nome)}
-                className="h-9 w-9 items-center justify-center"
-              >
-                <Ionicons name="close" size={16} color={corPrimaria} />
-              </Pressable>
-            </View>
+              nome={nome}
+              aoRemover={() => remover(nome)}
+              desabilitado={desabilitado}
+            />
           ))}
         </View>
       )}

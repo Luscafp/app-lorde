@@ -89,10 +89,8 @@ interface TrocaDeTags {
 }
 
 /** Sem o conteúdo nem a chave da capa (convenções §7): só o título, as tags e indicadores. */
-function dadosDaAlteracao(
-  { antes, depois }: DiferencaAuditoria = { antes: {}, depois: {} },
-  tags?: TrocaDeTags,
-): DadosAuditoria {
+function dadosDaAlteracao(diff: DiferencaAuditoria | null, tags?: TrocaDeTags): DadosAuditoria {
+  const { antes, depois } = diff ?? { antes: {}, depois: {} }
   const titulo = 'titulo' in depois
   return {
     antes: {
@@ -215,7 +213,7 @@ export class NoticiasPainelService {
         entidade: 'Noticia',
         acao: 'NOTICIA_ALTERADA',
         entidadeId: id,
-        dados: dadosDaAlteracao(diff ?? undefined, tags),
+        dados: dadosDaAlteracao(diff, tags),
       })
       if (trocouCapa && capaAnterior) aposCommit(() => this.uploads.remover(capaAnterior))
       return this.paraDto(atualizada)

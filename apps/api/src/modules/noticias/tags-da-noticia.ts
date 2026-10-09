@@ -7,11 +7,13 @@ export const CAMPOS_TAGS = {
   orderBy: { tag: { nomeNormalizado: 'asc' } },
 } as const satisfies Prisma.Noticia$tagsArgs
 
-export function paraTags(tags: { tag: TagResumoDto }[]): TagResumoDto[] {
+export type TagDaNoticia = { tag: TagResumoDto }
+
+export function paraTags(tags: TagDaNoticia[]): TagResumoDto[] {
   return tags.map(({ tag }) => tag)
 }
 
-export function idsDasTags(tags: { tag: TagResumoDto }[]): string[] {
+export function idsDasTags(tags: TagDaNoticia[]): string[] {
   return tags.map(({ tag }) => tag.id).sort()
 }
 

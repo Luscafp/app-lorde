@@ -16,7 +16,7 @@ function semControle(texto: string): boolean {
   return ![...texto].some((c) => (c < ' ' || c === '\u007f') && !PERMITIDOS.has(c))
 }
 
-const tagIdSchema = z.uuid({ error: 'Tag inválida.' })
+export const tagIdSchema = z.uuid({ error: 'Tag inválida.' })
 
 /** Query de `GET /noticias`; `tagId` de outra atlética resulta em lista vazia. */
 export const listarNoticiasQuerySchema = paginacaoQuerySchema
