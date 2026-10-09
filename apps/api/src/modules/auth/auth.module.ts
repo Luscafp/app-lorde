@@ -15,6 +15,9 @@ import { RecuperacaoSenhaService } from './recuperacao-senha.service'
 import { RespostaSessaoService } from './resposta-sessao.service'
 import { SessaoService } from './sessao.service'
 import { TokenAcessoService } from './token-acesso.service'
+import { VerificacaoEmailController } from './verificacao-email/verificacao-email.controller'
+import { VerificacaoEmailOuvinte } from './verificacao-email/verificacao-email.ouvinte'
+import { VerificacaoEmailService } from './verificacao-email/verificacao-email.service'
 
 /** Guards globais na ordem `JwtAuthGuard` → `PapelGuard`. */
 @Module({
@@ -29,7 +32,7 @@ import { TokenAcessoService } from './token-acesso.service'
     EmailModule,
     AtleticasModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, VerificacaoEmailController],
   providers: [
     TokenAcessoService,
     RateLimitService,
@@ -37,6 +40,8 @@ import { TokenAcessoService } from './token-acesso.service'
     RespostaSessaoService,
     AuthService,
     RecuperacaoSenhaService,
+    VerificacaoEmailService,
+    VerificacaoEmailOuvinte,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PapelGuard },
   ],

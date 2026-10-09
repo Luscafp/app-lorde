@@ -36,6 +36,7 @@ const resumo = (id: string, titulo = `Notícia ${id}`): NoticiaResumoDto => ({
   imagemCapaUrl: CAPA,
   publicadaEm: '2026-09-28T18:00:00.000Z',
   resumo: 'Resumo.',
+  tags: [],
 })
 
 const pagina = (items: NoticiaResumoDto[], page = 1, total = items.length): ListaNoticias => ({
@@ -51,6 +52,7 @@ const detalhe = (parcial: Partial<NoticiaDetalheDto> = {}): NoticiaDetalheDto =>
   conteudo: 'A equipe **venceu** a final.',
   imagemCapaUrl: CAPA,
   publicadaEm: '2026-09-28T18:00:00.000Z',
+  tags: [],
   ...parcial,
 })
 

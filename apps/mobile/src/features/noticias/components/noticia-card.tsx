@@ -1,10 +1,13 @@
 import { formatarData, type NoticiaResumoDto } from '@atletica/shared'
 import { Pressable, View } from 'react-native'
 import { Texto } from '@/components/ui'
+import { ListaTags } from '../tags'
 import { CapaNoticia } from './capa-noticia'
 
+const TAGS_NO_CARD = 3
+
 type Props = {
-  noticia: Pick<NoticiaResumoDto, 'id' | 'titulo' | 'imagemCapaUrl' | 'publicadaEm'>
+  noticia: Pick<NoticiaResumoDto, 'id' | 'titulo' | 'imagemCapaUrl' | 'publicadaEm' | 'tags'>
   aoAbrir: (id: string) => void
 }
 
@@ -23,6 +26,7 @@ export function NoticiaCard({ noticia, aoAbrir }: Props) {
           {noticia.titulo}
         </Texto>
         <Texto variante="legenda">{data}</Texto>
+        <ListaTags tags={noticia.tags} maximo={TAGS_NO_CARD} />
       </View>
     </Pressable>
   )

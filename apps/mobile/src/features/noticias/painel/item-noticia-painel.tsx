@@ -3,6 +3,9 @@ import { Pressable, View } from 'react-native'
 import { Imagem } from '@/components/imagem'
 import { Selo, Texto } from '@/components/ui'
 import { paleta } from '@/features/atletica'
+import { ListaTags } from '../tags'
+
+const TAGS_NO_ITEM = 2
 
 const COR_STATUS: Record<StatusNoticia, string> = {
   PUBLICADA: paleta.sucesso,
@@ -39,6 +42,7 @@ export function ItemNoticiaPainel({ noticia, aoAbrir }: Props) {
         </View>
         <Texto variante="legenda">{dataDaNoticia(noticia)}</Texto>
         <Texto variante="legenda">{`Por ${noticia.autor.nome}`}</Texto>
+        <ListaTags tags={noticia.tags} maximo={TAGS_NO_ITEM} />
       </View>
     </Pressable>
   )

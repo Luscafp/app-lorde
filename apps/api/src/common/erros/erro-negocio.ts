@@ -30,8 +30,9 @@ export class ErroLimiteExcedido extends ErroNegocio {
   constructor(
     readonly segundosParaNovaTentativa: number,
     message = 'Muitas tentativas. Tente novamente mais tarde.',
+    details: DetalheErro[] = [],
   ) {
-    super(429, 'RATE_LIMITED', message)
+    super(429, 'RATE_LIMITED', message, details)
   }
 }
 

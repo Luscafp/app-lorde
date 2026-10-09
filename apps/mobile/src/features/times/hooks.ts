@@ -4,13 +4,16 @@ import {
   type AtleticaAdversaria,
   type AtleticaAdversariaAtualizacao,
   type AtleticaAdversariaCriacao,
+  type SaidaTimeDto,
   type TimeAtualizacao,
   type TimeCriacao,
   type TimeDto,
 } from '@atletica/shared'
 import { useInfiniteQuery, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import { toast } from '@/components/ui'
 import { useProximosEventos } from '@/features/eventos'
+import { CodigoLocal } from '@/infra/api/api-erro'
 import type { ApiErro } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
@@ -30,6 +33,7 @@ import {
   listarAtleticasAdversarias,
   listarTimes,
   removerMembro,
+  sairDoTime,
   type FiltrosTimes,
 } from './api'
 
@@ -149,6 +153,33 @@ export function useDefinirCapitao(timeId: string) {
 
 export function useRemoverMembro(timeId: string) {
   return useAcaoDeElenco((usuarioId: string) => removerMembro(timeId, usuarioId))
+}
+
+const NAO_E_MEMBRO = 'NAO_E_MEMBRO'
+const ERROS_DE_REDE: string[] = [CodigoLocal.SEM_CONEXAO, CodigoLocal.TEMPO_ESGOTADO]
+
+/** Já fora do elenco (`NAO_E_MEMBRO`): só recarrega a tela, sem toast. */
+export function useSairDoTime(timeId: string) {
+  const invalidar = useInvalidar([
+    chaves.times.detalhe(timeId),
+    ['times', 'lista'],
+    chaves.me(),
+    chaves.eventos.todos(),
+  ])
+  return useAcaoOnline<SaidaTimeDto, ApiErro>({
+    mutationFn: () => sairDoTime(timeId),
+    meta: { errosNaTela: [NAO_E_MEMBRO, ...ERROS_DE_REDE] },
+    onSuccess: () => {
+      toast.sucesso('Você saiu do time')
+      return invalidar()
+    },
+    onError: (erro) => {
+      if (erro.code === NAO_E_MEMBRO) void invalidar()
+      if (ERROS_DE_REDE.includes(erro.code)) {
+        toast.erro('Não foi possível sair do time. Tente novamente.')
+      }
+    },
+  })
 }
 
 /** Os erros de campo ficam com o formulário. */

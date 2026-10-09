@@ -8,6 +8,7 @@ export default function Perfil() {
       aoAbrirTime={(id) => router.push(`/times/${id}`)}
       aoAbrirEvento={(id) => router.push(`/eventos/${id}`)}
       aoConhecerTimes={() => router.navigate('/times')}
+      aoVerificarEmail={() => router.push('/verificar-email')}
     />
   )
 }

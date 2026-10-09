@@ -6,6 +6,8 @@ import { Imagem } from '@/components/imagem'
 import { Botao, Cartao, Selo, Texto } from '@/components/ui'
 import { paleta } from '@/features/atletica'
 import { SecaoMeusProximosEventos } from '@/features/participacoes'
+import { BotaoSairDoTime } from '@/features/times'
+import { SeloEmailVerificado } from '@/features/verificacao-email'
 import { useMe } from './consultas'
 
 export const MENSAGEM_SEM_TIMES = 'Você ainda não faz parte de nenhum time.'
@@ -15,9 +17,26 @@ type Navegacao = {
   aoAbrirTime: (id: string) => void
   aoAbrirEvento: (id: string) => void
   aoConhecerTimes: () => void
+  aoVerificarEmail: () => void
+}
+
+function ItemTimeInativo({ time }: { time: TimeDoPerfil }) {
+  return (
+    <Cartao className="gap-3">
+      <View className="flex-row items-center gap-3">
+        <View className="flex-1">
+          <Texto className="font-semibold">{time.nome}</Texto>
+          <Texto variante="legenda">{time.modalidade.nome}</Texto>
+        </View>
+        <Selo texto="Inativo" />
+      </View>
+      <BotaoSairDoTime time={time} souCapitao={time.capitao} />
+    </Cartao>
+  )
 }
 
 function ItemTime({ time, aoAbrir }: { time: TimeDoPerfil; aoAbrir: (id: string) => void }) {
+  if (!time.ativo) return <ItemTimeInativo time={time} />
   return (
     <Pressable
       accessibilityRole="button"
@@ -74,7 +93,17 @@ function Conteudo({
           {perfil.nome}
         </Texto>
         <Texto variante="legenda">{perfil.email}</Texto>
-        <Selo texto={ROTULO_PAPEL[perfil.papel]} />
+        <View className="flex-row gap-2">
+          <Selo texto={ROTULO_PAPEL[perfil.papel]} />
+          <SeloEmailVerificado verificado={perfil.emailVerificado} />
+        </View>
+        {!perfil.emailVerificado && (
+          <Botao
+            titulo="Verificar e-mail"
+            variante="secundaria"
+            onPress={navegacao.aoVerificarEmail}
+          />
+        )}
       </View>
       <MeusTimes times={perfil.times} {...navegacao} />
       <SecaoMeusProximosEventos aoAbrirEvento={navegacao.aoAbrirEvento} />

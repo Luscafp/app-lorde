@@ -11,6 +11,7 @@ import {
   refreshTokenSchema,
   senhaSchema,
   verificarCodigoSchema,
+  verificarEmailSchema,
 } from './schemas'
 
 function mensagens(resultado: { error?: { issues: { message: string }[] } }): string[] {
@@ -180,6 +181,24 @@ describe('verificarCodigoSchema', () => {
   it('rejeita campo desconhecido', () => {
     const corpo = { email: 'ana@ex.com', codigo: '048213', novaSenha: 'lorde2026' }
     expect(verificarCodigoSchema.safeParse(corpo).success).toBe(false)
+  })
+})
+
+describe('verificarEmailSchema', () => {
+  it('aceita só o código', () => {
+    expect(verificarEmailSchema.safeParse({ codigo: '000123' }).success).toBe(true)
+  })
+
+  it('rejeita formato inválido com a mensagem do código', () => {
+    const resultado = verificarEmailSchema.safeParse({ codigo: '12345' })
+    expect(campos(resultado)).toEqual(['codigo'])
+    expect(mensagens(resultado)).toEqual(['Informe os 6 dígitos do código.'])
+  })
+
+  it('rejeita campo desconhecido', () => {
+    expect(verificarEmailSchema.safeParse({ codigo: '000123', email: 'a@ex.com' }).success).toBe(
+      false,
+    )
   })
 })
 

@@ -25,6 +25,7 @@ Validadas por `src/config/env.schema.ts` (Zod): a API não sobe com variável fa
 | `R2_PUBLIC_BASE_URL`        | sim (https, sem barra final) | URL pública do bucket; as respostas expõem `fotoUrl` = `<base>/<fotoKey>`                                                  |
 | `SENTRY_DSN`                | não                          | DSN do Sentry da API; ausente ou vazia = Sentry desligado (veja [Observabilidade](#observabilidade))                       |
 | `SENTRY_TRACES_SAMPLE_RATE` | não (`0.1`)                  | Fração de traces de 0 a 1: `0.1` em produção, `1.0` em homologação                                                         |
+| `FILA_WORKERS_ATIVOS`       | não (`true`)                 | `false` desliga workers e crons; pg-boss só conecta no 1º envio (veja [Fila](#fila-srcinfrafila))                          |
 | `GIT_COMMIT_SHA`            | não                          | Commit do build, injetado no `docker build` (veja [Docker](#docker)). Ausente = `RAILWAY_GIT_COMMIT_SHA` ou `desconhecido` |
 
 ## Testes
@@ -46,16 +47,18 @@ pnpm --filter api test:unit                # só unitários, sem banco
 
 - **Env:** `test/setup/env.ts` lê `.env.test.example` (versionado, valores fictícios). Para trocar algo localmente, crie `apps/api/.env.test` (fora do Git), que tem precedência; variáveis já definidas no ambiente (CI) têm precedência sobre os dois. `NODE_ENV` é sempre `test` e o `.env` de desenvolvimento é ignorado.
 - **`globalSetup`** (`test/setup/global-setup.ts`): roda `prisma migrate deploy` no banco de teste antes da suíte. **Recusa** qualquer `DATABASE_URL` cujo banco não termine em `_test`, para nunca apagar o banco de desenvolvimento.
-- **Banco vazio em todo teste:** `test/setup/integracao.ts` chama `limparBanco()` no `beforeEach` de todos os testes de integração. Por isso, **crie os dados no `beforeEach` ou no próprio teste**, nunca no `beforeAll` (seriam apagados antes do primeiro teste).
+- **Banco vazio em todo teste:** `test/setup/integracao.ts` chama `limparBanco()` e `limparFilas()` no `beforeEach` de todos os testes de integração. Por isso, **crie os dados no `beforeEach` ou no próprio teste**, nunca no `beforeAll` (seriam apagados antes do primeiro teste).
 - **Sem transação por teste** (épico #2 §14): os services abrem as próprias transações interativas (auditoria, #8), incompatíveis com rollback por teste. O isolamento é o `TRUNCATE` + `--runInBand`.
 
 ### Utilitários (`test/setup/`)
 
-| Utilitário                           | Uso                                                                                                                                                                                                                                                                                                                                              |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `prismaTeste` (`prisma-teste.ts`)    | Cliente Prisma **base** (sem a extensão multi-atlética): enxerga todas as atléticas. Para preparar dados e conferir o banco; o código da API usa o `PrismaService` (#44).                                                                                                                                                                        |
-| `limparBanco()` (`limpar-banco.ts`)  | `TRUNCATE ... RESTART IDENTITY CASCADE` em todas as tabelas do `public`, menos `_prisma_migrations` (lista lida de `pg_tables`). Já roda no `beforeEach`; chame direto só para limpar no meio de um teste.                                                                                                                                       |
-| `criarApp(opcoes?)` (`criar-app.ts`) | Sobe o `AppModule` real com o `configurarApp` do `main.ts` e devolve `{ app, http }`. `opcoes.controllers` acrescenta controllers de teste; `opcoes.ajustar` recebe o `TestingModuleBuilder` (`overrideProvider`...). Antes de subir, esvazia o banco e cria a atlética padrão (`prepararAtleticaPadrao`), exigida pelo `AtleticaPadraoService`. |
+| Utilitário                                                         | Uso                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `prismaTeste` (`prisma-teste.ts`)                                  | Cliente Prisma **base** (sem a extensão multi-atlética): enxerga todas as atléticas. Para preparar dados e conferir o banco; o código da API usa o `PrismaService` (#44).                                                                                                                                                                        |
+| `limparBanco()` (`limpar-banco.ts`)                                | `TRUNCATE ... RESTART IDENTITY CASCADE` em todas as tabelas do `public`, menos `_prisma_migrations` (lista lida de `pg_tables`). Já roda no `beforeEach`; chame direto só para limpar no meio de um teste.                                                                                                                                       |
+| `criarApp(opcoes?)` (`criar-app.ts`)                               | Sobe o `AppModule` real com o `configurarApp` do `main.ts` e devolve `{ app, http }`. `opcoes.controllers` acrescenta controllers de teste; `opcoes.ajustar` recebe o `TestingModuleBuilder` (`overrideProvider`...). Antes de subir, esvazia o banco e cria a atlética padrão (`prepararAtleticaPadrao`), exigida pelo `AtleticaPadraoService`. |
+| `limparFilas()` (`limpar-banco.ts`)                                | Apaga os jobs do schema `pgboss` (filas e crons registrados ficam). Já roda no `beforeEach`.                                                                                                                                                                                                                                                     |
+| `aguardarFilaVazia(app, nome)` / `processarFilas(app)` (`fila.ts`) | Acordam os workers do pg-boss real e esperam a fila (ou todas) ficar sem jobs prontos: ativos, em retry e criados com `startAfter` vencido. Jobs agendados para o futuro não contam. Estouram em 15 s.                                                                                                                                           |
 
 ```ts
 import request from 'supertest'
@@ -207,6 +210,19 @@ Rotas `@Publico()` do `AuthController` (UC09, épico #11), entrada pelos schemas
 - `novaSenha` é validada pelo pipe antes do código: senha fraca → `400 VALIDATION_ERROR` sem gastar tentativa.
 - `429` do limite por e-mail: "Limite de 3 envios por hora atingido. Tente novamente em X min." (o app mostra a `message`).
 
+### Verificação de e-mail (`VerificacaoEmailService`)
+
+Rotas autenticadas de `verificacao-email/` (RF06, #31); só o próprio usuário, sem 403/404. Não bloqueia nada: e-mail não verificado continua usando o app.
+
+| Rota                                      | Resposta                                        | Faz                                                                                                                         |
+| ----------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `POST /auth/verificar-email/enviar`       | `202 { enviadoPara, expiraEm, proximoEnvioEm }` | Invalida os códigos anteriores, grava `CodigoVerificacao` (`VERIFICAR_EMAIL`, 24 h) e envia o template `verificacao-email`. |
+| `POST /auth/verificar-email` `{ codigo }` | `200 { emailVerificado: true }` (idempotente)   | Consome o código e marca `Usuario.emailVerificado`.                                                                         |
+
+- **Cadastro:** `VerificacaoEmailOuvinte` ouve `usuario.cadastrado` (`{ async: true }`) e envia o primeiro código na atlética do payload; erro vai ao log e ao Sentry sem afetar o cadastro. Falha do provedor de e-mail não propaga em nenhum dos dois caminhos (o `EmailService` já registrou).
+- **Limites** (`VERIFICACAO_ENVIO`, chave `usuarioId`, o envio do cadastro conta): 3 por hora e 60 s entre envios, os dois sob o mesmo `consumir`. `429` traz `details: [{ field: 'proximoEnvioEm', message: <ISO> }]`. Já verificado → `409 EMAIL_JA_VERIFICADO`.
+- **Código:** errado → `400 CODIGO_INVALIDO` e soma `tentativas`; na 5ª o código é marcado usado. Expirado, usado ou inexistente → `400 CODIGO_EXPIRADO`. Cada envio apaga os códigos do usuário expirados há mais de 7 dias.
+
 ### Agendador (`src/infra/agendador`)
 
 Único registro do `ScheduleModule` (`@nestjs/schedule`, convenções §11.6). Jobs usam `@Cron(expr, { name, timeZone: FUSO_PADRAO })` e recebem o relógio por parâmetro num método separado (o `cron` passa argumentos próprios ao `onTick`). `LimpezaDiariaJob` (`manutencao.limpeza-diaria`, 03:00) apaga `TentativaAcesso` e `CodigoVerificacao` com mais de 24 h e `Sessao` expiradas ou revogadas há mais de 30 dias. `LimpezaOrfaosJob` (`uploads.limpeza-orfaos`, 03:30) fica no `UploadsModule` (ver [Limpeza de órfãos](#limpeza-de-órfãos)).
@@ -218,13 +234,15 @@ Rotas `@Publico()` do `AuthController` (UC09, épico #11), entrada pelos schemas
 ```ts
 verificar(tipo, chave, { maximo, janelaMs, bloqueioMs? }, agora?): Promise<number> // tentativas restantes
 registrar(tipo, chave, agora?): Promise<void>
-consumir(tipo, chave, limite, agora?): Promise<number> // verificar + registrar atômicos
+consumir(tipo, chave, limites, agora?): Promise<number> // verificar + registrar atômicos
+liberadoEm(tipo, chave, limites, agora?): Promise<Date | null> // fim do bloqueio, sem lançar
 limpar(tipo, chave): Promise<void>
 limparPorPrefixo(tipo, prefixo, cliente?): Promise<void> // ex.: falhas de login `email|*`; aceita a `tx`
 ```
 
 - Bloqueado quando as `maximo` tentativas mais recentes cabem em `janelaMs`: sem `bloqueioMs`, até a mais antiga delas sair da janela (janela deslizante, ex.: 10 cadastros/h); com `bloqueioMs`, até `última + bloqueioMs` (login: 15 min após a 5ª falha). `verificar` lança `ErroLimiteExcedido` → `429 RATE_LIMITED` com `Retry-After` em segundos (o filtro global põe o cabeçalho).
 - Fluxo: `consumir` quando toda tentativa conta (cadastro: `verificar` + `registrar` sob `pg_advisory_xact_lock`, sem furo com requisições simultâneas); `verificar` antes e `registrar` depois do resultado (login registra a falha; presign registra a URL emitida, nunca a falha do R2); `limpar` quando o sucesso zera a contagem.
+- `limites` aceita um limite ou uma lista sobre a mesma chave (ex.: 3/h e 1/min): bloqueia até a liberação mais tardia.
 - `tipo` ∈ `TipoTentativa`: `LOGIN_FALHA`, `CADASTRO`, `RECUPERACAO_ENVIO`, `CODIGO_TENTATIVA`, `SENHA_CONFIRMACAO_FALHA`, `PRESIGN`, `VERIFICACAO_ENVIO`, `AVISO_ENVIO`. Tipo novo: acrescente ao catálogo (sem migration; `VarChar(30)`). `chave` até 300 caracteres (ex.: `email|ip`, `usuarioId`).
 
 ## Uploads (`src/modules/uploads`)
@@ -316,7 +334,7 @@ Perfil do usuário autenticado (UC10, UC11, #13). Só `@UsuarioAtual()`, sem `:i
 | `DELETE /api/v1/me/foto` | `204`, idempotente                                                                    |
 | `PUT /api/v1/me/senha`   | `{ senhaAtual, novaSenha }` → `204`; `400 SENHA_INCORRETA`/`SENHA_IGUAL_ATUAL`, `429` |
 
-- `GET /me` é uma consulta só: vínculos com `saidaEm` e times inativos ficam de fora, capitão por `Time.capitaoId`, times por nome.
+- `GET /me` é uma consulta só: vínculos com `saidaEm` ficam de fora, times inativos vêm com `ativo: false` (para a saída pelo Perfil, #34), capitão por `Time.capitaoId`, times por nome.
 - Foto: `UploadsService.validarKey` só quando a chave muda; a anterior é removida do R2 em `aposCommit`.
 - Senha: 5 senhas atuais erradas em 15 min por usuário (`SENHA_CONFIRMACAO_FALHA`, chave `usuarioId`, o mesmo contador da #12). A troca revoga as outras sessões com `TROCA_SENHA` (`exceto` = sessão do token) e emite `usuario.sessaoEncerrada` só com as revogadas. `SENHA_INCORRETA` é 400 para o app não tentar o refresh.
 - Sem auditoria (convenções §7).
@@ -483,6 +501,17 @@ export interface EventosDominio {
 
 Nome fora do mapa ou payload com tipo errado (ou sem `autorId`) falha no `pnpm typecheck`.
 
+## Fila (`src/infra/fila`)
+
+`FilaModule` (global) é o único dono do pg-boss (convenções §11.6): `FilaService` usa o mesmo `DATABASE_URL`, o schema próprio `pgboss` e roda os workers no processo da API. Inicia no `onModuleInit` e para com `stop({ graceful: true })` no `onModuleDestroy`, esperando até 30 s pelos jobs em execução, antes de o `PrismaService` desconectar (`onApplicationShutdown`).
+
+- **Schema `pgboss`:** criado pelo próprio pg-boss na primeira subida, **fora do Prisma** (o datasource só enxerga `public`; nenhuma migration). Em homologação/produção o usuário do banco precisa de permissão `CREATE` no banco — verificação humana em #96. Sem ela, a API não sobe.
+- **API:** `criarFila(nome, opcoes)`, `enviar(nome, payload, opcoes)`, `trabalhar(nome, handler, { batchSize })`, `agendar(nome, cron, { tz })`. Nomes e payloads tipados pelo mapa `FilasDominio` (`filas-dominio.ts`), que cada issue estende (#87, #90).
+- **Handlers:** rodam no contexto da atlética quando o payload tem `atleticaId`, logam fila/id/tentativa e só a última tentativa vai ao Sentry (`capturarErroJob`).
+- **`FILA_WORKERS_ATIVOS=false`:** `trabalhar` e `agendar` viram no-op, o pg-boss não roda crons nem manutenção e só conecta no primeiro `criarFila`/`enviar`; sem esses usos, sobe sem banco.
+
+Semântica de `singletonKey` por política, retry e versão fixada: [`src/infra/fila/README.md`](src/infra/fila/README.md).
+
 ## Atlética padrão (`src/modules/atleticas`)
 
 Enquanto só uma atlética usa o app (seção 8.4), a atlética padrão é a **única** `Atletica` com `usaAplicativo = true`. O `AtleticaPadraoService` a resolve no `onModuleInit` e guarda o `id` em memória; com zero ou mais de uma, a API **não sobe** e o log explica o motivo (`ErroAtleticaPadrao`, convenções §6). A consulta usa `prisma.db`: `Atletica` não tem escopo, e `semEscopo` é proibido em `modules/atleticas` (convenções §3).
@@ -539,15 +568,16 @@ As listas paginadas (`/times`, `/atleticas-adversarias`) ordenam e filtram por n
 
 Só times da atlética ativa: time adversário → `422 TIME_ADVERSARIO`; de outra atlética que usa o app → `404`.
 
-| Rota                                  | Papel mínimo         | Resposta                                                                                                                      |
-| ------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `GET /times/:id/elenco`               | qualquer autenticado | `200 { items, total }` sem paginação, capitão primeiro e depois por nome; sem e-mail; fora da Diretoria, time inativo → `404` |
-| `DELETE /times/:id/elenco/:usuarioId` | DIRETOR              | `204`; sem vínculo ativo → `404 MEMBRO_NAO_ENCONTRADO`                                                                        |
-| `PUT /times/:id/capitao`              | DIRETOR              | `200` com o time; `{ usuarioId: null }` remove; fora do elenco → `422 CAPITAO_FORA_DO_ELENCO`                                 |
+| Rota                                  | Papel mínimo         | Resposta                                                                                                                                  |
+| ------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /times/:id/elenco`               | qualquer autenticado | `200 { items, total }` sem paginação, capitão primeiro e depois por nome; sem e-mail; fora da Diretoria, time inativo → `404`             |
+| `DELETE /times/:id/elenco/:usuarioId` | DIRETOR              | `204`; sem vínculo ativo → `404 MEMBRO_NAO_ENCONTRADO`                                                                                    |
+| `PUT /times/:id/capitao`              | DIRETOR              | `200` com o time; `{ usuarioId: null }` remove; fora do elenco → `422 CAPITAO_FORA_DO_ELENCO`                                             |
+| `POST /times/:id/sair`                | qualquer autenticado | `200 { timeId, saidaEm, capitaniaRemovida, participacoesRemovidas }`; o próprio usuário sai (#34); sem vínculo ativo → `409 NAO_E_MEMBRO` |
 
 Auditoria: `CAPITAO_DEFINIDO`/`CAPITAO_REMOVIDO` (entidade `Time`, `{ antes: { capitaoId }, depois: { capitaoId } }`; sem mudança não audita). Usuário excluído aparece como "Usuário excluído", sem foto.
 
-**`encerrarVinculo(tx, { timeId, usuarioId, motivo, executorId })`** — ponto único de saída do elenco (#12 e #34 o chamam; importe `TimesModule`). Roda na transação de quem chama e devolve `{ capitaniaRemovida, participacoesRemovidas }`:
+**`encerrarVinculo(tx, { timeId, usuarioId, motivo, executorId })`** — ponto único de saída do elenco (#12 e #34 o chamam; importe `TimesModule`). Roda na transação de quem chama e devolve `{ saidaEm, capitaniaRemovida, participacoesRemovidas }`:
 
 1. trava o `Time` com `FOR UPDATE` (o `PUT /capitao` também trava, então capitão e remoção não se cruzam);
 2. preenche `saidaEm` no vínculo ativo; sem vínculo → `404 MEMBRO_NAO_ENCONTRADO`;
@@ -555,18 +585,7 @@ Auditoria: `CAPITAO_DEFINIDO`/`CAPITAO_REMOVIDO` (entidade `Time`, `{ antes: { c
 4. apaga as `Participacao` do usuário em eventos do time `AGENDADO`, futuros e sem presença;
 5. audita na entidade `MembroTime` com ator `executorId`: `REMOVIDO_PELA_DIRETORIA` → `MEMBRO_REMOVIDO`, `SAIU` → `MEMBRO_SAIU`, `EXCLUSAO_CONTA` → `MEMBRO_REMOVIDO_EXCLUSAO_CONTA`, com `contexto: { timeId, usuarioId, capitaniaRemovida, participacoesRemovidas }`.
 
-Não emite evento de domínio. Para #34 (`MotivoSaida` exportado por `elenco.service.ts`):
-
-```ts
-await this.prisma.db.$transaction((tx) =>
-  this.elenco.encerrarVinculo(tx, {
-    timeId,
-    usuarioId,
-    motivo: MotivoSaida.SAIU,
-    executorId: usuarioId,
-  }),
-)
-```
+Não emite evento de domínio. O `POST /times/:id/sair` (`ElencoService.sair`) chama com `MotivoSaida.SAIU` e `executorId` = o próprio usuário.
 
 ## Solicitações de entrada (`src/modules/solicitacoes`)
 
@@ -661,6 +680,19 @@ Confirmação "Vou"/"Não vou" do atleta (#24, RN30, UC15). O usuário é sempre
 | `PUT /eventos/:id/participacao` | qualquer autenticado (membro do elenco) | `200 { eventoId, confirmado, respondidoEm, contagem }`; ordem de `avaliarResposta`: `403 NAO_MEMBRO_DO_ELENCO` → `422 EVENTO_CANCELADO` → `422 EVENTO_NAO_AGENDADO` → `422 EVENTO_JA_INICIADO` |
 
 Upsert por `(eventoId, usuarioId)`; a mesma resposta não regrava `respondidoEm` e a presença nunca muda. Com o escopo de atlética o upsert não é nativo, então a criação concorrente (`P2002`) repete a transação uma vez. `contagem` vem de `EventosLeituraService.contagem(evento)`, a mesma do `GET /eventos/:id`.
+
+### Presença (`PresencasService`, #84)
+
+Chamada da diretoria (RF33, RN31, UC18). `registrarPresencasSchema` e `ListaPresencaDto` em `@atletica/shared` (`participacoes/`), com `aceitaPresenca(status)` e `respostaPresenca(confirmado)`.
+
+| Rota                         | Papel mínimo | Resposta                                                                                                                                  |
+| ---------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /eventos/:id/presencas` | DIRETOR      | `200 { eventoId, status, registrada, registradaEm, itens }`, por nome, sem paginação                                                      |
+| `PUT /eventos/:id/presencas` | DIRETOR      | `200` no mesmo formato; `422 EVENTO_STATUS_INVALIDO` (agendado/cancelado) ou `422 ATLETA_FORA_DO_ELENCO` (`details` com cada `usuarioId`) |
+
+- **Elenco do evento:** `MembroTime` com `entradaEm <= inicio` e `saidaEm` nulo ou posterior ao início; contas excluídas saem como "Usuário excluído" e podem ser marcadas. Sem chamada, `presente` vem de `confirmado = true`.
+- **Gravação:** `SELECT ... FOR UPDATE` do evento; `createMany` (`skipDuplicates`) para quem não tem linha e dois `updateMany` (presentes/ausentes) com `presencaRegistradaEm`/`presencaRegistradaPorId`, sem tocar em `confirmado`/`respondidoEm`. A mesma lista já registrada não grava nada.
+- **Auditoria:** `PRESENCAS_REGISTRADAS` (entidade `Participacao`, `entidadeId` = evento) com `{ antes: { presentes }, depois: { presentes } }`. Sem evento de domínio.
 
 ## Senhas (`src/infra/senha`)
 
@@ -782,7 +814,7 @@ Público (`@Publico()`), usado pelo healthcheck do deploy e pelo monitor de upti
 
 ### Encerramento
 
-`enableShutdownHooks()` faz o `SIGTERM` do deploy chamar `app.close()`: o servidor HTTP para de aceitar conexões e o `PrismaService` desconecta (teste em `test/health/health.e2e-spec.ts`; `docker stop` termina com código 0).
+`enableShutdownHooks()` faz o `SIGTERM` do deploy chamar `app.close()`: o pg-boss espera os jobs em execução (até 30 s), o servidor HTTP para de aceitar conexões e o `PrismaService` desconecta por último (teste em `test/health/health.e2e-spec.ts`; `docker stop` termina com código 0).
 
 ## Docker
 

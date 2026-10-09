@@ -26,11 +26,11 @@ function esquecerDetalhe(cliente: QueryClient, id: string) {
     ?.setState({ data: undefined, dataUpdatedAt: 0 })
 }
 
-export function useNoticias() {
+export function useNoticias({ tagId }: { tagId?: string } = {}) {
   return useInfiniteQuery({
-    queryKey: chaves.noticias.lista({ limit: LIMITE_PAGINA }),
+    queryKey: chaves.noticias.lista({ limit: LIMITE_PAGINA, tagId }),
     queryFn: ({ pageParam, signal }) =>
-      listarNoticias({ page: pageParam, limit: LIMITE_PAGINA }, signal),
+      listarNoticias({ page: pageParam, limit: LIMITE_PAGINA, tagId }, signal),
     initialPageParam: 1,
     getNextPageParam: proximaPagina,
     select: ({ pages }) => juntarPaginas(pages),

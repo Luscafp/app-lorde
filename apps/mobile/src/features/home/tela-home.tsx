@@ -6,6 +6,7 @@ import { paleta } from '@/features/atletica'
 import { CarrosselBanners, useBanners } from '@/features/banners'
 import { useProximosEventos, type AbaAgenda } from '@/features/eventos'
 import { useUltimasNoticias } from '@/features/noticias'
+import { AvisoVerificacaoEmail } from '@/features/verificacao-email'
 import { combinarConsultas } from '@/infra/query/combinar-consultas'
 import { useOnline } from '@/infra/rede/online'
 import { useMarcarHomePronta } from '@/infra/sentry'
@@ -23,6 +24,7 @@ type NavegacaoHome = {
   aoAbrirEvento: (id: string) => void
   aoAbrirNoticia: (id: string) => void
   aoAbrirPerfil: () => void
+  aoVerificarEmail: () => void
 }
 
 export function TelaHome(navegacao: NavegacaoHome) {
@@ -51,6 +53,7 @@ export function TelaHome(navegacao: NavegacaoHome) {
         }
       >
         <HomeHeader aoAbrirPerfil={navegacao.aoAbrirPerfil} />
+        <AvisoVerificacaoEmail aoVerificar={navegacao.aoVerificarEmail} />
         <CarrosselBanners />
         <HomeAtalhos
           aoAbrirAgenda={() => navegacao.aoAbrirAgenda('eventos')}

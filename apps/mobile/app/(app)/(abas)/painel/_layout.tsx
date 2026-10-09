@@ -23,6 +23,7 @@ export default function LayoutPainel() {
       <Stack.Screen name="eventos/[id]/index" options={{ title: 'Evento' }} />
       <Stack.Screen name="eventos/[id]/editar" options={{ title: 'Editar evento' }} />
       <Stack.Screen name="eventos/[id]/resultado" options={{ title: 'Resultado' }} />
+      <Stack.Screen name="eventos/[id]/presenca" options={{ title: 'Presença' }} />
       <Stack.Screen name="modalidades/index" options={{ title: 'Modalidades' }} />
       <Stack.Screen name="modalidades/nova" options={{ title: 'Nova modalidade' }} />
       <Stack.Screen name="modalidades/[id]" options={{ title: 'Editar modalidade' }} />

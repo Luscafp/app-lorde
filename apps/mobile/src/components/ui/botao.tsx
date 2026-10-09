@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import Ionicons from '@expo/vector-icons/Ionicons'
+import { useState, type ComponentProps } from 'react'
 import { ActivityIndicator, Pressable, Text, type PressableProps } from 'react-native'
 import { corTextoSobre, paleta, useAtletica } from '@/features/atletica'
 
@@ -6,6 +7,7 @@ export type VarianteBotao = 'primaria' | 'secundaria' | 'perigo' | 'sucesso'
 
 type Props = Omit<PressableProps, 'children' | 'style'> & {
   titulo: string
+  icone?: ComponentProps<typeof Ionicons>['name']
   variante?: VarianteBotao
   carregando?: boolean
   className?: string
@@ -25,6 +27,7 @@ function useCores(variante: VarianteBotao) {
 
 export function Botao({
   titulo,
+  icone,
   variante = 'primaria',
   carregando = false,
   disabled,
@@ -60,7 +63,11 @@ export function Botao({
       }}
       {...props}
     >
-      {carregando && <ActivityIndicator testID="botao-spinner" color={cores.texto} />}
+      {carregando ? (
+        <ActivityIndicator testID="botao-spinner" color={cores.texto} />
+      ) : (
+        icone && <Ionicons name={icone} size={20} color={cores.texto} />
+      )}
       <Text className="text-base font-semibold" style={{ color: cores.texto }}>
         {titulo}
       </Text>
