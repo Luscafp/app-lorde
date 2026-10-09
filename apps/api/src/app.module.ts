@@ -9,6 +9,7 @@ import type { Env } from './config/env.schema'
 import { AgendadorModule } from './infra/agendador/agendador.module'
 import { ContextoModule } from './infra/contexto/contexto.module'
 import { EventosDominioModule } from './infra/eventos/eventos.module'
+import { FilaModule } from './infra/fila/fila.module'
 import { criarConfigLogger } from './infra/logs/logger.config'
 import { PrismaModule } from './infra/prisma/prisma.module'
 import { AtleticasAdversariasModule } from './modules/atleticas/atleticas-adversarias.module'
@@ -42,6 +43,7 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module'
     ContextoModule,
     PrismaModule,
     EventosDominioModule,
+    FilaModule,
     AgendadorModule,
     AuditoriaModule,
     AuthModule,

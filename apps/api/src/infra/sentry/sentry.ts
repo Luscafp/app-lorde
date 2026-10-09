@@ -90,3 +90,8 @@ export function capturarErroJob(
 ): void {
   Sentry.captureException(erro, { tags: { job: nome }, extra: contexto })
 }
+
+/** Erro de infraestrutura fora de requisição ou job, com a tag `componente=<nome>`. */
+export function capturarErroInfra(componente: string, erro: unknown): void {
+  Sentry.captureException(erro, { tags: { componente } })
+}

@@ -42,6 +42,7 @@
     "nestjs-cls": "^7.0.1",
     "nestjs-pino": "5.2.1",
     "nestjs-zod": "^5.5.0",
+    "pg-boss": "11.1.2",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0",
     "prisma": "^7.10.0",
