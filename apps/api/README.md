@@ -657,6 +657,19 @@ Confirmação "Vou"/"Não vou" do atleta (#24, RN30, UC15). O usuário é sempre
 
 Upsert por `(eventoId, usuarioId)`; a mesma resposta não regrava `respondidoEm` e a presença nunca muda. Com o escopo de atlética o upsert não é nativo, então a criação concorrente (`P2002`) repete a transação uma vez. `contagem` vem de `EventosLeituraService.contagem(evento)`, a mesma do `GET /eventos/:id`.
 
+### Presença (`PresencasService`, #84)
+
+Chamada da diretoria (RF33, RN31, UC18). `registrarPresencasSchema` e `ListaPresencaDto` em `@atletica/shared` (`participacoes/`), com `aceitaPresenca(status)` e `respostaPresenca(confirmado)`.
+
+| Rota                         | Papel mínimo | Resposta                                                                                                                                  |
+| ---------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /eventos/:id/presencas` | DIRETOR      | `200 { eventoId, status, registrada, registradaEm, itens }`, por nome, sem paginação                                                      |
+| `PUT /eventos/:id/presencas` | DIRETOR      | `200` no mesmo formato; `422 EVENTO_STATUS_INVALIDO` (agendado/cancelado) ou `422 ATLETA_FORA_DO_ELENCO` (`details` com cada `usuarioId`) |
+
+- **Elenco do evento:** `MembroTime` com `entradaEm <= inicio` e `saidaEm` nulo ou posterior ao início; contas excluídas saem como "Usuário excluído" e podem ser marcadas. Sem chamada, `presente` vem de `confirmado = true`.
+- **Gravação:** `SELECT ... FOR UPDATE` do evento; `createMany` (`skipDuplicates`) para quem não tem linha e dois `updateMany` (presentes/ausentes) com `presencaRegistradaEm`/`presencaRegistradaPorId`, sem tocar em `confirmado`/`respondidoEm`. A mesma lista já registrada não grava nada.
+- **Auditoria:** `PRESENCAS_REGISTRADAS` (entidade `Participacao`, `entidadeId` = evento) com `{ antes: { presentes }, depois: { presentes } }`. Sem evento de domínio.
+
 ## Senhas (`src/infra/senha`)
 
 Importe `SenhaModule` e injete `SenhaService`: `hash(senha)` (Argon2id, `@node-rs/argon2`, parâmetros em `senha.config.ts` — convenções §5) e `verificar(hash, senha)` (`false` também para hash malformado); `precisaRefazerHash(hash)` indica hash gerado com outros parâmetros (refeito no login). Valide a entrada com `senhaSchema` de `@atletica/shared` (política do UC06), sem redefini-la.
