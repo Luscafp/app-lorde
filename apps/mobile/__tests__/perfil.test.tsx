@@ -1,6 +1,7 @@
 import type { EventoResumoDto, Perfil } from '@atletica/shared'
 import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native'
+import { Alert, type AlertButton } from 'react-native'
 import { toast } from '@/components/ui/toast'
 import {
   AlterarSenha,
@@ -12,6 +13,7 @@ import {
 } from '@/features/perfil'
 import * as apiEventos from '@/features/eventos/api'
 import * as apiPerfil from '@/features/perfil/api'
+import * as apiTimes from '@/features/times/api'
 import { useUploadImagem } from '@/features/uploads'
 import { ApiErro } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
@@ -23,6 +25,7 @@ jest.mock('@/components/ui/toast', () => ({
   toast: { sucesso: jest.fn(), erro: jest.fn(), info: jest.fn() },
 }))
 jest.mock('@/features/perfil/api')
+jest.mock('@/features/times/api')
 jest.mock('@/features/uploads', () => ({ useUploadImagem: jest.fn() }))
 jest.mock('@/features/eventos/api', () => ({
   ...jest.requireActual<object>('@/features/eventos/api'),
@@ -66,6 +69,7 @@ function perfil(parcial: Partial<Perfil> = {}): Perfil {
         nome: 'Futsal Masculino',
         modalidade: { id: '6f1c2a7e-2f5b-4c39-9a0e-3f3b1b8d2c11', nome: 'Futsal', icone: 'futsal' },
         capitao: true,
+        ativo: true,
         entradaEm: '2026-08-02T13:00:00.000Z',
       },
       {
@@ -73,6 +77,7 @@ function perfil(parcial: Partial<Perfil> = {}): Perfil {
         nome: 'Vôlei Misto',
         modalidade: { id: '7a2d3b8f-3a6c-4d4a-8b1f-4a4c2c9e3d22', nome: 'Vôlei', icone: 'volei' },
         capitao: false,
+        ativo: true,
         entradaEm: '2026-08-03T13:00:00.000Z',
       },
     ],
@@ -161,6 +166,28 @@ describe('Tela Perfil', () => {
 
     expect(await screen.findByText('E-mail verificado')).toBeOnTheScreen()
     expect(screen.queryByRole('button', { name: 'Verificar e-mail' })).toBeNull()
+  })
+
+  it('time inativo: selo "Inativo" e "Sair do time" na linha, sem abrir a tela (#34)', async () => {
+    jest.spyOn(Alert, 'alert').mockImplementation(() => undefined)
+    jest.mocked(apiTimes.sairDoTime).mockResolvedValue({
+      timeId: '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d',
+      saidaEm: '2026-11-02T18:30:00.000Z',
+      capitaniaRemovida: false,
+      participacoesRemovidas: 0,
+    })
+    const [ativo, inativo] = perfil().times
+    api.buscarPerfil.mockResolvedValue(perfil({ times: [ativo!, { ...inativo!, ativo: false }] }))
+    await renderizar(<TelaPerfil {...navegacao()} />)
+
+    expect(await screen.findByText('Inativo')).toBeOnTheScreen()
+    expect(screen.queryByLabelText('Vôlei Misto, Vôlei')).toBeNull()
+    await fireEvent.press(screen.getByRole('button', { name: 'Sair do time' }))
+    const botoes: AlertButton[] | undefined = jest.mocked(Alert.alert).mock.lastCall?.[2]
+    await act(() => botoes?.find((botao) => botao.text === 'Sair')?.onPress?.())
+
+    expect(apiTimes.sairDoTime).toHaveBeenCalledWith('0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d')
+    await waitFor(() => expect(toast.sucesso).toHaveBeenCalledWith('Você saiu do time'))
   })
 
   it('sem foto: iniciais', async () => {

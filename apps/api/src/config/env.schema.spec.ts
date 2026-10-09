@@ -40,6 +40,7 @@ describe('validarEnv', () => {
       R2_BUCKET_IMAGENS: valida.R2_BUCKET_IMAGENS,
       R2_PUBLIC_BASE_URL: valida.R2_PUBLIC_BASE_URL,
       SENTRY_TRACES_SAMPLE_RATE: 0.1,
+      FILA_WORKERS_ATIVOS: true,
     })
   })
 
@@ -200,6 +201,16 @@ describe('validarEnv', () => {
       for (const invalido of ['1.5', '-0.1', 'abc']) {
         expect(() => taxa(invalido)).toThrow(/SENTRY_TRACES_SAMPLE_RATE/)
       }
+    })
+  })
+
+  describe('fila (#86)', () => {
+    it('FILA_WORKERS_ATIVOS aceita true ou false, padrão true', () => {
+      const workers = (valor: string) => validarEnv({ ...valida, FILA_WORKERS_ATIVOS: valor })
+      expect(workers('').FILA_WORKERS_ATIVOS).toBe(true)
+      expect(workers('true').FILA_WORKERS_ATIVOS).toBe(true)
+      expect(workers('false').FILA_WORKERS_ATIVOS).toBe(false)
+      expect(() => workers('0')).toThrow(/FILA_WORKERS_ATIVOS/)
     })
   })
 })

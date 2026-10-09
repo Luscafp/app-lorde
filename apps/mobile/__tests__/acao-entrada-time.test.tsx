@@ -1,4 +1,9 @@
-import type { MinhaSituacaoDto, SolicitacaoDto, TimeDetalheDto } from '@atletica/shared'
+import type {
+  MinhaSituacaoDto,
+  SaidaTimeDto,
+  SolicitacaoDto,
+  TimeDetalheDto,
+} from '@atletica/shared'
 import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { Alert, type AlertButton } from 'react-native'
@@ -8,8 +13,10 @@ import * as apiSolicitacoes from '@/features/solicitacoes/api'
 import { TelaTime } from '@/features/times'
 import * as apiTimes from '@/features/times/api'
 import { ApiErro } from '@/infra/api/cliente'
+import { chaves } from '@/infra/query/chaves'
 import { criarQueryClient } from '@/infra/query/query-client'
-import { paginaEventos } from '../test-utils/eventos'
+import { useSessao } from '@/infra/sessao/store'
+import { eventoResumo, paginaEventos } from '../test-utils/eventos'
 
 jest.mock('@/components/ui/toast', () => ({
   toast: { sucesso: jest.fn(), erro: jest.fn(), info: jest.fn() },
@@ -28,6 +35,7 @@ const PENDENTE: MinhaSituacaoDto = {
   solicitacaoPendente: { id: SOLICITACAO_ID, criadaEm: '2026-09-30T14:00:00.000Z' },
 }
 const MEMBRO: MinhaSituacaoDto = { membro: true, solicitacaoPendente: null }
+const EU = 'u-eu'
 
 const time = (minhaSituacao: MinhaSituacaoDto | null): TimeDetalheDto => ({
   id: 't-masc',
@@ -53,8 +61,12 @@ const erroApi = (status: number, code: string) =>
 
 let cliente: QueryClient
 
-async function abrirTime(situacao: MinhaSituacaoDto | null, aoVoltar = jest.fn()) {
-  apiTime.buscarTime.mockResolvedValue(time(situacao))
+async function abrirTime(
+  situacao: MinhaSituacaoDto | null,
+  aoVoltar = jest.fn(),
+  detalhe: Partial<TimeDetalheDto> = {},
+) {
+  apiTime.buscarTime.mockResolvedValue({ ...time(situacao), ...detalhe })
   await render(
     <QueryClientProvider client={cliente}>
       <TelaTime
@@ -84,6 +96,17 @@ beforeEach(() => {
   cliente = criarQueryClient()
   cliente.setDefaultOptions({ queries: { retry: false } })
   onlineManager.setOnline(true)
+  useSessao.setState({
+    status: 'autenticado',
+    usuario: {
+      id: EU,
+      nome: 'Ana',
+      email: 'a@x.com',
+      fotoUrl: null,
+      papel: 'ATLETA',
+      atleticaId: 'a1',
+    },
+  })
   apiTime.buscarElenco.mockResolvedValue({ items: [], total: 0 })
   jest.mocked(apiEventos.listarEventos).mockResolvedValue(paginaEventos([]))
 })
@@ -198,5 +221,131 @@ describe('AcaoEntradaTime', () => {
     expect(
       screen.getByText('Sem conexão. Conecte-se à internet para concluir esta ação.'),
     ).toBeOnTheScreen()
+  })
+})
+
+describe('Sair do time (#34)', () => {
+  const SAIDA: SaidaTimeDto = {
+    timeId: 't-masc',
+    saidaEm: '2026-11-02T18:30:00.000Z',
+    capitaniaRemovida: false,
+    participacoesRemovidas: 0,
+  }
+  const AVISO_BASE =
+    'Sair do Futsal Masculino? Para voltar, será preciso enviar uma nova solicitação.'
+
+  it('só o membro vê o botão', async () => {
+    await abrirTime(NENHUMA)
+    expect(screen.queryByRole('button', { name: 'Sair do time' })).toBeNull()
+  })
+
+  it('confirma, carrega, mostra o toast, invalida as chaves e volta a "Solicitar entrada" (critérios 1 e 14)', async () => {
+    let concluir: (valor: SaidaTimeDto) => void = () => undefined
+    apiTime.sairDoTime.mockReturnValue(new Promise((resolver) => (concluir = resolver)))
+    const invalidar = jest.spyOn(cliente, 'invalidateQueries')
+    await abrirTime(MEMBRO)
+
+    await fireEvent.press(botao('Sair do time'))
+    expect(ultimoAlerta()?.[1]).toBe(AVISO_BASE)
+    apiTime.buscarTime.mockResolvedValue(time(NENHUMA))
+    await tocarNoAlerta('Sair')
+
+    expect(apiTime.sairDoTime).toHaveBeenCalledWith('t-masc')
+    expect(await screen.findByTestId('botao-spinner')).toBeOnTheScreen()
+    expect(botao('Sair do time')).toBeDisabled()
+
+    await act(() => concluir(SAIDA))
+
+    expect(toast.sucesso).toHaveBeenCalledWith('Você saiu do time')
+    expect(await screen.findByRole('button', { name: 'Solicitar entrada' })).toBeOnTheScreen()
+    const chavesInvalidadas = invalidar.mock.calls.map(([filtro]) => filtro?.queryKey)
+    expect(chavesInvalidadas).toEqual([
+      chaves.times.detalhe('t-masc'),
+      ['times', 'lista'],
+      chaves.me(),
+      chaves.eventos.todos(),
+    ])
+  })
+
+  it('capitão com confirmação futura: o diálogo traz os dois avisos (critério 2)', async () => {
+    jest.mocked(apiEventos.listarEventos).mockResolvedValue(
+      paginaEventos([
+        eventoResumo('e1', {
+          minhaParticipacao: { confirmado: true, respondidoEm: SAIDA.saidaEm },
+        }),
+      ]),
+    )
+    await abrirTime(MEMBRO, jest.fn(), { capitao: { id: EU, nome: 'Ana' } })
+
+    await waitFor(() => expect(apiEventos.listarEventos).toHaveBeenCalledTimes(2))
+    await fireEvent.press(botao('Sair do time'))
+    expect(ultimoAlerta()?.[1]).toBe(
+      `${AVISO_BASE} Você é o capitão; o time ficará sem capitão. ` +
+        'Suas confirmações nos próximos eventos deste time serão removidas.',
+    )
+  })
+
+  it('evento já iniciado não conta como confirmação futura', async () => {
+    jest.mocked(apiEventos.listarEventos).mockResolvedValue(
+      paginaEventos([
+        eventoResumo('e1', {
+          inicio: '2020-01-01T12:00:00.000Z',
+          minhaParticipacao: { confirmado: true, respondidoEm: SAIDA.saidaEm },
+        }),
+      ]),
+    )
+    await abrirTime(MEMBRO)
+
+    await waitFor(() => expect(apiEventos.listarEventos).toHaveBeenCalledTimes(2))
+    await fireEvent.press(botao('Sair do time'))
+    expect(ultimoAlerta()?.[1]).toBe(AVISO_BASE)
+  })
+
+  it('cancelar o diálogo não chama a API (critério 12)', async () => {
+    await abrirTime(MEMBRO)
+    await fireEvent.press(botao('Sair do time'))
+    await tocarNoAlerta('Cancelar')
+    expect(apiTime.sairDoTime).not.toHaveBeenCalled()
+  })
+
+  it('409 NAO_E_MEMBRO: recarrega a tela sem toast de erro (critério 9)', async () => {
+    apiTime.sairDoTime.mockRejectedValue(erroApi(409, 'NAO_E_MEMBRO'))
+    await abrirTime(MEMBRO)
+
+    await fireEvent.press(botao('Sair do time'))
+    apiTime.buscarTime.mockResolvedValue(time(NENHUMA))
+    await tocarNoAlerta('Sair')
+
+    expect(await screen.findByRole('button', { name: 'Solicitar entrada' })).toBeOnTheScreen()
+    expect(toast.erro).not.toHaveBeenCalled()
+  })
+
+  it('422: toast com a mensagem da API', async () => {
+    apiTime.sairDoTime.mockRejectedValue(erroApi(422, 'TIME_ADVERSARIO'))
+    await abrirTime(MEMBRO)
+
+    await fireEvent.press(botao('Sair do time'))
+    await tocarNoAlerta('Sair')
+
+    await waitFor(() => expect(toast.erro).toHaveBeenCalledWith('mensagem de TIME_ADVERSARIO'))
+  })
+
+  it('falha de rede: toast próprio', async () => {
+    apiTime.sairDoTime.mockRejectedValue(erroApi(0, 'SEM_CONEXAO'))
+    await abrirTime(MEMBRO)
+
+    await fireEvent.press(botao('Sair do time'))
+    await tocarNoAlerta('Sair')
+
+    await waitFor(() =>
+      expect(toast.erro).toHaveBeenCalledWith('Não foi possível sair do time. Tente novamente.'),
+    )
+    expect(toast.erro).toHaveBeenCalledTimes(1)
+  })
+
+  it('offline: "Sair do time" desabilitado (critério 13)', async () => {
+    await abrirTime(MEMBRO)
+    await act(() => onlineManager.setOnline(false))
+    await waitFor(() => expect(botao('Sair do time')).toBeDisabled())
   })
 })

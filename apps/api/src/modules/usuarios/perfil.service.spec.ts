@@ -43,6 +43,7 @@ function time(nome: string, capitaoId: string | null) {
     time: {
       id: `${nome}-id`,
       nome,
+      ativo: true,
       capitaoId,
       modalidade: { id: 'm', nome: 'Futsal', icone: 'futsal' },
     },
@@ -123,6 +124,7 @@ describe('montarPerfil', () => {
         nome: 'Futsal Masculino',
         modalidade: { id: 'm', nome: 'Futsal', icone: 'futsal' },
         capitao: true,
+        ativo: true,
         entradaEm: '2026-08-02T13:00:00.000Z',
       },
       expect.objectContaining({ nome: 'Vôlei Misto', capitao: false }),
@@ -143,7 +145,7 @@ describe('montarPerfil', () => {
 
 describe('PerfilService', () => {
   describe('obter', () => {
-    it('filtra na consulta vínculos encerrados, times inativos e a atlética do token', async () => {
+    it('filtra na consulta vínculos encerrados e a atlética do token', async () => {
       const { servico, db } = criarServico()
       await servico.obter(SOLICITANTE)
 
@@ -153,7 +155,7 @@ describe('PerfilService', () => {
         select: {
           vinculos: { where: { atleticaId: ATLETICA_ID } },
           membrosTime: {
-            where: { atleticaId: ATLETICA_ID, saidaEm: null, time: { ativo: true } },
+            where: { atleticaId: ATLETICA_ID, saidaEm: null },
             orderBy: { time: { nome: 'asc' } },
           },
           aceitesTermos: { orderBy: { aceitoEm: 'desc' }, take: 1 },

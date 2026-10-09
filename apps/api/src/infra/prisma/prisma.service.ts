@@ -1,4 +1,4 @@
-import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common'
+import { Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaPg } from '@prisma/adapter-pg'
 import type { ITXClientDenyList } from '@prisma/client/runtime/client'
@@ -36,7 +36,7 @@ export type TransacaoComEscopo = Omit<ClienteComEscopo, ITXClientDenyList> & {
  * permitidos pela regra de lint (convenções §3) — ver README, "Banco de dados".
  */
 @Injectable()
-export class PrismaService implements OnModuleInit, OnModuleDestroy {
+export class PrismaService implements OnModuleInit, OnApplicationShutdown {
   /** Cliente base, **sem** filtro por atlética. Uso restrito (lint). */
   readonly semEscopo: ClienteBase
   /** Cliente com o filtro por atlética do contexto (RNF20). Padrão. */
@@ -51,8 +51,8 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     await this.semEscopo.$connect()
   }
 
-  /** Chamado no `app.close()` e nos sinais de término (`enableShutdownHooks`). */
-  async onModuleDestroy(): Promise<void> {
+  /** Última fase do `app.close()`, depois da fila (#86) liberar os jobs em execução. */
+  async onApplicationShutdown(): Promise<void> {
     await this.semEscopo.$disconnect()
   }
 }

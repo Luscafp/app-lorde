@@ -289,7 +289,9 @@ describe('/times/:id/elenco e /times/:id/capitao (#64)', () => {
           ),
         )
 
-      expect(resultado).toEqual({ capitaniaRemovida: false, participacoesRemovidas: 0 })
+      const { saidaEm, ...resumo } = resultado
+      expect(saidaEm).toBeInstanceOf(Date)
+      expect(resumo).toEqual({ capitaniaRemovida: false, participacoesRemovidas: 0 })
       const [registro] = await registros('MembroTime')
       expect(registro).toMatchObject({ acao, usuarioId: ana.id })
     })
