@@ -13,8 +13,8 @@ import { aoEncerrarSessao } from '@/infra/sessao/store'
 
 declare module '@tanstack/react-query' {
   interface Register {
-    /** `errosNaTela`: códigos que a própria tela mostra; `toastProprio`: todos eles. */
-    mutationMeta: { errosNaTela?: readonly string[]; toastProprio?: boolean }
+    /** `errosNaTela`: códigos que a própria tela mostra; `mensagemErro`: troca a do servidor. */
+    mutationMeta: { errosNaTela?: readonly string[]; mensagemErro?: string }
     /** `persistir`: entra no cache salvo no aparelho (#29, convenções §10.4). */
     queryMeta: { persistir?: boolean }
   }
@@ -32,9 +32,10 @@ export function mostrarErroDaMutacao(
   erro: unknown,
   mutacao?: Pick<Mutation<unknown, unknown, unknown>, 'meta'>,
 ): void {
-  if (ehSessaoEncerrada(erro) || mutacao?.meta?.toastProprio) return
+  if (ehSessaoEncerrada(erro)) return
   if (erro instanceof ApiErro && mutacao?.meta?.errosNaTela?.includes(erro.code)) return
-  toast.erro(erro instanceof ApiErro ? erro.message : MENSAGEM_ERRO_GENERICO)
+  const mensagemDaApi = erro instanceof ApiErro ? erro.message : MENSAGEM_ERRO_GENERICO
+  toast.erro(mutacao?.meta?.mensagemErro ?? mensagemDaApi)
 }
 
 /** O cargo pode ter mudado (#28): reler o `['me']` atualiza o papel da sessão. */

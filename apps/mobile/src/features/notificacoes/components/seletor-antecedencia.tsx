@@ -18,7 +18,10 @@ export function SeletorAntecedencia({ valor, desabilitado, aoMudar }: Props) {
         opcoes={OPCOES}
         valor={String(valor)}
         desabilitado={desabilitado}
-        aoMudar={(horas) => aoMudar(Number(horas) as AntecedenciaLembrete)}
+        aoMudar={(horas) => {
+          const nova = Number(horas) as AntecedenciaLembrete
+          if (nova !== valor) aoMudar(nova)
+        }}
       />
     </View>
   )

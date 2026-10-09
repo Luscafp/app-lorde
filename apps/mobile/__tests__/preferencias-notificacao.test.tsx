@@ -240,6 +240,26 @@ describe('Tela Notificações (#37)', () => {
     })
   })
 
+  it('tocar na antecedência já escolhida não envia PATCH', async () => {
+    await renderizar()
+    await screen.findByRole('switch', { name: 'Lembretes' })
+
+    await fireEvent.press(antecedencia(2))
+
+    expect(patch).not.toHaveBeenCalled()
+  })
+
+  it('"Salvo" some sozinho depois do sucesso', async () => {
+    patch.mockResolvedValue({ ...PADRAO, noticias: false })
+    await renderizar()
+    await screen.findByRole('switch', { name: 'Notícias' })
+
+    await alternar('Notícias', false)
+
+    expect(await screen.findByText('Salvo')).toBeOnTheScreen()
+    await waitFor(() => expect(screen.queryByText('Salvo')).toBeNull(), { timeout: 3000 })
+  })
+
   it.each([
     ['ATLETA', 'Resposta às minhas solicitações de entrada.'],
     ['DIRETOR', 'Resposta às minhas solicitações de entrada e novas solicitações.'],
@@ -335,6 +355,22 @@ describe('Tela Notificações (#37)', () => {
 
       await waitFor(() => expect(screen.queryByText(MENSAGEM_PERMISSAO_NEGADA)).toBeNull())
       expect(fonte.solicitarERegistrar).toHaveBeenCalledTimes(1)
+    })
+
+    it('falha no registro não se repete ao voltar ao app', async () => {
+      const fonte = fonteFalsa({ permissao: 'concedida', registrado: false })
+      fonte.solicitarERegistrar.mockRejectedValue(new Error('falhou'))
+      await renderizar(fonte)
+      await waitFor(() => expect(fonte.solicitarERegistrar).toHaveBeenCalledTimes(1))
+
+      await act(() => {
+        aoMudarApp('active')
+        return Promise.resolve()
+      })
+
+      await waitFor(() => expect(fonte.estado).toHaveBeenCalledTimes(2))
+      expect(fonte.solicitarERegistrar).toHaveBeenCalledTimes(1)
+      expect(interruptor('Notícias')).toBeEnabled()
     })
 
     it('concedida e já registrado: nada a mostrar nem registrar', async () => {

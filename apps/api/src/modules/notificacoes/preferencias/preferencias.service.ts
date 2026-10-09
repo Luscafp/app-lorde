@@ -12,7 +12,7 @@ const CAMPOS = {
   noticias: true,
   solicitacoes: true,
   avisos: true,
-} as const
+} as const satisfies Record<keyof Preferencias, true>
 
 type Registro = Omit<Preferencias, 'antecedenciaLembreteHoras'> & {
   antecedenciaLembreteHoras: number
@@ -24,7 +24,7 @@ const paraDto = (registro: Registro): Preferencias => ({
   antecedenciaLembreteHoras: registro.antecedenciaLembreteHoras as AntecedenciaLembrete,
 })
 
-/** Contas anteriores ao cadastro da #57 ganham os padrões do banco no primeiro acesso. */
+/** Contas sem registro ganham os padrões do banco no primeiro acesso. */
 @Injectable()
 export class PreferenciasService {
   constructor(private readonly prisma: PrismaService) {}
@@ -34,14 +34,10 @@ export class PreferenciasService {
       where: { usuarioId },
       select: CAMPOS,
     })
-    return registro ? paraDto(registro) : this.gravar(usuarioId, {})
+    return registro ? paraDto(registro) : this.atualizar(usuarioId, {})
   }
 
   async atualizar(usuarioId: string, dados: AtualizarPreferencias): Promise<Preferencias> {
-    return this.gravar(usuarioId, dados)
-  }
-
-  private async gravar(usuarioId: string, dados: AtualizarPreferencias): Promise<Preferencias> {
     const registro = await this.prisma.db.preferenciaNotificacao.upsert({
       where: { usuarioId },
       create: { usuarioId, ...dados },

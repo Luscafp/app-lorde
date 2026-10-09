@@ -1,18 +1,16 @@
 import type { AtualizarPreferencias, Preferencias } from '@atletica/shared'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from '@/components/ui/toast'
-import { ehSessaoEncerrada, type ApiErro } from '@/infra/api/api-erro'
+import type { ApiErro } from '@/infra/api/api-erro'
 import { chaves } from '@/infra/query/chaves'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import { atualizarPreferencias, buscarPreferencias } from './api'
 
 export const MENSAGEM_ERRO_SALVAR = 'Não foi possível salvar. Tente novamente.'
 
-const MUTACAO = ['preferencias-notificacao'] as const
+const CHAVE_MUTACAO = ['preferencias-notificacao'] as const
 
 type Contexto = { anterior?: Partial<Preferencias> }
 
-/** Só em memória (convenções §10.4). */
 export function usePreferencias() {
   return useQuery({
     queryKey: chaves.me.preferencias(),
@@ -34,8 +32,8 @@ export function useAtualizarPreferencia() {
   const chave = chaves.me.preferencias()
 
   return useAcaoOnline<Preferencias, ApiErro, AtualizarPreferencias, Contexto>({
-    mutationKey: MUTACAO,
-    scope: { id: MUTACAO[0] },
+    mutationKey: CHAVE_MUTACAO,
+    scope: { id: CHAVE_MUTACAO[0] },
     mutationFn: (dados) => atualizarPreferencias(dados),
     onMutate: async (dados) => {
       await cliente.cancelQueries({ queryKey: chave, exact: true })
@@ -44,18 +42,16 @@ export function useAtualizarPreferencia() {
       cliente.setQueryData<Preferencias>(chave, { ...atual, ...dados })
       return { anterior: camposAnteriores(atual, dados) }
     },
-    onError: (erro, _dados, contexto) => {
-      if (contexto?.anterior) {
-        cliente.setQueryData<Preferencias>(chave, (atual) =>
-          atual ? { ...atual, ...contexto.anterior } : atual,
-        )
-      }
-      if (!ehSessaoEncerrada(erro)) toast.erro(MENSAGEM_ERRO_SALVAR)
+    onError: (_erro, _dados, contexto) => {
+      if (!contexto?.anterior) return
+      cliente.setQueryData<Preferencias>(chave, (atual) =>
+        atual ? { ...atual, ...contexto.anterior } : atual,
+      )
     },
     onSettled: () => {
-      if (cliente.isMutating({ mutationKey: MUTACAO }) > 1) return
+      if (cliente.isMutating({ mutationKey: CHAVE_MUTACAO }) > 1) return
       void cliente.invalidateQueries({ queryKey: chave, exact: true })
     },
-    meta: { toastProprio: true },
+    meta: { mensagemErro: MENSAGEM_ERRO_SALVAR },
   })
 }

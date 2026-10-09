@@ -1,25 +1,31 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppState } from 'react-native'
 
 export type Permissao = 'concedida' | 'negada' | 'nao-perguntada'
 
 export type EstadoPermissao = { permissao: Permissao; registrado: boolean }
 
-/** Contrato com a #88: `estadoPermissao()` e `solicitarPermissaoERegistrar()`. */
 export type FontePermissao = {
   estado: () => Promise<EstadoPermissao>
   solicitarERegistrar: () => Promise<void>
 }
 
-/** Consulta ao abrir e ao voltar ao app (UC12 A1); concedida sem registro dispara o registro. */
+/** Consulta ao abrir e ao voltar ao app; concedida sem registro tenta registrar uma vez. */
 export function usePermissaoNotificacoes(fonte: FontePermissao | undefined) {
   const [permissao, setPermissao] = useState<Permissao>()
+  const registroTentado = useRef(false)
 
   const consultar = useCallback(async () => {
     if (!fonte) return
-    const { permissao: atual, registrado } = await fonte.estado()
-    setPermissao(atual)
-    if (atual === 'concedida' && !registrado) await fonte.solicitarERegistrar()
+    try {
+      const { permissao: atual, registrado } = await fonte.estado()
+      setPermissao(atual)
+      if (atual !== 'concedida' || registrado || registroTentado.current) return
+      registroTentado.current = true
+      await fonte.solicitarERegistrar()
+    } catch {
+      setPermissao(undefined)
+    }
   }, [fonte])
 
   useEffect(() => {
@@ -32,7 +38,7 @@ export function usePermissaoNotificacoes(fonte: FontePermissao | undefined) {
 
   const permitir = useCallback(async () => {
     if (!fonte) return
-    await fonte.solicitarERegistrar()
+    await fonte.solicitarERegistrar().catch(() => undefined)
     await consultar()
   }, [fonte, consultar])
 

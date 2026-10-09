@@ -1,5 +1,5 @@
 import type { Preferencias } from '@atletica/shared'
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { ScrollView, View } from 'react-native'
 import { TelaDados } from '@/components/estado'
 import { Texto } from '@/components/ui'
@@ -13,11 +13,12 @@ import { usePermissaoNotificacoes, type FontePermissao } from './permissao'
 
 export const MENSAGEM_CARGO_SEMPRE = 'Avisos sobre alteração do seu cargo são sempre enviados.'
 
+const TEMPO_SALVO_MS = 2000
+
 type Categoria = keyof Omit<Preferencias, 'pushAtivo' | 'antecedenciaLembreteHoras'>
 
-type Linha = { campo: Categoria; titulo: string; descricao: string }
+type Linha = { campo: Categoria; titulo: string; descricao?: string }
 
-/** Textos da seção 3.4; Solicitações muda por papel e Avisos depende da #38. */
 function categorias(ehDiretoria: boolean): Linha[] {
   return [
     {
@@ -54,13 +55,7 @@ function categorias(ehDiretoria: boolean): Linha[] {
         : 'Resposta às minhas solicitações de entrada.',
     },
     ...(features.avisosHabilitados
-      ? [
-          {
-            campo: 'avisos' as const,
-            titulo: 'Avisos da diretoria',
-            descricao: 'Avisos enviados pela diretoria da atlética.',
-          },
-        ]
+      ? [{ campo: 'avisos' as const, titulo: 'Avisos da diretoria' }]
       : []),
   ]
 }
@@ -71,13 +66,24 @@ function Grupo({ children }: { children: ReactNode }) {
   )
 }
 
-/** UC12: cada toque salva na hora; `permissao` vem da #88 e só aparece com a flag ligada. */
+function useAvisoSalvo(sucesso: boolean, enviadoEm: number) {
+  const [visivel, setVisivel] = useState(false)
+  useEffect(() => {
+    setVisivel(sucesso)
+    if (!sucesso) return
+    const temporizador = setTimeout(() => setVisivel(false), TEMPO_SALVO_MS)
+    return () => clearTimeout(temporizador)
+  }, [sucesso, enviadoEm])
+  return visivel
+}
+
 export function TelaPreferenciasNotificacao({ permissao }: { permissao?: FontePermissao }) {
   const consulta = usePreferencias()
   const salvar = useAtualizarPreferencia()
   const ehDiretoria = useTemNivelMinimo('DIRETOR')
   const fonte = features.notificacoes ? permissao : undefined
   const { permissao: estadoPermissao, permitir } = usePermissaoNotificacoes(fonte)
+  const salvo = useAvisoSalvo(salvar.isSuccess, salvar.submittedAt)
 
   const bloqueado = !salvar.online
 
@@ -93,7 +99,6 @@ export function TelaPreferenciasNotificacao({ permissao }: { permissao?: FontePe
             <Grupo>
               <LinhaPreferencia
                 titulo="Notificações push"
-                descricao="Ativa ou desativa todas as notificações."
                 valor={preferencias.pushAtivo}
                 desabilitado={bloqueado}
                 aoMudar={(pushAtivo) => salvar.mutate({ pushAtivo })}
@@ -125,7 +130,7 @@ export function TelaPreferenciasNotificacao({ permissao }: { permissao?: FontePe
             </Grupo>
             <View className="gap-1 px-1">
               <Texto variante="legenda">{MENSAGEM_CARGO_SEMPRE}</Texto>
-              {salvar.isSuccess && (
+              {salvo && (
                 <Texto variante="legenda" accessibilityLiveRegion="polite">
                   Salvo
                 </Texto>

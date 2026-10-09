@@ -4,7 +4,7 @@ import { paleta, useAtletica } from '@/features/atletica'
 
 type Props = {
   titulo: string
-  descricao: string
+  descricao?: string
   valor: boolean
   desabilitado?: boolean
   aoMudar: (valor: boolean) => void
@@ -18,7 +18,7 @@ export function LinhaPreferencia({ titulo, descricao, valor, desabilitado, aoMud
     >
       <View className="flex-1 gap-1">
         <Texto>{titulo}</Texto>
-        <Texto variante="legenda">{descricao}</Texto>
+        {descricao && <Texto variante="legenda">{descricao}</Texto>}
       </View>
       <Switch
         accessibilityRole="switch"

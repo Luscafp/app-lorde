@@ -7,7 +7,6 @@ export const MENSAGEM_PERMISSAO_NEGADA =
 
 type Props = { permissao: Permissao | undefined; aoPermitir: () => void }
 
-/** UC12 A1: as preferências continuam editáveis com a permissão negada. */
 export function AvisoPermissao({ permissao, aoPermitir }: Props) {
   if (permissao === 'negada') {
     return (

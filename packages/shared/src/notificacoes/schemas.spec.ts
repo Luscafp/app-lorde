@@ -1,4 +1,5 @@
-import { atualizarPreferenciasSchema, preferenciasSchema } from './schemas'
+import { preferenciasSchema } from './dtos'
+import { atualizarPreferenciasSchema } from './schemas'
 
 const PADRAO = {
   pushAtivo: true,
