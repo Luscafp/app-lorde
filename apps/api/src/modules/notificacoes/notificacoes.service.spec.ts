@@ -81,12 +81,15 @@ describe('NotificacoesService', () => {
     expect(fila.enviar).toHaveBeenCalledTimes(3)
     const chamadas = fila.enviar.mock.calls as [
       string,
-      { mensagens: unknown[]; dispositivoIds: string[] },
+      { entregas: { dispositivoId: string; mensagem: { to: string } }[] },
       { singletonKey: string },
     ][]
     expect(chamadas.map(([nome]) => nome)).toEqual(Array(3).fill('notificacao.enviar-lote'))
-    expect(chamadas.map(([, payload]) => payload.mensagens.length)).toEqual([100, 100, 50])
-    expect(chamadas.map(([, payload]) => payload.dispositivoIds.length)).toEqual([100, 100, 50])
+    expect(chamadas.map(([, payload]) => payload.entregas.length)).toEqual([100, 100, 50])
+    expect(chamadas[0]?.[1].entregas[0]).toMatchObject({
+      dispositivoId: 'd0',
+      mensagem: { to: 'ExpoPushToken[0]' },
+    })
     expect(chamadas.map(([, , opcoes]) => opcoes.singletonKey)).toEqual([
       'noticia.publicada:n1:0',
       'noticia.publicada:n1:1',

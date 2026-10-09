@@ -1,14 +1,4 @@
-import type { Preferencias } from '@atletica/shared'
-
-export type CategoriaNotificacao =
-  | 'NOVOS_EVENTOS'
-  | 'ALTERACOES_EVENTOS'
-  | 'LEMBRETES'
-  | 'RESULTADOS'
-  | 'NOTICIAS'
-  | 'SOLICITACOES'
-  | 'AVISOS'
-  | 'CARGO'
+import type { CategoriaNotificacao, Preferencias } from '@atletica/shared'
 
 type ColunaPreferencia = Exclude<keyof Preferencias, 'pushAtivo' | 'antecedenciaLembreteHoras'>
 

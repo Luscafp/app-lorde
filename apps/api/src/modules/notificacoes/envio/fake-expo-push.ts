@@ -1,9 +1,5 @@
-import {
-  ClienteExpoPush,
-  type MensagemPush,
-  type ReciboPush,
-  type TicketPush,
-} from './cliente-expo-push'
+import type { MensagemPush } from '../../../infra/fila/filas-dominio'
+import { ClienteExpoPush, type ReciboPush, type TicketPush } from './cliente-expo-push'
 
 type ErroPush = NonNullable<
   NonNullable<Extract<ReciboPush, { status: 'error' }>['details']>['error']

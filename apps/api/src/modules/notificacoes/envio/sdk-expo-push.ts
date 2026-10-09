@@ -1,18 +1,14 @@
 import { Expo } from 'expo-server-sdk'
-import {
-  ClienteExpoPush,
-  type MensagemPush,
-  type ReciboPush,
-  type TicketPush,
-} from './cliente-expo-push'
+import type { MensagemPush } from '../../../infra/fila/filas-dominio'
+import { ClienteExpoPush, type ReciboPush, type TicketPush } from './cliente-expo-push'
 
 /** `expo-server-sdk` (repete sozinho o 429; rede e 5xx voltam ao job). */
-export class ExpoPushCliente extends ClienteExpoPush {
+export class SdkExpoPush extends ClienteExpoPush {
   private readonly expo: Expo
 
-  constructor(accessToken?: string) {
+  constructor(tokenAcesso?: string) {
     super()
-    this.expo = new Expo(accessToken ? { accessToken } : {})
+    this.expo = new Expo(tokenAcesso ? { accessToken: tokenAcesso } : {})
   }
 
   enviar(mensagens: MensagemPush[]): Promise<TicketPush[]> {

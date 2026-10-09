@@ -3,13 +3,13 @@ import request from 'supertest'
 import type { RespostaErro } from '../../src/common/erros/erro-negocio'
 import { SenhaService } from '../../src/infra/senha/senha.service'
 import { AtleticaPadraoService } from '../../src/modules/atleticas/atletica-padrao.service'
-import { DispositivosService } from '../../src/modules/notificacoes/dispositivos/dispositivos.service'
+import { FilaService } from '../../src/infra/fila/fila.service'
 import { criarAtletica } from '../fabricas/atletica'
 import { criarSessao, tokenPara } from '../fabricas/auth'
 import { criarDispositivo } from '../fabricas/notificacoes'
 import { criarUsuario, type UsuarioCriado } from '../fabricas/usuario'
 import { criarApp, type AppDeTeste } from '../setup/criar-app'
-import { aguardarCondicao } from '../setup/fila'
+import { aguardarCondicao, aguardarFilaVazia } from '../setup/fila'
 import { prismaTeste } from '../setup/prisma-teste'
 
 const ROTA = '/api/v1/me/dispositivos'
@@ -278,9 +278,9 @@ describe('Dispositivos push /me/dispositivos (#87)', () => {
         ultimoUsoEm: new Date(agora.getTime() - 89 * DIA_MS),
       })
 
-      const removidos = await contexto.app.get(DispositivosService).limparInativos(agora)
+      await contexto.app.get(FilaService).enviar('dispositivos.limpeza', {})
+      await aguardarFilaVazia(contexto.app, 'dispositivos.limpeza')
 
-      expect(removidos).toBe(1)
       const restantes = (await dispositivosDe(atleta)).map(({ id }) => id)
       expect(restantes).toEqual([recente.id])
       expect(restantes).not.toContain(velho.id)

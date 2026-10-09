@@ -1,8 +1,10 @@
+import type { CategoriaNotificacao } from '@atletica/shared'
 import { Injectable } from '@nestjs/common'
 import type { Prisma } from '../../generated/prisma/client'
 import { FilaService } from '../../infra/fila/fila.service'
 import { PrismaService } from '../../infra/prisma/prisma.service'
-import { COLUNA_PREFERENCIA, type CategoriaNotificacao } from './categorias'
+import { COLUNA_PREFERENCIA } from './categorias'
+import { FILA_LOTE } from './envio/entrega-push.service'
 import { dividirEmLotes, montarMensagem, type ConteudoNotificacao } from './envio/mensagens'
 
 export interface FiltroDestinatarios {
@@ -11,7 +13,7 @@ export interface FiltroDestinatarios {
   usuarioIds: string[]
 }
 
-/** `chave` identifica o envio (ex.: `evento.criado:<eventoId>`): repetir a chave não duplica lotes pendentes. */
+/** `chave` identifica o envio (ex.: `evento.criado:<eventoId>`) e evita lotes duplicados. */
 export type EntradaNotificacao = FiltroDestinatarios & Omit<ConteudoNotificacao, 'categoria'>
 
 /** Contrato do épico #36 §7, usado por #89, #90 e #38. */
@@ -33,12 +35,13 @@ export class NotificacoesService {
     const dispositivos = usuarios.flatMap((usuario) => usuario.dispositivos)
     const lotes = dividirEmLotes(dispositivos)
     for (const [indice, lote] of lotes.entries()) {
+      const entregas = lote.map(({ id, tokenPush }) => ({
+        dispositivoId: id,
+        mensagem: montarMensagem(tokenPush, entrada),
+      }))
       await this.fila.enviar(
-        'notificacao.enviar-lote',
-        {
-          mensagens: lote.map(({ tokenPush }) => montarMensagem(tokenPush, entrada)),
-          dispositivoIds: lote.map(({ id }) => id),
-        },
+        FILA_LOTE,
+        { entregas },
         { singletonKey: `${entrada.chave}:${indice}` },
       )
     }
@@ -51,7 +54,7 @@ export class NotificacoesService {
     return this.prisma.db.usuario.count({ where: this.filtroElegiveis(filtro) })
   }
 
-  /** Épico #36 §3.3; preferência ausente = padrões (tudo ligado); `CARGO` ignora preferências (RN35). */
+  /** Épico #36 §3.3; sem preferência valem os padrões; `CARGO` ignora preferências (RN35). */
   private filtroElegiveis({
     atleticaId,
     categoria,

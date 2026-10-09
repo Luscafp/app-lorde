@@ -1,7 +1,7 @@
 import type { FilaService } from '../../../infra/fila/fila.service'
-import type { PrismaService } from '../../../infra/prisma/prisma.service'
+import type { MensagemPush } from '../../../infra/fila/filas-dominio'
 import { capturarErroJob } from '../../../infra/sentry/sentry'
-import type { MensagemPush } from './cliente-expo-push'
+import type { DispositivosService } from '../dispositivos/dispositivos.service'
 import { EntregaPushService, ehFalhaTemporaria, ESPERA_RECIBOS_MS } from './entrega-push.service'
 import { FakeExpoPush } from './fake-expo-push'
 
@@ -18,25 +18,27 @@ const mensagem = (to: string): MensagemPush => ({
 })
 
 function preparar() {
-  const deleteMany = jest.fn().mockResolvedValue({ count: 1 })
-  const prisma = { db: { dispositivoPush: { deleteMany } } } as unknown as PrismaService
+  const removerInvalidos = jest.fn().mockResolvedValue(undefined)
+  const dispositivos = { removerInvalidos } as unknown as DispositivosService
   const fila = { enviar: jest.fn().mockResolvedValue('job-1') }
   const expo = new FakeExpoPush()
-  const servico = new EntregaPushService(prisma, fila as unknown as FilaService, expo)
-  return { servico, expo, fila, deleteMany }
+  const servico = new EntregaPushService(fila as unknown as FilaService, expo, dispositivos)
+  return { servico, expo, fila, removerInvalidos }
 }
 
 const lote = (...tokens: string[]) => ({
-  mensagens: tokens.map(mensagem),
-  dispositivoIds: tokens.map((token) => `d-${token}`),
+  entregas: tokens.map((token) => ({ dispositivoId: `d-${token}`, mensagem: mensagem(token) })),
 })
+
+const apagados = (removerInvalidos: jest.Mock) =>
+  (removerInvalidos.mock.calls as [string[]][]).flatMap(([ids]) => ids)
 
 describe('EntregaPushService', () => {
   beforeEach(() => jest.mocked(capturarErroJob).mockClear())
 
   describe('enviarLote', () => {
     it('envia o lote numa requisição e agenda os recibos para 15 min depois', async () => {
-      const { servico, expo, fila, deleteMany } = preparar()
+      const { servico, expo, fila, removerInvalidos } = preparar()
       const antes = Date.now()
 
       await servico.enviarLote(lote('A', 'B'))
@@ -55,16 +57,16 @@ describe('EntregaPushService', () => {
       )
       const [, , opcoes] = fila.enviar.mock.calls[0] as [string, unknown, { startAfter: Date }]
       expect(opcoes.startAfter.getTime()).toBeGreaterThanOrEqual(antes + ESPERA_RECIBOS_MS)
-      expect(deleteMany).not.toHaveBeenCalled()
+      expect(apagados(removerInvalidos)).toEqual([])
     })
 
     it('DeviceNotRegistered no ticket apaga o dispositivo e não consulta recibo dele', async () => {
-      const { servico, expo, fila, deleteMany } = preparar()
+      const { servico, expo, fila, removerInvalidos } = preparar()
       expo.simularErroTicket('B', 'DeviceNotRegistered')
 
       await servico.enviarLote(lote('A', 'B'))
 
-      expect(deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['d-B'] } } })
+      expect(removerInvalidos).toHaveBeenCalledWith(['d-B'])
       expect(fila.enviar).toHaveBeenCalledWith(
         'notificacao.recibos',
         { tickets: [{ ticketId: 'ticket-1', dispositivoId: 'd-A' }] },
@@ -75,7 +77,7 @@ describe('EntregaPushService', () => {
     it.each(['MessageTooBig', 'InvalidCredentials', 'MismatchSenderId'] as const)(
       '%s no ticket vai ao Sentry sem apagar',
       async (erro) => {
-        const { servico, expo, fila, deleteMany } = preparar()
+        const { servico, expo, fila, removerInvalidos } = preparar()
         expo.simularErroTicket('A', erro)
 
         await servico.enviarLote(lote('A'))
@@ -85,19 +87,33 @@ describe('EntregaPushService', () => {
           expect.objectContaining({ name: 'ErroExpoPush', message: erro }),
           { dispositivoId: 'd-A', codigo: erro },
         )
-        expect(deleteMany).not.toHaveBeenCalled()
+        expect(apagados(removerInvalidos)).toEqual([])
         expect(fila.enviar).not.toHaveBeenCalled()
       },
     )
 
+    it('código desconhecido no ticket vai ao Sentry sem apagar', async () => {
+      const { servico, expo, removerInvalidos } = preparar()
+      expo.simularErroTicket('A', 'ProviderError')
+
+      await servico.enviarLote(lote('A'))
+
+      expect(capturarErroJob).toHaveBeenCalledWith(
+        'notificacao.enviar-lote',
+        expect.objectContaining({ message: 'ProviderError' }),
+        { dispositivoId: 'd-A', codigo: 'ProviderError' },
+      )
+      expect(apagados(removerInvalidos)).toEqual([])
+    })
+
     it('MessageRateExceeded só gera aviso', async () => {
-      const { servico, expo, deleteMany } = preparar()
+      const { servico, expo, removerInvalidos } = preparar()
       expo.simularErroTicket('A', 'MessageRateExceeded')
 
       await servico.enviarLote(lote('A'))
 
       expect(capturarErroJob).not.toHaveBeenCalled()
-      expect(deleteMany).not.toHaveBeenCalled()
+      expect(apagados(removerInvalidos)).toEqual([])
     })
 
     it('503 relança para o pg-boss repetir o lote', async () => {
@@ -128,6 +144,18 @@ describe('EntregaPushService', () => {
       )
     })
 
+    it('erro sem status HTTP que não é de rede não repete e vai ao Sentry', async () => {
+      const { servico, expo } = preparar()
+      const falha = new Error('Expected Expo to respond with 1 ticket but got 0')
+      jest.spyOn(expo, 'enviar').mockRejectedValue(falha)
+
+      await expect(servico.enviarLote(lote('A'))).resolves.toBeUndefined()
+
+      expect(capturarErroJob).toHaveBeenCalledWith('notificacao.enviar-lote', falha, {
+        mensagens: 1,
+      })
+    })
+
     it('falha depois do envio não relança (o lote não é reenviado)', async () => {
       const { servico, fila } = preparar()
       fila.enviar.mockRejectedValue(new Error('banco fora'))
@@ -146,7 +174,7 @@ describe('EntregaPushService', () => {
     }
 
     it('DeviceNotRegistered no recibo apaga o dispositivo', async () => {
-      const { servico, expo, fila, deleteMany } = preparar()
+      const { servico, expo, fila, removerInvalidos } = preparar()
       expo.simularErroRecibo('B', 'DeviceNotRegistered')
       expo.simularErroRecibo('C', 'InvalidCredentials')
 
@@ -154,7 +182,7 @@ describe('EntregaPushService', () => {
         (await ticketsDe(servico, fila)) as Parameters<typeof servico.processarRecibos>[0],
       )
 
-      expect(deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['d-B'] } } })
+      expect(removerInvalidos).toHaveBeenCalledWith(['d-B'])
       expect(capturarErroJob).toHaveBeenCalledWith(
         'notificacao.recibos',
         expect.objectContaining({ message: 'InvalidCredentials' }),
@@ -163,20 +191,22 @@ describe('EntregaPushService', () => {
     })
 
     it('recibos ok ou ainda ausentes não apagam nada', async () => {
-      const { servico, deleteMany } = preparar()
+      const { servico, removerInvalidos } = preparar()
 
       await servico.processarRecibos({
         tickets: [{ ticketId: 'desconhecido', dispositivoId: 'd-X' }],
       })
 
-      expect(deleteMany).not.toHaveBeenCalled()
+      expect(apagados(removerInvalidos)).toEqual([])
     })
   })
 })
 
 describe('ehFalhaTemporaria', () => {
   it.each([
-    [new Error('ECONNRESET'), true],
+    [new TypeError('fetch failed'), true],
+    [new Error('ECONNRESET'), false],
+    [new TypeError('Cannot read properties of undefined'), false],
     [{ statusCode: 500 }, true],
     [{ statusCode: 503 }, true],
     [{ statusCode: 429 }, true],

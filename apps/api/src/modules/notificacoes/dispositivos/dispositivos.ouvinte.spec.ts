@@ -6,8 +6,12 @@ jest.mock('@sentry/nestjs', () => ({ captureException: jest.fn() }))
 
 function preparar() {
   const removerDasSessoes = jest.fn().mockResolvedValue(1)
-  const ouvinte = new DispositivosOuvinte({ removerDasSessoes } as unknown as DispositivosService)
-  return { ouvinte, removerDasSessoes }
+  const removerTodosDoUsuario = jest.fn().mockResolvedValue(2)
+  const ouvinte = new DispositivosOuvinte({
+    removerDasSessoes,
+    removerTodosDoUsuario,
+  } as unknown as DispositivosService)
+  return { ouvinte, removerDasSessoes, removerTodosDoUsuario }
 }
 
 describe('DispositivosOuvinte', () => {
@@ -21,11 +25,11 @@ describe('DispositivosOuvinte', () => {
       autorId: 'u1',
     })
 
-    expect(removerDasSessoes).toHaveBeenCalledWith('u1', ['s1', 's2'], false)
+    expect(removerDasSessoes).toHaveBeenCalledWith('u1', ['s1', 's2'])
   })
 
   it('exclusão de conta remove todos os aparelhos do usuário', async () => {
-    const { ouvinte, removerDasSessoes } = preparar()
+    const { ouvinte, removerDasSessoes, removerTodosDoUsuario } = preparar()
 
     await ouvinte.aoEncerrarSessao({
       usuarioId: 'u1',
@@ -34,7 +38,8 @@ describe('DispositivosOuvinte', () => {
       autorId: 'u1',
     })
 
-    expect(removerDasSessoes).toHaveBeenCalledWith('u1', ['s1'], true)
+    expect(removerTodosDoUsuario).toHaveBeenCalledWith('u1')
+    expect(removerDasSessoes).not.toHaveBeenCalled()
   })
 
   it('falha vai ao Sentry e não propaga', async () => {

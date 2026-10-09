@@ -1,6 +1,10 @@
-import { formatarData, formatarHora, type Instante } from '@atletica/shared'
-import type { CategoriaNotificacao } from '../categorias'
-import type { MensagemPush } from './cliente-expo-push'
+import {
+  formatarData,
+  formatarHora,
+  type CategoriaNotificacao,
+  type Instante,
+} from '@atletica/shared'
+import type { MensagemPush } from '../../../infra/fila/filas-dominio'
 
 /** Limite de mensagens por requisição ao Expo. */
 export const TAMANHO_LOTE = 100

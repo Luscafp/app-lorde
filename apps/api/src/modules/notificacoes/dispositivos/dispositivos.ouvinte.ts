@@ -18,11 +18,10 @@ export class DispositivosOuvinte {
     motivo,
   }: EventosDominio['usuario.sessaoEncerrada']): Promise<void> {
     try {
-      const removidos = await this.dispositivos.removerDasSessoes(
-        usuarioId,
-        sessaoIds,
-        motivo === 'CONTA_EXCLUIDA',
-      )
+      const removidos =
+        motivo === 'CONTA_EXCLUIDA'
+          ? await this.dispositivos.removerTodosDoUsuario(usuarioId)
+          : await this.dispositivos.removerDasSessoes(usuarioId, sessaoIds)
       this.logger.log({ usuarioId, motivo, dispositivos: removidos }, 'Dispositivos removidos')
     } catch (erro) {
       this.logger.error({ err: erro, usuarioId }, 'Falha ao remover dispositivos da sessão')

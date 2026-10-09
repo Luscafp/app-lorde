@@ -709,14 +709,14 @@ Chamada da diretoria (RF33, RN31, UC18). `registrarPresencasSchema` e `ListaPres
 ```ts
 notificacoes.notificar({ atleticaId, categoria, usuarioIds, titulo, corpo, url, chave, ttl? }) // { destinatarios }
 notificacoes.contarElegiveis({ atleticaId, categoria, usuarioIds }) // number, mesmo filtro
-destinatarios.elencoDoTime(timeId) / diretoria() / todosDaAtletica() // atlética do contexto
+destinatarios.elencoDoTime(timeId) / diretoria(atleticaId) / todosDaAtletica(atleticaId) // string[]
 ```
 
 - **Elegível:** `Usuario.ativo`, não excluído, `VinculoAtletica.ativo` na atlética, ao menos um `DispositivoPush`, `pushAtivo` e a coluna da categoria (`COLUNA_PREFERENCIA` em `categorias.ts`); sem `PreferenciaNotificacao` valem os padrões. `CARGO` ignora as preferências (RN35). Quem chama remove o `autorId` antes.
 - **Mensagem:** uma por aparelho, título ≤ 65 e corpo ≤ 180 caracteres (`truncar`), `data = { url, tipo: categoria, id: chave }`, canal `padrao`. Datas curtas com `formatarDataCurta` (`dd/mm HH:mm`, `FUSO_PADRAO`). `url` sempre via `rotaNotificacao()`.
-- **Filas:** `notificacao.enviar-lote` (até 100 mensagens, `singletonKey = <chave>:<n>`, política `exclusive`, retry 3 com backoff só em rede/5xx/429); tickets `ok` → `notificacao.recibos` 15 min depois. `DeviceNotRegistered` (ticket ou recibo) apaga o dispositivo; `MessageTooBig`/`InvalidCredentials`/`MismatchSenderId` vão ao Sentry só com o código (a mensagem do Expo cita o token); `MessageRateExceeded` gera aviso. `dispositivos.limpeza` (cron 04:00) apaga aparelhos sem uso há mais de 90 dias.
+- **Filas:** `notificacao.enviar-lote` (até 100 mensagens, `singletonKey = <chave>:<n>`, política `exclusive`, retry 3 com backoff só em rede (`fetch failed`)/5xx/429); tickets `ok` → `notificacao.recibos` 15 min depois. `DeviceNotRegistered` (ticket ou recibo) apaga o dispositivo; `MessageRateExceeded` gera aviso; os demais códigos vão ao Sentry só com o código (a mensagem do Expo cita o token). Perdas aceitas: se agendar os recibos falhar após o envio, eles não são consultados (repetir reenviaria o lote); ticket ainda sem recibo na consulta é ignorado. `dispositivos.limpeza` (cron 04:00) apaga aparelhos sem uso há mais de 90 dias.
 - **Logout:** o ouvinte de `usuario.sessaoEncerrada` apaga os aparelhos das `sessaoIds`; com `CONTA_EXCLUIDA`, todos os do usuário.
-- **Expo:** `expo-server-sdk@5.0.0` (a v6 é ESM-only, mesmo motivo do pg-boss) com `EXPO_ACCESS_TOKEN`. Com `NODE_ENV=test` o cliente é o `FakeExpoPush` (`fakeExpo(app)` em `test/fabricas/notificacoes.ts`): `enviadas()`, `requisicoes()`, `simularIndisponibilidade()`, `simularErroTicket(token, erro)`, `simularErroRecibo(token, erro)`.
+- **Expo:** `ClienteExpoPush` com `SdkExpoPush` (`expo-server-sdk@5.0.0`; a v6 é ESM-only, mesmo motivo do pg-boss) e `EXPO_ACCESS_TOKEN`. `MensagemPush` (`infra/fila/filas-dominio.ts`) mantém os campos em inglês da API do Expo, exceção à convenção de idioma (§2). Com `NODE_ENV=test` o cliente é o `FakeExpoPush` (`fakeExpo(app)` em `test/fabricas/notificacoes.ts`): `enviadas()`, `requisicoes()`, `simularIndisponibilidade()`, `simularErroTicket(token, erro)`, `simularErroRecibo(token, erro)`.
 
 ## Senhas (`src/infra/senha`)
 

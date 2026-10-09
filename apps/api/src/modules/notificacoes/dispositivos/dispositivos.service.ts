@@ -47,12 +47,26 @@ export class DispositivosService implements OnModuleInit {
     if (count === 0) throw new NotFoundException()
   }
 
-  /** Aparelhos das sessões encerradas; `todos` inclui os sem sessão (exclusão de conta). */
-  async removerDasSessoes(usuarioId: string, sessaoIds: string[], todos: boolean): Promise<number> {
+  async removerDasSessoes(usuarioId: string, sessaoIds: string[]): Promise<number> {
     const { count } = await this.prisma.db.dispositivoPush.deleteMany({
-      where: { usuarioId, ...(!todos && { sessaoId: { in: sessaoIds } }) },
+      where: { usuarioId, sessaoId: { in: sessaoIds } },
     })
     return count
+  }
+
+  /** Inclui os aparelhos sem sessão (exclusão de conta). */
+  async removerTodosDoUsuario(usuarioId: string): Promise<number> {
+    const { count } = await this.prisma.db.dispositivoPush.deleteMany({ where: { usuarioId } })
+    return count
+  }
+
+  /** Tokens recusados pelo Expo (`DeviceNotRegistered`). */
+  async removerInvalidos(ids: string[]): Promise<void> {
+    if (ids.length === 0) return
+    const { count } = await this.prisma.db.dispositivoPush.deleteMany({
+      where: { id: { in: ids } },
+    })
+    this.logger.log({ dispositivos: count }, 'Tokens push inválidos removidos')
   }
 
   async limparInativos(agora: Date = new Date()): Promise<number> {

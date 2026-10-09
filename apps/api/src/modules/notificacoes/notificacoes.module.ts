@@ -7,8 +7,8 @@ import { DispositivosOuvinte } from './dispositivos/dispositivos.ouvinte'
 import { DispositivosService } from './dispositivos/dispositivos.service'
 import { ClienteExpoPush } from './envio/cliente-expo-push'
 import { EntregaPushService } from './envio/entrega-push.service'
-import { ExpoPushCliente } from './envio/expo-push.cliente'
 import { FakeExpoPush } from './envio/fake-expo-push'
+import { SdkExpoPush } from './envio/sdk-expo-push'
 import { NotificacoesService } from './notificacoes.service'
 import { PreferenciasModule } from './preferencias/preferencias.module'
 
@@ -23,7 +23,7 @@ import { PreferenciasModule } from './preferencias/preferencias.module'
       useFactory: (config: ConfigService<Env, true>) =>
         config.get('NODE_ENV', { infer: true }) === 'test'
           ? new FakeExpoPush()
-          : new ExpoPushCliente(config.get('EXPO_ACCESS_TOKEN', { infer: true })),
+          : new SdkExpoPush(config.get('EXPO_ACCESS_TOKEN', { infer: true })),
     },
     DestinatariosService,
     DispositivosOuvinte,
