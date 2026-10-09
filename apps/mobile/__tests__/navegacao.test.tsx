@@ -251,10 +251,11 @@ describe('navegação', () => {
     ['VICE_PRESIDENTE', true],
     ['PRESIDENTE', true],
     ['ADMINISTRADOR', true],
-  ])('Painel de %s mostra "Usuários": %s (#27)', async (papel, ve) => {
+  ])('Painel de %s mostra "Usuários" e "Auditoria": %s (#27, #39)', async (papel, ve) => {
     await comSessaoSalva(papel)
     await abrir('/painel')
     expect(screen.queryByRole('link', { name: 'Usuários' }) !== null).toBe(ve)
+    expect(screen.queryByRole('link', { name: 'Auditoria' }) !== null).toBe(ve)
   })
 
   it('Painel mostra o total de solicitações pendentes (#69)', async () => {

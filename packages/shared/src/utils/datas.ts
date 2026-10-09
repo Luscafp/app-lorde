@@ -36,6 +36,18 @@ function diaExiste(ano: string, mes: string, dia: string): boolean {
   )
 }
 
+/** `"aaaa-mm-dd"` de um dia que existe no calendário. */
+export function dataLocalValida(data: string): boolean {
+  const [, ano, mes, dia] = DATA_LOCAL.exec(data) ?? []
+  return !!ano && !!mes && !!dia && diaExiste(ano, mes, dia)
+}
+
+/** `"2026-09-01"` → `"01/09/2026"`, sem conversão de fuso. */
+export function formatarDataLocal(data: string): string {
+  const [ano, mes, dia] = data.split('-')
+  return `${dia}/${mes}/${ano}`
+}
+
 function isoValido(iso: string): boolean {
   const [, ano, mes, dia] = INSTANTE_ISO.exec(iso) ?? []
   return !!ano && !!mes && !!dia && diaExiste(ano, mes, dia)

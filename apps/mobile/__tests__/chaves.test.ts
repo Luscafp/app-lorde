@@ -62,6 +62,7 @@ describe('chaves', () => {
     ['usuarios.lista(f)', chaves.usuarios.lista(f), ['usuarios', 'lista', f]],
     ['usuarios.detalhe(id)', chaves.usuarios.detalhe('u1'), ['usuarios', 'detalhe', 'u1']],
     ['auditoria(f)', chaves.auditoria(f), ['auditoria', f]],
+    ['auditoria.detalhe(id)', chaves.auditoria.detalhe('a1'), ['auditoria', 'detalhe', 'a1']],
   ])('chaves.%s', (_nome, chave, esperada) => {
     expect(chave).toEqual(esperada)
   })

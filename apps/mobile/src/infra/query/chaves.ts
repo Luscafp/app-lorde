@@ -53,5 +53,7 @@ export const chaves = {
     lista: (f: Filtros) => ['usuarios', 'lista', f] as const,
     detalhe: (id: string) => ['usuarios', 'detalhe', id] as const,
   },
-  auditoria: (f: Filtros) => ['auditoria', f] as const,
+  auditoria: Object.assign((f: Filtros) => ['auditoria', f] as const, {
+    detalhe: (id: string) => ['auditoria', 'detalhe', id] as const,
+  }),
 }

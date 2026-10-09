@@ -288,6 +288,7 @@ describe('Detalhe do usuário', () => {
     await renderizar(<DetalheUsuario id={ID} />)
 
     expect(await screen.findByText('Usuário excluído')).toBeOnTheScreen()
-    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Ver histórico' })).toBeOnTheScreen()
   })
 })
