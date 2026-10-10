@@ -11,10 +11,12 @@ import { FakeExpoPush } from './envio/fake-expo-push'
 import { SdkExpoPush } from './envio/sdk-expo-push'
 import { GatilhosOuvinte } from './gatilhos/gatilhos.ouvinte'
 import { GatilhosService } from './gatilhos/gatilhos.service'
+import { LembretesOuvinte } from './lembretes/lembretes.ouvinte'
+import { LembretesService } from './lembretes/lembretes.service'
 import { NotificacoesService } from './notificacoes.service'
 import { PreferenciasModule } from './preferencias/preferencias.module'
 
-/** Dispositivos e envio push (#87), gatilhos imediatos (#89); exporta o contrato de #90 e #38. */
+/** Dispositivos e envio push (#87), gatilhos imediatos (#89) e lembretes (#90); exporta o contrato de #38. */
 @Module({
   imports: [PreferenciasModule],
   controllers: [DispositivosController],
@@ -33,6 +35,8 @@ import { PreferenciasModule } from './preferencias/preferencias.module'
     EntregaPushService,
     GatilhosOuvinte,
     GatilhosService,
+    LembretesOuvinte,
+    LembretesService,
     NotificacoesService,
   ],
   exports: [DestinatariosService, NotificacoesService],
