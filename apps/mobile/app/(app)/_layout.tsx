@@ -22,6 +22,10 @@ export default function LayoutApp() {
         name="verificar-email"
         options={{ ...comCabecalho, title: 'Verificar e-mail', presentation: 'modal' }}
       />
+      <Stack.Screen
+        name="ativar-notificacoes"
+        options={{ presentation: 'modal', contentStyle: { backgroundColor: paleta.fundo } }}
+      />
     </Stack>
   )
 }
