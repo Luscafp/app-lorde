@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import type { Env } from '../../config/env.schema'
+import { AuthModule } from '../auth/auth.module'
+import { AvisosController } from './avisos/avisos.controller'
+import { AvisosService } from './avisos/avisos.service'
 import { DestinatariosService } from './destinatarios.service'
 import { DispositivosController } from './dispositivos/dispositivos.controller'
 import { DispositivosOuvinte } from './dispositivos/dispositivos.ouvinte'
@@ -12,11 +15,12 @@ import { SdkExpoPush } from './envio/sdk-expo-push'
 import { NotificacoesService } from './notificacoes.service'
 import { PreferenciasModule } from './preferencias/preferencias.module'
 
-/** Dispositivos e envio push (#87); exporta o contrato usado por #89, #90 e #38. */
+/** Dispositivos, envio push (#87) e avisos da diretoria (#38); exporta o contrato de #89 e #90. */
 @Module({
-  imports: [PreferenciasModule],
-  controllers: [DispositivosController],
+  imports: [AuthModule, PreferenciasModule],
+  controllers: [AvisosController, DispositivosController],
   providers: [
+    AvisosService,
     {
       provide: ClienteExpoPush,
       inject: [ConfigService],

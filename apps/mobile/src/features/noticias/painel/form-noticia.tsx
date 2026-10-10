@@ -14,7 +14,7 @@ import { Controller, useForm, useWatch } from 'react-hook-form'
 import { ScrollView, View } from 'react-native'
 import { FaixaOffline } from '@/components/estado'
 import { SeletorImagem } from '@/components/imagem'
-import { Botao, Campo, confirmar, Texto, toast } from '@/components/ui'
+import { Botao, Campo, confirmar, Contador, Texto, toast } from '@/components/ui'
 import { ApiErro } from '@/infra/api/api-erro'
 import { aplicarErrosDaApi } from '@/infra/api/aplicar-erros'
 import { useAvisoAlteracoes } from '@/infra/navegacao/use-aviso-alteracoes'
@@ -48,16 +48,6 @@ const SUCESSO: Record<Acao, string> = {
   publicar: 'Notícia publicada',
   despublicar: 'Notícia despublicada',
   excluir: 'Notícia excluída',
-}
-
-const formatarTotal = (total: number) => String(total).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-
-function Contador({ atual, maximo }: { atual: number; maximo: number }) {
-  return (
-    <Texto variante="legenda" className="text-right">
-      {`${formatarTotal(atual)}/${formatarTotal(maximo)}`}
-    </Texto>
-  )
 }
 
 type Props = {
