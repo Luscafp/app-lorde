@@ -35,3 +35,19 @@ export const dispositivoRegistradoSchema = z.object({
 })
 
 export type DispositivoRegistrado = z.infer<typeof dispositivoRegistradoSchema>
+
+/** Resposta `202` de `POST /avisos`. */
+export const avisoEnviadoSchema = z.object({
+  avisoId: z.uuid(),
+  destinatarios: z.number().int().nonnegative(),
+  enviadoEm: z.iso.datetime(),
+})
+
+export type AvisoEnviado = z.infer<typeof avisoEnviadoSchema>
+
+/** Resposta de `GET /avisos/alcance`: elegíveis com a preferência ativa e aparelho registrado. */
+export const alcanceAvisoSchema = z.object({
+  destinatarios: z.number().int().nonnegative(),
+})
+
+export type AlcanceAviso = z.infer<typeof alcanceAvisoSchema>

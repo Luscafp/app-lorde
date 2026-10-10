@@ -1,3 +1,4 @@
+import { MENSAGEM_AVISO_MAX } from '@atletica/shared'
 import {
   dividirEmLotes,
   formatarDataCurta,
@@ -64,6 +65,12 @@ describe('montarMensagem', () => {
     expect(Array.from(mensagem.title)).toHaveLength(LIMITE_TITULO)
     expect(Array.from(mensagem.body)).toHaveLength(LIMITE_CORPO)
     expect(mensagem.ttl).toBe(3600)
+  })
+
+  it('mantém o aviso manual inteiro até o limite da mensagem', () => {
+    const corpo = 'c'.repeat(MENSAGEM_AVISO_MAX)
+    const mensagem = montarMensagem('ExpoPushToken[c]', { ...CONTEUDO, categoria: 'AVISOS', corpo })
+    expect(mensagem.body).toBe(corpo)
   })
 })
 

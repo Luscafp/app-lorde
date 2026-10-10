@@ -54,6 +54,16 @@ export class NotificacoesService {
     return this.prisma.db.usuario.count({ where: this.filtroElegiveis(filtro) })
   }
 
+  /** Mesmo filtro, devolvendo os ids: o aviso (#38) audita a contagem e enfileira a mesma lista. */
+  async listarElegiveis(filtro: FiltroDestinatarios): Promise<string[]> {
+    if (filtro.usuarioIds.length === 0) return []
+    const usuarios = await this.prisma.db.usuario.findMany({
+      where: this.filtroElegiveis(filtro),
+      select: { id: true },
+    })
+    return usuarios.map(({ id }) => id)
+  }
+
   /** Épico #36 §3.3; sem preferência valem os padrões; `CARGO` ignora preferências (RN35). */
   private filtroElegiveis({
     atleticaId,

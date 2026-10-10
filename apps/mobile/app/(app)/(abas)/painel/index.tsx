@@ -72,6 +72,12 @@ export default function Painel() {
         indicador={pendentes}
       />
       <ItemPainel
+        titulo="Enviar aviso"
+        descricao="Notificação para todos ou para um time"
+        icone="megaphone-outline"
+        href="/painel/avisos/novo"
+      />
+      <ItemPainel
         titulo="Times e modalidades"
         descricao="Times, adversários e modalidades"
         icone="trophy-outline"
