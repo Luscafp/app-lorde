@@ -1,4 +1,5 @@
 import {
+  comResultado,
   textoCargo,
   textoEventoCriado,
   textoEventosAlterados,
@@ -109,5 +110,12 @@ describe('textos dos gatilhos', () => {
       titulo: 'Seu cargo foi alterado',
       corpo: 'Agora você é Presidente.',
     })
+  })
+
+  it('comResultado exige resultado e os dois placares', () => {
+    const pendente = { resultado: null, placarTime: null, placarAdversario: null }
+    expect(comResultado(pendente)).toBe(false)
+    expect(comResultado({ ...pendente, resultado: 'VITORIA', placarTime: 3 })).toBe(false)
+    expect(comResultado({ resultado: 'VITORIA', placarTime: 3, placarAdversario: 1 })).toBe(true)
   })
 })

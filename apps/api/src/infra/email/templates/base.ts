@@ -1,3 +1,5 @@
+import { siglaOuNome } from '@atletica/shared'
+
 /** Identidade da atlética no e-mail, sempre lida de `Atletica` (RNF20: nada fixo no código). */
 export interface AtleticaEmail {
   nome: string
@@ -6,13 +8,12 @@ export interface AtleticaEmail {
   corPrimaria?: string | null
 }
 
-/** A sigla é opcional na `Atletica`; sem ela, o nome ocupa o lugar. */
 export function atleticaEmail({
   nome,
   sigla,
   corPrimaria,
 }: Omit<AtleticaEmail, 'sigla'> & { sigla: string | null }): AtleticaEmail {
-  return { nome, sigla: sigla ?? nome, corPrimaria }
+  return { nome, sigla: siglaOuNome({ nome, sigla }), corPrimaria }
 }
 
 /** Dados de qualquer template: os campos próprios + a atlética remetente. */

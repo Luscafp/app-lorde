@@ -1,14 +1,16 @@
 import { EventEmitter2 } from '@nestjs/event-emitter'
+import request from 'supertest'
 import type { Time } from '../../src/generated/prisma/client'
 import type { EventosDominio, NomeEventoDominio } from '../../src/infra/eventos/eventos-dominio'
 import type { MensagemPush } from '../../src/infra/fila/filas-dominio'
 import { AtleticaPadraoService } from '../../src/modules/atleticas/atletica-padrao.service'
 import type { FakeExpoPush } from '../../src/modules/notificacoes/envio/fake-expo-push'
-import { GatilhosOuvinte } from '../../src/modules/notificacoes/gatilhos/gatilhos.ouvinte'
+import { GatilhosService } from '../../src/modules/notificacoes/gatilhos/gatilhos.service'
 import { aguardarOuvintes } from '../eventos'
 import { criarAtletica } from '../fabricas/atletica'
+import { tokenPara } from '../fabricas/auth'
 import { criarEvento, criarJogo, criarSerie, criarTreino } from '../fabricas/eventos'
-import { criarNoticia } from '../fabricas/noticias'
+import { chaveDeCapa, criarNoticia } from '../fabricas/noticias'
 import { criarDispositivo, criarPreferencias, fakeExpo } from '../fabricas/notificacoes'
 import { criarSolicitacao } from '../fabricas/solicitacoes'
 import {
@@ -17,6 +19,7 @@ import {
   criarTime,
   criarTimeAdversario,
 } from '../fabricas/times'
+import { simularArmazenamento } from '../fabricas/uploads'
 import { criarUsuario, type DadosUsuario, type UsuarioCriado } from '../fabricas/usuario'
 import { criarApp, type AppDeTeste } from '../setup/criar-app'
 import { processarFilas } from '../setup/fila'
@@ -27,29 +30,30 @@ type ComAparelho = UsuarioCriado & { tokenPush: string }
 const INICIO = new Date('2026-12-12T22:00:00.000Z')
 const SEMANA_MS = 7 * 24 * 60 * 60 * 1000
 
-const METODOS_OUVINTE = Object.getOwnPropertyNames(GatilhosOuvinte.prototype).filter((nome) =>
-  nome.startsWith('ao'),
-) as (keyof GatilhosOuvinte)[]
-
 describe('Gatilhos imediatos de notificação (#89)', () => {
   let contexto: AppDeTeste
   let atleticaId: string
   let expo: FakeExpoPush
-  let ouvinte: GatilhosOuvinte
+  let gatilhos: GatilhosService
   let emissor: EventEmitter2
   let time: Time
 
-  /** Emite como o `EventosDominioService`, espera o ouvinte e esvazia as filas. */
-  async function emitir<K extends NomeEventoDominio>(nome: K, payload: EventosDominio[K]) {
-    const espioes = METODOS_OUVINTE.map((metodo) => jest.spyOn(ouvinte, metodo))
-    emissor.emit(nome, payload)
-    await aguardarOuvintes()
-    await Promise.all(
-      espioes.flatMap((espiao) => espiao.mock.results.map(({ value }) => value as Promise<void>)),
-    )
-    for (const espiao of espioes) espiao.mockRestore()
+  /** Roda a ação, espera os gatilhos que ela disparou e esvazia as filas. */
+  async function aguardarGatilhos(acao: () => Promise<unknown>) {
+    const disparos = jest.spyOn(gatilhos, 'disparar')
+    try {
+      await acao()
+      await aguardarOuvintes()
+      await Promise.all(disparos.mock.results.map(({ value }) => value as Promise<void>))
+    } finally {
+      disparos.mockRestore()
+    }
     await processarFilas(contexto.app)
   }
+
+  /** Emite como o `EventosDominioService`. */
+  const emitir = <K extends NomeEventoDominio>(nome: K, payload: EventosDominio[K]) =>
+    aguardarGatilhos(() => Promise.resolve(emissor.emit(nome, payload)))
 
   async function comAparelho(dados: DadosUsuario = {}): Promise<ComAparelho> {
     const usuario = await criarUsuario({ atleticaId, ...dados })
@@ -75,10 +79,10 @@ describe('Gatilhos imediatos de notificação (#89)', () => {
   const tokensDe = (...usuarios: ComAparelho[]) => usuarios.map(({ tokenPush }) => tokenPush).sort()
 
   beforeAll(async () => {
-    contexto = await criarApp()
+    contexto = await criarApp({ ajustar: simularArmazenamento().ajustar })
     atleticaId = contexto.app.get(AtleticaPadraoService).id()
     expo = fakeExpo(contexto.app)
-    ouvinte = contexto.app.get(GatilhosOuvinte)
+    gatilhos = contexto.app.get(GatilhosService)
     emissor = contexto.app.get(EventEmitter2)
   })
 
@@ -97,6 +101,7 @@ describe('Gatilhos imediatos de notificação (#89)', () => {
       const autor = await membroComAparelho({ papel: 'DIRETOR' })
       const a = await membroComAparelho()
       const b = await membroComAparelho()
+      const c = await membroComAparelho()
       const semNovosEventos = await membroComAparelho()
       await criarPreferencias(semNovosEventos, { novosEventos: false })
       await adicionarMembro(time, await criarUsuario({ atleticaId }))
@@ -122,7 +127,7 @@ describe('Gatilhos imediatos de notificação (#89)', () => {
         autorId: autor.id,
       })
 
-      expect(tokens()).toEqual(tokensDe(a, b))
+      expect(tokens()).toEqual(tokensDe(a, b, c))
       expect(recebidas(a)[0]).toMatchObject({
         title: 'Novo jogo: Futsal',
         body: 'vs Medicina · 12/12 19:00 · Ginásio Central',
@@ -273,6 +278,37 @@ describe('Gatilhos imediatos de notificação (#89)', () => {
     })
   })
 
+  it('evento.cancelado em várias ocorrências: 1 mensagem por membro, link do time', async () => {
+    const a = await membroComAparelho()
+    const serie = await criarSerie({ atleticaId, timeId: time.id })
+    const ocorrencias = await prismaTeste.evento.createManyAndReturn({
+      data: Array.from({ length: 3 }, (_, i) => ({
+        atleticaId,
+        tipo: 'TREINO' as const,
+        timeId: time.id,
+        serieId: serie.id,
+        status: 'CANCELADO' as const,
+        inicio: new Date(INICIO.getTime() + i * SEMANA_MS),
+        local: 'Quadra 3',
+        criadoPorId: serie.criadoPorId,
+      })),
+    })
+
+    await emitir('evento.cancelado', {
+      atleticaId,
+      eventoIds: ocorrencias.map(({ id }) => id),
+      timeId: time.id,
+      autorId: serie.criadoPorId,
+    })
+
+    expect(tokens()).toEqual(tokensDe(a))
+    expect(recebidas(a)[0]).toMatchObject({
+      title: 'Treinos de Futsal cancelados',
+      body: '3 treinos a partir de 12/12 foram cancelados.',
+      data: { url: `/times/${time.id}`, tipo: 'ALTERACOES_EVENTOS' },
+    })
+  })
+
   it('evento.resultadoRegistrado: todos com resultados = true recebem o placar (critério 10)', async () => {
     const autor = await comAparelho({ papel: 'DIRETOR' })
     const membro = await membroComAparelho()
@@ -325,6 +361,31 @@ describe('Gatilhos imediatos de notificação (#89)', () => {
     })
   })
 
+  it('noticia.publicada: a republicação não envia de novo', async () => {
+    const autor = await comAparelho({ papel: 'DIRETOR' })
+    const a = await comAparelho()
+    const noticia = await criarNoticia({
+      atleticaId,
+      autorId: autor.id,
+      status: 'RASCUNHO',
+      imagemCapaKey: chaveDeCapa(atleticaId, autor.id),
+    })
+    const auth = `Bearer ${await tokenPara(autor)}`
+    const transicionar = (acao: 'publicar' | 'despublicar') =>
+      request(contexto.http)
+        .post(`/api/v1/painel/noticias/${noticia.id}/${acao}`)
+        .set('Authorization', auth)
+        .expect(200)
+
+    await aguardarGatilhos(async () => {
+      await transicionar('publicar')
+      await transicionar('despublicar')
+      await transicionar('publicar')
+    })
+
+    expect(tokens()).toEqual(tokensDe(a))
+  })
+
   it('solicitacao.criada: diretoria com solicitacoes = true recebe', async () => {
     const diretor = await comAparelho({ papel: 'DIRETOR' })
     const presidente = await comAparelho({ papel: 'PRESIDENTE' })
@@ -370,6 +431,31 @@ describe('Gatilhos imediatos de notificação (#89)', () => {
       title: 'Solicitação aprovada',
       body: 'Você agora faz parte de Futsal.',
       data: { url: `/times/${time.id}` },
+    })
+  })
+
+  it('solicitacao.avaliada rejeitada: o solicitante recebe "Solicitação não aceita"', async () => {
+    const diretor = await comAparelho({ papel: 'DIRETOR' })
+    const solicitante = await comAparelho()
+    const solicitacao = await criarSolicitacao(time, solicitante, {
+      status: 'REJEITADA',
+      avaliadoPorId: diretor.id,
+    })
+
+    await emitir('solicitacao.avaliada', {
+      atleticaId,
+      solicitacaoId: solicitacao.id,
+      timeId: time.id,
+      usuarioId: solicitante.id,
+      status: 'REJEITADA',
+      autorId: diretor.id,
+    })
+
+    expect(tokens()).toEqual(tokensDe(solicitante))
+    expect(recebidas(solicitante)[0]).toMatchObject({
+      title: 'Solicitação não aceita',
+      body: 'Sua solicitação para Futsal não foi aceita.',
+      data: { url: `/times/${time.id}`, tipo: 'SOLICITACOES' },
     })
   })
 

@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common'
 import { OnEvent } from '@nestjs/event-emitter'
 import * as Sentry from '@sentry/nestjs'
 import { ContextoAtletica } from '../../../infra/contexto/contexto-atletica.service'
-import type { EventosDominio, NomeEventoDominio } from '../../../infra/eventos/eventos-dominio'
-import { GatilhosService } from './gatilhos.service'
+import type { EventosDominio } from '../../../infra/eventos/eventos-dominio'
+import { GatilhosService, type NomeGatilho } from './gatilhos.service'
 
 /** Épico #36 §7 "Ouvintes": a falha vai ao Sentry e não afeta a requisição (o commit já ocorreu). */
 @Injectable()
@@ -17,61 +17,53 @@ export class GatilhosOuvinte {
 
   @OnEvent('evento.criado', { async: true })
   aoCriarEvento(payload: EventosDominio['evento.criado']): Promise<void> {
-    return this.executar('evento.criado', payload, () => this.gatilhos.eventoCriado(payload))
+    return this.executar('evento.criado', payload)
   }
 
   @OnEvent('evento.alterado', { async: true })
   aoAlterarEvento(payload: EventosDominio['evento.alterado']): Promise<void> {
-    return this.executar('evento.alterado', payload, () => this.gatilhos.eventoAlterado(payload))
+    return this.executar('evento.alterado', payload)
   }
 
   @OnEvent('evento.cancelado', { async: true })
   aoCancelarEvento(payload: EventosDominio['evento.cancelado']): Promise<void> {
-    return this.executar('evento.cancelado', payload, () => this.gatilhos.eventoCancelado(payload))
+    return this.executar('evento.cancelado', payload)
   }
 
   @OnEvent('evento.resultadoRegistrado', { async: true })
   aoRegistrarResultado(payload: EventosDominio['evento.resultadoRegistrado']): Promise<void> {
-    return this.executar('evento.resultadoRegistrado', payload, () =>
-      this.gatilhos.resultadoRegistrado(payload),
-    )
+    return this.executar('evento.resultadoRegistrado', payload)
   }
 
   @OnEvent('noticia.publicada', { async: true })
   aoPublicarNoticia(payload: EventosDominio['noticia.publicada']): Promise<void> {
-    return this.executar('noticia.publicada', payload, () =>
-      this.gatilhos.noticiaPublicada(payload),
-    )
+    return this.executar('noticia.publicada', payload)
   }
 
   @OnEvent('solicitacao.criada', { async: true })
   aoCriarSolicitacao(payload: EventosDominio['solicitacao.criada']): Promise<void> {
-    return this.executar('solicitacao.criada', payload, () =>
-      this.gatilhos.solicitacaoCriada(payload),
-    )
+    return this.executar('solicitacao.criada', payload)
   }
 
   @OnEvent('solicitacao.avaliada', { async: true })
   aoAvaliarSolicitacao(payload: EventosDominio['solicitacao.avaliada']): Promise<void> {
-    return this.executar('solicitacao.avaliada', payload, () =>
-      this.gatilhos.solicitacaoAvaliada(payload),
-    )
+    return this.executar('solicitacao.avaliada', payload)
   }
 
   @OnEvent('usuario.papelAlterado', { async: true })
   aoAlterarPapel(payload: EventosDominio['usuario.papelAlterado']): Promise<void> {
-    return this.executar('usuario.papelAlterado', payload, () =>
-      this.gatilhos.papelAlterado(payload),
-    )
+    return this.executar('usuario.papelAlterado', payload)
   }
 
-  private async executar(
-    nome: NomeEventoDominio,
-    { atleticaId }: { atleticaId: string },
-    gatilho: () => Promise<void>,
+  private async executar<N extends NomeGatilho>(
+    nome: N,
+    payload: EventosDominio[N],
   ): Promise<void> {
+    const { atleticaId } = payload
     try {
-      await this.contexto.executarComAtletica(atleticaId, gatilho)
+      await this.contexto.executarComAtletica(atleticaId, () =>
+        this.gatilhos.disparar(nome, payload),
+      )
     } catch (erro) {
       this.logger.error({ err: erro, evento: nome, atleticaId }, 'Falha ao notificar o gatilho')
       Sentry.captureException(erro, {

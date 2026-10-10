@@ -1,4 +1,5 @@
 import {
+  formatarData,
   formatarDataLocal,
   ROTULO_PAPEL,
   type Papel,
@@ -6,12 +7,9 @@ import {
   type TipoEvento,
 } from '@atletica/shared'
 import type { StatusAvaliacao } from '../../../infra/eventos/eventos-dominio'
-import { formatarDataCurta } from '../envio/mensagens'
+import { formatarDataCurta, type ConteudoNotificacao } from '../envio/mensagens'
 
-export interface Texto {
-  titulo: string
-  corpo: string
-}
+export type Texto = Pick<ConteudoNotificacao, 'titulo' | 'corpo'>
 
 export interface EventoExibido {
   tipo: TipoEvento
@@ -21,6 +19,9 @@ export interface EventoExibido {
   adversario: string | null
 }
 
+/** Ordenados por início, não vazio. */
+export type EventosExibidos = [EventoExibido, ...EventoExibido[]]
+
 export interface SerieExibida {
   time: string
   diasSemana: number[]
@@ -29,13 +30,24 @@ export interface SerieExibida {
   local: string
 }
 
-export interface ResultadoExibido extends EventoExibido {
+interface Placar {
   resultado: Resultado
   placarTime: number
   placarAdversario: number
 }
 
-const ROTULO_TIPO: Readonly<Record<TipoEvento, string>> = { JOGO: 'Jogo', TREINO: 'Treino' }
+export type ResultadoExibido = EventoExibido & Placar
+
+type PlacarPendente = { [C in keyof Placar]: Placar[C] | null }
+
+export function comResultado<E extends PlacarPendente>(evento: E): evento is E & Placar {
+  return evento.resultado !== null && evento.placarTime !== null && evento.placarAdversario !== null
+}
+
+const NOME_TIPO: Readonly<Record<TipoEvento, { singular: string; plural: string }>> = {
+  JOGO: { singular: 'jogo', plural: 'jogos' },
+  TREINO: { singular: 'treino', plural: 'treinos' },
+}
 
 const ROTULO_RESULTADO: Readonly<Record<Resultado, string>> = {
   VITORIA: 'Vitória',
@@ -49,17 +61,19 @@ const juntar = (...partes: (string | null)[]) => partes.filter(Boolean).join(' �
 
 const maiuscula = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1)
 
-const diaMes = (instante: Date) => formatarDataCurta(instante).slice(0, 5)
+const diaMes = (instante: Date) => formatarData(instante).slice(0, 5)
 
-function descricao({ tipo, adversario }: EventoExibido): string {
-  return tipo === 'JOGO' && adversario ? `Jogo vs ${adversario}` : ROTULO_TIPO[tipo]
+const rotuloTipo = ({ tipo }: EventoExibido) => maiuscula(NOME_TIPO[tipo].singular)
+
+function descricao(evento: EventoExibido): string {
+  return evento.adversario ? `${rotuloTipo(evento)} vs ${evento.adversario}` : rotuloTipo(evento)
 }
 
 /** `"jogos"`, `"treinos"` ou `"eventos"` quando os tipos se misturam. */
-function plural(eventos: readonly EventoExibido[]): string {
-  const tipos = new Set(eventos.map(({ tipo }) => tipo))
-  if (tipos.size > 1) return 'eventos'
-  return tipos.has('JOGO') ? 'jogos' : 'treinos'
+function plural([primeiro, ...demais]: EventosExibidos): string {
+  return demais.every(({ tipo }) => tipo === primeiro.tipo)
+    ? NOME_TIPO[primeiro.tipo].plural
+    : 'eventos'
 }
 
 /** `[1, 3, 5]` → `"Seg, qua e sex"`. */
@@ -69,15 +83,24 @@ function listarDias(diasSemana: readonly number[]): string {
   return maiuscula(nomes.length > 0 ? `${nomes.join(', ')} e ${ultimo}` : ultimo)
 }
 
-export function textoEventoCriado(evento: EventoExibido): Texto {
-  const quando = formatarDataCurta(evento.inicio)
-  if (evento.tipo === 'JOGO') {
-    return {
-      titulo: `Novo jogo: ${evento.time}`,
-      corpo: juntar(evento.adversario && `vs ${evento.adversario}`, quando, evento.local),
-    }
+function textoDeVarios(eventos: EventosExibidos, verbo: 'alterados' | 'cancelados'): Texto {
+  const [primeiro] = eventos
+  const tipo = plural(eventos)
+  return {
+    titulo: `${maiuscula(tipo)} de ${primeiro.time} ${verbo}`,
+    corpo: `${eventos.length} ${tipo} a partir de ${diaMes(primeiro.inicio)} foram ${verbo}.`,
   }
-  return { titulo: `Novo treino: ${evento.time}`, corpo: juntar(quando, evento.local) }
+}
+
+export function textoEventoCriado(evento: EventoExibido): Texto {
+  return {
+    titulo: `Novo ${NOME_TIPO[evento.tipo].singular}: ${evento.time}`,
+    corpo: juntar(
+      evento.adversario && `vs ${evento.adversario}`,
+      formatarDataCurta(evento.inicio),
+      evento.local,
+    ),
+  }
 }
 
 export function textoSerieCriada(serie: SerieExibida): Texto {
@@ -88,40 +111,21 @@ export function textoSerieCriada(serie: SerieExibida): Texto {
   }
 }
 
-/** `eventos` em ordem de início, não vazio. */
-export function textoEventosAlterados([primeiro, ...demais]: [
-  EventoExibido,
-  ...EventoExibido[],
-]): Texto {
-  if (demais.length === 0) {
-    return {
-      titulo: `Evento alterado: ${ROTULO_TIPO[primeiro.tipo]} de ${primeiro.time}`,
-      corpo: `Agora em ${juntar(formatarDataCurta(primeiro.inicio), primeiro.local)}`,
-    }
-  }
-  const tipo = plural([primeiro, ...demais])
+export function textoEventosAlterados(eventos: EventosExibidos): Texto {
+  const [primeiro] = eventos
+  if (eventos.length > 1) return textoDeVarios(eventos, 'alterados')
   return {
-    titulo: `${maiuscula(tipo)} de ${primeiro.time} alterados`,
-    corpo: `${demais.length + 1} ${tipo} a partir de ${diaMes(primeiro.inicio)} foram alterados.`,
+    titulo: `Evento alterado: ${rotuloTipo(primeiro)} de ${primeiro.time}`,
+    corpo: `Agora em ${juntar(formatarDataCurta(primeiro.inicio), primeiro.local)}`,
   }
 }
 
-/** `eventos` em ordem de início, não vazio. */
-export function textoEventosCancelados([primeiro, ...demais]: [
-  EventoExibido,
-  ...EventoExibido[],
-]): Texto {
-  if (demais.length === 0) {
-    const quando = formatarDataCurta(primeiro.inicio)
-    return {
-      titulo: 'Evento cancelado',
-      corpo: `${descricao(primeiro)} de ${primeiro.time} em ${quando} foi cancelado.`,
-    }
-  }
-  const tipo = plural([primeiro, ...demais])
+export function textoEventosCancelados(eventos: EventosExibidos): Texto {
+  const [primeiro] = eventos
+  if (eventos.length > 1) return textoDeVarios(eventos, 'cancelados')
   return {
-    titulo: `${maiuscula(tipo)} de ${primeiro.time} cancelados`,
-    corpo: `${demais.length + 1} ${tipo} a partir de ${diaMes(primeiro.inicio)} foram cancelados.`,
+    titulo: 'Evento cancelado',
+    corpo: `${descricao(primeiro)} de ${primeiro.time} em ${formatarDataCurta(primeiro.inicio)} foi cancelado.`,
   }
 }
 

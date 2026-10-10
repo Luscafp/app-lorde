@@ -56,8 +56,8 @@ describe('GatilhosService', () => {
     db.evento.findMany.mockResolvedValue([linhaEvento(EVENTO_ID, '2026-10-12T22:00:00Z')])
     const payload = { atleticaId: 'atl', eventoId: EVENTO_ID, timeId: TIME_ID, autorId: 'autor' }
 
-    await servico.eventoCriado(payload)
-    await servico.eventoCriado(payload)
+    await servico.disparar('evento.criado', payload)
+    await servico.disparar('evento.criado', payload)
 
     expect(destinatarios.elencoDoTime).toHaveBeenCalledWith(TIME_ID)
     expect(enviado()).toMatchObject({
@@ -85,7 +85,7 @@ describe('GatilhosService', () => {
       time: { nome: 'Vôlei' },
     })
 
-    await servico.eventoCriado({
+    await servico.disparar('evento.criado', {
       atleticaId: 'atl',
       eventoId: EVENTO_ID,
       timeId: TIME_ID,
@@ -109,7 +109,7 @@ describe('GatilhosService', () => {
     const { servico, db, notificar } = preparar()
     db.evento.findMany.mockResolvedValue([linhaEvento(EVENTO_ID, '2026-10-12T22:00:00Z')])
 
-    await servico.eventoAlterado({
+    await servico.disparar('evento.alterado', {
       atleticaId: 'atl',
       eventoIds: [EVENTO_ID],
       timeId: TIME_ID,
@@ -127,7 +127,7 @@ describe('GatilhosService', () => {
       linhaEvento(OUTRO_EVENTO_ID, '2026-10-14T22:00:00Z'),
     ])
 
-    await servico.eventoAlterado({
+    await servico.disparar('evento.alterado', {
       atleticaId: 'atl',
       eventoIds: [EVENTO_ID, OUTRO_EVENTO_ID],
       timeId: TIME_ID,
@@ -147,7 +147,7 @@ describe('GatilhosService', () => {
     const { servico, db, enviado } = preparar()
     db.evento.findMany.mockResolvedValue([linhaEvento(EVENTO_ID, '2026-10-12T22:00:00Z')])
 
-    await servico.eventoCancelado({
+    await servico.disparar('evento.cancelado', {
       atleticaId: 'atl',
       eventoIds: [EVENTO_ID],
       timeId: TIME_ID,
@@ -174,7 +174,11 @@ describe('GatilhosService', () => {
       },
     ])
 
-    await servico.resultadoRegistrado({ atleticaId: 'atl', eventoId: EVENTO_ID, autorId: 'autor' })
+    await servico.disparar('evento.resultadoRegistrado', {
+      atleticaId: 'atl',
+      eventoId: EVENTO_ID,
+      autorId: 'autor',
+    })
 
     expect(enviado()).toMatchObject({
       categoria: 'RESULTADOS',
@@ -189,7 +193,11 @@ describe('GatilhosService', () => {
     db.atletica.findUniqueOrThrow.mockResolvedValue({ nome: 'Atlética X', sigla: null })
     db.noticia.findFirst.mockResolvedValue({ titulo: 'Inscrições abertas' })
 
-    await servico.noticiaPublicada({ atleticaId: 'atl', noticiaId: EVENTO_ID, autorId: 'autor' })
+    await servico.disparar('noticia.publicada', {
+      atleticaId: 'atl',
+      noticiaId: EVENTO_ID,
+      autorId: 'autor',
+    })
 
     expect(enviado()).toMatchObject({
       categoria: 'NOTICIAS',
@@ -205,13 +213,13 @@ describe('GatilhosService', () => {
       time: { nome: 'Vôlei' },
     })
 
-    await servico.solicitacaoCriada({
+    await servico.disparar('solicitacao.criada', {
       atleticaId: 'atl',
       solicitacaoId: 's1',
       timeId: TIME_ID,
       autorId: 'atleta',
     })
-    await servico.solicitacaoAvaliada({
+    await servico.disparar('solicitacao.avaliada', {
       atleticaId: 'atl',
       solicitacaoId: 's1',
       timeId: TIME_ID,
@@ -238,7 +246,7 @@ describe('GatilhosService', () => {
   it('cargo: categoria CARGO para o usuário afetado', async () => {
     const { servico, enviado } = preparar()
 
-    await servico.papelAlterado({
+    await servico.disparar('usuario.papelAlterado', {
       atleticaId: 'atl',
       usuarioId: 'u1',
       papelAnterior: 'ATLETA',
@@ -257,7 +265,7 @@ describe('GatilhosService', () => {
   it('só o autor como destinatário: não lê dados nem notifica', async () => {
     const { servico, db, notificar } = preparar()
 
-    await servico.solicitacaoAvaliada({
+    await servico.disparar('solicitacao.avaliada', {
       atleticaId: 'atl',
       solicitacaoId: 's1',
       timeId: TIME_ID,
@@ -274,7 +282,26 @@ describe('GatilhosService', () => {
     const { servico, db, notificar } = preparar()
     db.noticia.findFirst.mockResolvedValue(null)
 
-    await servico.noticiaPublicada({ atleticaId: 'atl', noticiaId: EVENTO_ID, autorId: 'autor' })
+    await servico.disparar('noticia.publicada', {
+      atleticaId: 'atl',
+      noticiaId: EVENTO_ID,
+      autorId: 'autor',
+    })
+
+    expect(notificar).not.toHaveBeenCalled()
+  })
+
+  it('resultado ainda sem placar não notifica', async () => {
+    const { servico, db, notificar } = preparar()
+    db.evento.findMany.mockResolvedValue([
+      { ...linhaEvento(EVENTO_ID, '2026-10-12T22:00:00Z'), tipo: 'JOGO' },
+    ])
+
+    await servico.disparar('evento.resultadoRegistrado', {
+      atleticaId: 'atl',
+      eventoId: EVENTO_ID,
+      autorId: 'autor',
+    })
 
     expect(notificar).not.toHaveBeenCalled()
   })
