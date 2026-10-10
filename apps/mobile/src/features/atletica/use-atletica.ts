@@ -1,13 +1,14 @@
 import type { AtleticaPublica } from '@atletica/shared'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
+import { COR_NEUTRA } from '@/config/tema'
 import {
   atleticaLidaPorCarregarAtletica,
   atleticaLidaSalvaEm,
   consultaAtletica,
 } from './carregar-atletica'
 
-export const COR_NEUTRA = '#6B7280'
+export { COR_NEUTRA }
 export const NOME_GENERICO = 'Atlética'
 
 export type Atletica = Omit<AtleticaPublica, 'id' | 'corPrimaria' | 'corSecundaria'> & {

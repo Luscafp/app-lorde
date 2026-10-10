@@ -2,14 +2,13 @@ import type { ConfigContext, ExpoConfig } from 'expo/config'
 import { z } from 'zod'
 import { AMBIENTES, type Ambiente } from './src/config/ambiente.ts'
 import { CANAL_NOTIFICACAO_PADRAO } from './src/config/notificacoes.ts'
+import { COR_NEUTRA } from './src/config/tema.ts'
 
 /** Decisões da #97 num só lugar: nome, pacote (permanente após publicar) e projeto EAS. */
 const NOME_APP = 'Atlética Lorde'
 const IDENTIFICADOR_ANDROID = 'br.com.atleticalorde.app'
 /** Gerado pelo `eas init` na #95. */
 const ID_PROJETO_EAS = '00000000-0000-0000-0000-000000000000'
-/** Cor neutra do tema enquanto a atlética não define `COR_NOTIFICACAO`. */
-const COR_NOTIFICACAO_PADRAO = '#6B7280'
 
 const esquemaEnv = z
   .object({
@@ -17,10 +16,6 @@ const esquemaEnv = z
       error: 'EXPO_PUBLIC_AMBIENTE deve ser development | homologacao | producao',
     }),
     EXPO_PUBLIC_API_URL: z.url({ error: 'EXPO_PUBLIC_API_URL deve ser uma URL' }),
-    COR_NOTIFICACAO: z
-      .string()
-      .regex(/^#[0-9a-f]{6}$/i, { error: 'COR_NOTIFICACAO deve ser uma cor #RRGGBB' })
-      .default(COR_NOTIFICACAO_PADRAO),
     /** Variável de arquivo do EAS com o `google-services.json` (#96); ausente nos testes e na CI. */
     GOOGLE_SERVICES_JSON: z.string().min(1).optional(),
   })
@@ -56,7 +51,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const {
     EXPO_PUBLIC_AMBIENTE: ambiente,
     EXPO_PUBLIC_API_URL: apiUrl,
-    COR_NOTIFICACAO: corNotificacao,
     GOOGLE_SERVICES_JSON: googleServicesFile,
   } = lerEnv()
   const { nome, pacote, sufixoIcone } = variante(ambiente)
@@ -101,7 +95,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'expo-notifications',
         {
           icon: './assets/android-icon-monochrome.png',
-          color: corNotificacao,
+          // A cor da atlética só chega em runtime (`GET /atletica`); no build vale o fallback do tema.
+          color: COR_NEUTRA,
           defaultChannel: CANAL_NOTIFICACAO_PADRAO,
         },
       ],

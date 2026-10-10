@@ -6,6 +6,7 @@ import path from 'node:path'
 import type { ExpoConfig } from 'expo/config'
 import resolverConfig from '../app.config'
 import { AMBIENTES, type Ambiente } from '@/config/ambiente'
+import { COR_NEUTRA } from '@/config/tema'
 
 const URL_HTTPS = 'https://api.exemplo.com/api/v1'
 const ENV_ORIGINAL = { ...process.env }
@@ -98,42 +99,29 @@ describe('app.config.ts por ambiente', () => {
       expect(fs.existsSync(path.resolve(__dirname, '..', icone))).toBe(true)
   })
 
-  it('notificações: plugin com ícone monocromático, cor neutra e canal "padrao"; sem google-services', () => {
+  it('notificações: plugin com ícone monocromático, cor neutra do tema e canal "padrao"; sem google-services', () => {
     const config = resolver({
       EXPO_PUBLIC_AMBIENTE: 'producao',
       EXPO_PUBLIC_API_URL: URL_HTTPS,
-      COR_NOTIFICACAO: undefined,
       GOOGLE_SERVICES_JSON: undefined,
     })
 
     expect(plugin(config, 'expo-notifications')?.[1]).toEqual({
       icon: './assets/android-icon-monochrome.png',
-      color: '#6B7280',
+      color: COR_NEUTRA,
       defaultChannel: 'padrao',
     })
     expect(config.android).not.toHaveProperty('googleServicesFile')
   })
 
-  it('notificações: cor e google-services.json vêm do ambiente do EAS', () => {
+  it('notificações: google-services.json vem da variável de arquivo do EAS', () => {
     const config = resolver({
       EXPO_PUBLIC_AMBIENTE: 'producao',
       EXPO_PUBLIC_API_URL: URL_HTTPS,
-      COR_NOTIFICACAO: '#E11D48',
       GOOGLE_SERVICES_JSON: '/tmp/eas/google-services.json',
     })
 
-    expect(plugin(config, 'expo-notifications')?.[1]).toMatchObject({ color: '#E11D48' })
     expect(config.android?.googleServicesFile).toBe('/tmp/eas/google-services.json')
-  })
-
-  it('recusa COR_NOTIFICACAO fora de #RRGGBB', () => {
-    expect(() =>
-      resolver({
-        EXPO_PUBLIC_AMBIENTE: 'producao',
-        EXPO_PUBLIC_API_URL: URL_HTTPS,
-        COR_NOTIFICACAO: 'vermelho',
-      }),
-    ).toThrow(/COR_NOTIFICACAO/)
   })
 
   it('development aceita a URL http:// local', () => {

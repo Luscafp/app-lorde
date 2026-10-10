@@ -1,7 +1,8 @@
 import { onlineManager } from '@tanstack/react-query'
 import { toast } from '@/components/ui/toast'
+import { esquecerDispositivo, removerDispositivo } from '@/features/notificacoes/registro-push'
 import { ApiErro, CodigoApi, ehErroTransitorio } from '@/infra/api/api-erro'
-import { removerDispositivo } from '@/features/notificacoes/registro-push'
+import { comTempoLimite } from '@/infra/com-tempo-limite'
 import { execucaoUnica } from '@/infra/execucao-unica'
 import {
   adicionarLogoutPendente,
@@ -18,43 +19,42 @@ function ehRespostaDefinitiva(erro: unknown): boolean {
   return erro instanceof ApiErro && !ehErroTransitorio(erro) && erro.code !== CodigoApi.RATE_LIMITED
 }
 
-async function comTempoLimite<T>(operacao: (sinal: AbortSignal) => Promise<T>): Promise<T> {
-  const controle = new AbortController()
-  const limite = setTimeout(() => controle.abort(), TEMPO_LIMITE_LOGOUT_MS)
-  try {
-    return await operacao(controle.signal)
-  } finally {
-    clearTimeout(limite)
-  }
-}
-
 /** `true` quando a API respondeu: `204`, ou um `4xx` que não muda com nova tentativa. */
-async function revogarNoServidor(refreshToken: string): Promise<boolean> {
+async function revogarNoServidor(refreshToken: string, sinal: AbortSignal): Promise<boolean> {
   if (!onlineManager.isOnline()) return false
   try {
-    await comTempoLimite((sinal) => revogarSessao(refreshToken, sinal))
+    await revogarSessao(refreshToken, sinal)
     return true
   } catch (erro) {
     return ehRespostaDefinitiva(erro)
   }
 }
 
-async function revogarOuGuardar(refreshToken: string): Promise<void> {
-  if (!(await revogarNoServidor(refreshToken))) await adicionarLogoutPendente(refreshToken)
+async function revogarOuGuardar(refreshToken: string, sinal: AbortSignal): Promise<void> {
+  if (!(await revogarNoServidor(refreshToken, sinal))) await adicionarLogoutPendente(refreshToken)
+}
+
+async function desvincularAparelho(sinal: AbortSignal): Promise<void> {
+  await (onlineManager.isOnline() ? removerDispositivo(sinal) : esquecerDispositivo())
 }
 
 /** UC08: sem resposta da API o token vai para `logoutPendente`; a sessão local sempre termina. */
 export async function sair(): Promise<void> {
   const { refreshToken } = useSessao.getState()
-  if (onlineManager.isOnline()) await comTempoLimite(removerDispositivo).catch(() => undefined)
-  if (refreshToken) await revogarOuGuardar(refreshToken).catch(() => undefined)
+  await comTempoLimite(TEMPO_LIMITE_LOGOUT_MS, async (sinal) => {
+    await desvincularAparelho(sinal).catch(() => undefined)
+    if (refreshToken) await revogarOuGuardar(refreshToken, sinal).catch(() => undefined)
+  })
   await useSessao.getState().encerrarSessao({ motivo: 'LOGOUT' })
   toast.sucesso(MENSAGEM_SESSAO_ENCERRADA)
 }
 
 async function executarProcessamento(): Promise<void> {
   for (const refreshToken of await listarLogoutPendente()) {
-    if (!(await revogarNoServidor(refreshToken))) return
+    const revogado = await comTempoLimite(TEMPO_LIMITE_LOGOUT_MS, (sinal) =>
+      revogarNoServidor(refreshToken, sinal),
+    )
+    if (!revogado) return
     await removerLogoutPendente(refreshToken)
   }
 }

@@ -107,6 +107,16 @@ async function abrirApp(initialUrl = '/') {
   return () => rota.getPathname()
 }
 
+/** Abre sem sessão gravada e faz login pela tela de entrada. */
+async function abrirEEntrar() {
+  await useSessao.getState().encerrarSessao({ motivo: 'LOGOUT' })
+  useSessao.setState({ status: 'carregando' })
+  const caminho = await abrirApp()
+  await screen.findByRole('header', { name: 'Entrar' })
+  await act(() => useSessao.getState().iniciarSessao(sessao))
+  return caminho
+}
+
 beforeEach(async () => {
   jest.clearAllMocks()
   notificacoes.__reiniciar()
@@ -135,7 +145,7 @@ describe('pré-permissão no primeiro login (épico #36 critérios 1 e 2)', () =
       permissaoDoSistema('granted')
       return Promise.resolve(notificacoes.permissao('granted'))
     })
-    const caminho = await abrirApp()
+    const caminho = await abrirEEntrar()
 
     expect(await screen.findByRole('header', { name: 'Ativar notificações' })).toBeOnTheScreen()
     expect(caminho()).toBe('/ativar-notificacoes')
@@ -153,7 +163,7 @@ describe('pré-permissão no primeiro login (épico #36 critérios 1 e 2)', () =
 
   it('"Agora não": não pede a permissão, não registra e guarda que já perguntou', async () => {
     permissaoDoSistema('undetermined')
-    const caminho = await abrirApp()
+    const caminho = await abrirEEntrar()
 
     await fireEvent.press(await screen.findByRole('button', { name: 'Agora não' }))
 
@@ -167,7 +177,7 @@ describe('pré-permissão no primeiro login (épico #36 critérios 1 e 2)', () =
   it('já perguntado no aparelho: não abre a pré-permissão de novo', async () => {
     permissaoDoSistema('undetermined')
     itensSeguros.set(CHAVE_PERMISSAO_PERGUNTADA, 'true')
-    const caminho = await abrirApp()
+    const caminho = await abrirEEntrar()
 
     expect(await screen.findByRole('header', { name: 'Início' })).toBeOnTheScreen()
     await waitFor(() => expect(Notifications.getPermissionsAsync).toHaveBeenCalled())
@@ -177,8 +187,19 @@ describe('pré-permissão no primeiro login (épico #36 critérios 1 e 2)', () =
     expect(registros()).toEqual([])
   })
 
-  it('negada no sistema: entra sem perguntar e nenhum dispositivo é registrado', async () => {
+  it('sessão restaurada sem login: não abre a pré-permissão', async () => {
+    permissaoDoSistema('undetermined')
     const caminho = await abrirApp()
+
+    expect(await screen.findByRole('header', { name: 'Início' })).toBeOnTheScreen()
+    await waitFor(() => expect(Notifications.getPermissionsAsync).toHaveBeenCalled())
+
+    expect(caminho()).toBe('/')
+    expect(itensSeguros.has(CHAVE_PERMISSAO_PERGUNTADA)).toBe(false)
+  })
+
+  it('negada no sistema: entra sem perguntar e nenhum dispositivo é registrado', async () => {
+    const caminho = await abrirEEntrar()
 
     expect(await screen.findByRole('header', { name: 'Início' })).toBeOnTheScreen()
     await waitFor(() => expect(itensSeguros.get(CHAVE_PERMISSAO_PERGUNTADA)).toBe('true'))
@@ -248,6 +269,23 @@ describe('deep link da notificação', () => {
     expect(caminho()).toBe('/login')
 
     await act(() => useSessao.getState().iniciarSessao(sessao))
+
+    expect(await screen.findByRole('header', { name: `Notícia ${ID_NOTICIA}` })).toBeOnTheScreen()
+    expect(caminho()).toBe(`/noticias/${ID_NOTICIA}`)
+  })
+
+  it('sem sessão e primeiro login: abre a notícia e a pré-permissão por cima dela', async () => {
+    permissaoDoSistema('undetermined')
+    await useSessao.getState().encerrarSessao({ motivo: 'LOGOUT' })
+    useSessao.setState({ status: 'carregando' })
+    notificacoes.__abrirPorNotificacao(notificacoes.resposta(`/noticias/${ID_NOTICIA}`))
+    const caminho = await abrirApp()
+    await screen.findByRole('header', { name: 'Entrar' })
+
+    await act(() => useSessao.getState().iniciarSessao(sessao))
+
+    expect(await screen.findByRole('header', { name: 'Ativar notificações' })).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole('button', { name: 'Agora não' }))
 
     expect(await screen.findByRole('header', { name: `Notícia ${ID_NOTICIA}` })).toBeOnTheScreen()
     expect(caminho()).toBe(`/noticias/${ID_NOTICIA}`)

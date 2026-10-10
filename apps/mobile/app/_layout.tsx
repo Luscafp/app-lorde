@@ -11,9 +11,12 @@ import Toast from 'react-native-toast-message'
 import { LimiteErro } from '@/components/estado'
 import { toastConfig } from '@/components/ui'
 import { carregarAtletica, paleta, ProvedorTema } from '@/features/atletica'
-import { features } from '@/config/features'
 import { acompanharLogoutPendente } from '@/features/auth'
-import { DeepLinkNotificacao, iniciarNotificacoes } from '@/features/notificacoes'
+import {
+  iniciarNotificacoes,
+  oferecerAtivacaoNotificacoes,
+  OuvinteDeepLinkNotificacao,
+} from '@/features/notificacoes'
 import { opcoesPersistencia } from '@/infra/query/persistencia'
 import { queryClient } from '@/infra/query/query-client'
 import { configurarRede } from '@/infra/rede/online'
@@ -33,8 +36,8 @@ configurarRede()
 acompanharLogoutPendente()
 iniciarNotificacoes()
 
-/** Deep link protegido aberto sem sessão: depois do login, vai ao destino original. */
-function useIrAoDestinoAposLogin() {
+/** Depois do login: vai ao destino guardado e só então oferece a pré-permissão por cima dele. */
+function useAposLogin() {
   const router = useRouter()
   const status = useSessao((estado) => estado.status)
   const anterior = useRef(status)
@@ -42,7 +45,10 @@ function useIrAoDestinoAposLogin() {
   useEffect(() => {
     if (status === 'autenticado') {
       const destino = consumirDestinoAposLogin()
-      if (destino && anterior.current === 'anonimo') router.replace(destino)
+      if (anterior.current === 'anonimo') {
+        if (destino) router.replace(destino)
+        void oferecerAtivacaoNotificacoes()
+      }
     }
     anterior.current = status
   }, [status, router])
@@ -50,7 +56,7 @@ function useIrAoDestinoAposLogin() {
 
 function Navegacao() {
   const autenticado = useSessao((estado) => estado.status === 'autenticado')
-  useIrAoDestinoAposLogin()
+  useAposLogin()
 
   return (
     <>
@@ -67,7 +73,7 @@ function Navegacao() {
         <Stack.Screen name="privacidade" />
         <Stack.Screen name="+not-found" />
       </Stack>
-      {features.notificacoes && <DeepLinkNotificacao />}
+      <OuvinteDeepLinkNotificacao />
     </>
   )
 }

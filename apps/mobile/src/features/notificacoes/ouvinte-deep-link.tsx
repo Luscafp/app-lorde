@@ -2,22 +2,23 @@ import { rotaNotificacaoPermitida } from '@atletica/shared'
 import * as Notifications from 'expo-notifications'
 import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useRef } from 'react'
+import { features } from '@/config/features'
 import { guardarDestinoAposLogin } from '@/infra/sessao/destino'
 import { useSessao } from '@/infra/sessao/store'
 
-const HOME = '/'
+const INICIO = '/'
 
-/** `data.url` fora da lista permitida (épico #36 §3.4) abre a Home. */
-export function destinoDaNotificacao(resposta: Notifications.NotificationResponse): string {
+/** `data.url` fora da lista permitida (épico #36 §3.4) abre o Início. */
+function destinoDaNotificacao(resposta: Notifications.NotificationResponse): string {
   const url: unknown = resposta.notification.request.content.data?.url
-  return rotaNotificacaoPermitida(url) ? url : HOME
+  return rotaNotificacaoPermitida(url) ? url : INICIO
 }
 
 /**
  * Toque com o app aberto (ouvinte) ou fechado (última resposta). Enquanto a sessão carrega a
  * resposta fica para a última resposta; sem sessão, o destino espera o login.
  */
-export function useDeepLinkNotificacao(): void {
+function useDeepLinkNotificacao(): void {
   const router = useRouter()
   const status = useSessao((estado) => estado.status)
   const ultimaResposta = Notifications.useLastNotificationResponse()
@@ -54,8 +55,12 @@ export function useDeepLinkNotificacao(): void {
   }, [ultimaResposta, status, tratar])
 }
 
-/** Montado só com a flag `notificacoes` ligada: o hook chama APIs de push. */
-export function DeepLinkNotificacao() {
+function OuvinteAtivo() {
   useDeepLinkNotificacao()
   return null
+}
+
+/** Com a flag `notificacoes` desligada não monta o ouvinte: o hook chama APIs de push. */
+export function OuvinteDeepLinkNotificacao() {
+  return features.notificacoes ? <OuvinteAtivo /> : null
 }

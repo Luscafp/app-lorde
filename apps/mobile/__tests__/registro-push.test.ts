@@ -14,6 +14,7 @@ import {
   removerDispositivo,
   solicitarPermissaoERegistrar,
 } from '@/features/notificacoes/registro-push'
+import { ApiErro, CodigoLocal } from '@/infra/api/api-erro'
 import { api } from '@/infra/api/cliente'
 import { useSessao } from '@/infra/sessao/store'
 
@@ -117,6 +118,28 @@ describe('registro do dispositivo', () => {
 
     expect(Sentry.captureException).toHaveBeenCalledWith(erro)
     expect(itensSeguros.has(CHAVE_DISPOSITIVO_ID)).toBe(false)
+  })
+
+  it.each([
+    new ApiErro({ status: 0, code: CodigoLocal.SEM_CONEXAO, message: 'Sem conexão' }),
+    new ApiErro({ status: 400, code: 'VALIDATION_ERROR', message: 'Inválido' }),
+  ])('ApiErro $status não vai ao Sentry', async (erro) => {
+    concederPermissao()
+    post.mockRejectedValue(erro)
+
+    await registrarSeConcedida()
+
+    expect(Sentry.captureException).not.toHaveBeenCalled()
+  })
+
+  it('ApiErro 5xx vai ao Sentry', async () => {
+    concederPermissao()
+    const erro = new ApiErro({ status: 503, code: 'INTERNAL_ERROR', message: 'Indisponível' })
+    post.mockRejectedValue(erro)
+
+    await registrarSeConcedida()
+
+    expect(Sentry.captureException).toHaveBeenCalledWith(erro)
   })
 })
 

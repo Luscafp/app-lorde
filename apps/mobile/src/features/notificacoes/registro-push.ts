@@ -1,18 +1,16 @@
 import * as Sentry from '@sentry/react-native'
-import { dispositivoRegistradoSchema, type RegistrarDispositivo } from '@atletica/shared'
 import Constants from 'expo-constants'
 import * as Notifications from 'expo-notifications'
 import * as SecureStore from 'expo-secure-store'
 import { features } from '@/config/features'
 import { CANAL_NOTIFICACAO_PADRAO } from '@/config/notificacoes'
-import { api } from '@/infra/api/cliente'
+import { ApiErro } from '@/infra/api/api-erro'
 import { useSessao } from '@/infra/sessao/store'
+import { excluirDispositivo, registrarDispositivo } from './api'
 import type { EstadoPermissao, FontePermissao, Permissao } from './permissao'
 
 export const CHAVE_PERMISSAO_PERGUNTADA = 'push.permissaoPerguntada'
 export const CHAVE_DISPOSITIVO_ID = 'push.dispositivoId'
-
-const ROTA = '/me/dispositivos'
 
 function idProjeto(): string | undefined {
   const extra = Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined
@@ -22,6 +20,11 @@ function idProjeto(): string | undefined {
 function permissaoDe(status: Notifications.NotificationPermissionsStatus): Permissao {
   if (status.granted) return 'concedida'
   return status.status === Notifications.PermissionStatus.UNDETERMINED ? 'nao-perguntada' : 'negada'
+}
+
+/** Sem resposta da API ou `4xx` não vão ao Sentry (convenções §4.1). */
+function reportarErro(erro: unknown): void {
+  if (!(erro instanceof ApiErro) || erro.status >= 500) Sentry.captureException(erro)
 }
 
 export async function permissaoJaPerguntada(): Promise<boolean> {
@@ -42,17 +45,16 @@ export async function estadoPermissao(): Promise<EstadoPermissao> {
 
 async function registrar(): Promise<void> {
   const { data: tokenPush } = await Notifications.getExpoPushTokenAsync({ projectId: idProjeto() })
-  const corpo: RegistrarDispositivo = { tokenPush, plataforma: 'android' }
-  const { id } = dispositivoRegistradoSchema.parse(await api.post(ROTA, corpo))
+  const { id } = await registrarDispositivo({ tokenPush, plataforma: 'android' })
   await SecureStore.setItemAsync(CHAVE_DISPOSITIVO_ID, id)
 }
 
-/** Erros (sem rede, 5xx) vão ao Sentry; a próxima abertura tenta de novo (épico #36 §6). */
+/** Falhas são silenciosas; a próxima abertura tenta de novo (épico #36 §6). */
 export async function registrarSeConcedida(): Promise<void> {
   try {
     if ((await Notifications.getPermissionsAsync()).granted) await registrar()
   } catch (erro) {
-    Sentry.captureException(erro)
+    reportarErro(erro)
   }
 }
 
@@ -72,13 +74,18 @@ export async function removerDispositivo(sinal?: AbortSignal): Promise<void> {
   const id = await SecureStore.getItemAsync(CHAVE_DISPOSITIVO_ID)
   if (!id) return
   try {
-    await api.delete(`${ROTA}/${id}`, { sinal })
+    await excluirDispositivo(id, sinal)
   } finally {
-    await SecureStore.deleteItemAsync(CHAVE_DISPOSITIVO_ID)
+    await esquecerDispositivo()
   }
 }
 
-export function configurarExibicao(): void {
+/** Logout offline: a API remove o aparelho quando a sessão pendente é revogada. */
+export async function esquecerDispositivo(): Promise<void> {
+  await SecureStore.deleteItemAsync(CHAVE_DISPOSITIVO_ID)
+}
+
+function configurarExibicao(): void {
   Notifications.setNotificationHandler({
     handleNotification: () =>
       Promise.resolve({
@@ -91,7 +98,7 @@ export function configurarExibicao(): void {
   void Notifications.setNotificationChannelAsync(CANAL_NOTIFICACAO_PADRAO, {
     name: 'Notificações',
     importance: Notifications.AndroidImportance.HIGH,
-  }).catch((erro: unknown) => Sentry.captureException(erro))
+  }).catch(reportarErro)
 }
 
 /** Registra a cada abertura autenticada, a cada login e quando o token muda. */

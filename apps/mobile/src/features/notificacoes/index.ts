@@ -1,5 +1,7 @@
 export { MENSAGEM_PERMISSAO_NEGADA } from './components/aviso-permissao'
 export { MENSAGEM_ERRO_SALVAR, useAtualizarPreferencia, usePreferencias } from './hooks'
+export { oferecerAtivacaoNotificacoes } from './oferecer-ativacao'
+export { OuvinteDeepLinkNotificacao } from './ouvinte-deep-link'
 export {
   usePermissaoNotificacoes,
   type EstadoPermissao,
@@ -10,10 +12,7 @@ export {
   estadoPermissao,
   fontePermissao,
   iniciarNotificacoes,
-  removerDispositivo,
   solicitarPermissaoERegistrar,
 } from './registro-push'
 export { TelaAtivarNotificacoes } from './tela-ativar-notificacoes'
 export { MENSAGEM_CARGO_SEMPRE, TelaPreferenciasNotificacao } from './tela-preferencias'
-export { DeepLinkNotificacao, destinoDaNotificacao } from './use-deep-link-notificacao'
-export { ROTA_ATIVAR_NOTIFICACOES, useOferecerAtivacao } from './use-oferecer-ativacao'
