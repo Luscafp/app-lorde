@@ -22,6 +22,7 @@ import {
   sair,
   TEMPO_LIMITE_LOGOUT_MS,
 } from '@/features/auth'
+import { CHAVE_DISPOSITIVO_ID } from '@/features/notificacoes/registro-push'
 import { api } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { queryClient } from '@/infra/query/query-client'
@@ -83,6 +84,8 @@ const sessao: RespostaSessao = {
   },
 }
 
+const ID_DISPOSITIVO = '3f0c6a9e-2b7d-4c1a-9e8f-5d4c3b2a1f0e'
+
 type Resposta = { status: number; corpo?: unknown }
 type Responder = (init?: RequestInit) => Promise<Response>
 
@@ -107,9 +110,10 @@ const com =
 
 /** Só termina quando o `AbortSignal` da requisição dispara. */
 const semResposta: Responder = (init) =>
-  new Promise((_, rejeitar) =>
-    init?.signal?.addEventListener('abort', () => rejeitar(new Error('Aborted'))),
-  )
+  new Promise((_, rejeitar) => {
+    if (init?.signal?.aborted) rejeitar(new Error('Aborted'))
+    init?.signal?.addEventListener('abort', () => rejeitar(new Error('Aborted')))
+  })
 
 const tokensEnviadosAoLogout = () =>
   fetchMock.mock.calls
@@ -195,6 +199,38 @@ describe('BotaoSair', () => {
     expect(toast.sucesso).toHaveBeenCalledWith(MENSAGEM_SESSAO_ENCERRADA)
   })
 
+  it('online: remove o aparelho com o dispositivoId guardado antes de revogar a sessão', async () => {
+    itensSeguros.set(CHAVE_DISPOSITIVO_ID, ID_DISPOSITIVO)
+    respostas.set(`/me/dispositivos/${ID_DISPOSITIVO}`, com({ status: 204 }))
+    respostas.set('/auth/logout', com({ status: 204 }))
+    await abrirPerfil()
+
+    await confirmarSaida()
+
+    expect(await screen.findByRole('header', { name: 'Atlética Teste' })).toBeOnTheScreen()
+    const chamadas = fetchMock.mock.calls.map(([url, init]) => `${init?.method} ${url}`)
+    const remocao = chamadas.findIndex(
+      (chamada) =>
+        chamada.startsWith('DELETE ') && chamada.endsWith(`/me/dispositivos/${ID_DISPOSITIVO}`),
+    )
+    expect(remocao).toBeGreaterThanOrEqual(0)
+    expect(remocao).toBeLessThan(chamadas.findIndex((chamada) => chamada.endsWith('/auth/logout')))
+    expect(itensSeguros.has(CHAVE_DISPOSITIVO_ID)).toBe(false)
+  })
+
+  it('offline: não chama DELETE /me/dispositivos, esquece o aparelho e segue o logout pendente', async () => {
+    itensSeguros.set(CHAVE_DISPOSITIVO_ID, ID_DISPOSITIVO)
+    await abrirPerfil()
+    await ficarOnline(false)
+
+    await confirmarSaida()
+
+    expect(await screen.findByRole('header', { name: 'Atlética Teste' })).toBeOnTheScreen()
+    expect(fetchMock.mock.calls.some(([url]) => url.includes('/me/dispositivos'))).toBe(false)
+    expect(itensSeguros.has(CHAVE_DISPOSITIVO_ID)).toBe(false)
+    expect(await listarLogoutPendente()).toEqual(['refresh'])
+  })
+
   it('offline: sai sem chamar a API, grava o pendente e o envia quando a conexão volta', async () => {
     const caminho = await abrirPerfil()
     await ficarOnline(false)
@@ -226,6 +262,21 @@ describe('sair', () => {
 
     expect(tokensEnviadosAoLogout()).toEqual(['refresh'])
     expect(useSessao.getState().status).toBe('anonimo')
+    expect(await listarLogoutPendente()).toEqual(['refresh'])
+  })
+
+  it('DELETE do aparelho e POST /auth/logout dividem o mesmo prazo de 5 s', async () => {
+    jest.useFakeTimers()
+    itensSeguros.set(CHAVE_DISPOSITIVO_ID, ID_DISPOSITIVO)
+    respostas.set(`/me/dispositivos/${ID_DISPOSITIVO}`, semResposta)
+    respostas.set('/auth/logout', semResposta)
+
+    const saida = sair()
+    await jest.advanceTimersByTimeAsync(TEMPO_LIMITE_LOGOUT_MS)
+    await saida
+
+    expect(useSessao.getState().status).toBe('anonimo')
+    expect(itensSeguros.has(CHAVE_DISPOSITIVO_ID)).toBe(false)
     expect(await listarLogoutPendente()).toEqual(['refresh'])
   })
 

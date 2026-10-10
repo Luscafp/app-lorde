@@ -25,6 +25,21 @@ export interface FilasDominio {
   'notificacao.recibos': { tickets: { ticketId: string; dispositivoId: string }[] }
   /** #87: cron diário 04:00. */
   'dispositivos.limpeza': Record<string, never>
+  /** #90: cron a cada 15 min. */
+  'notificacao.reconciliar': Record<string, never>
+  /** #90: `inicioPrevisto` (ISO) diferente do `inicio` atual torna o job obsoleto. */
+  'notificacao.lembrete': {
+    atleticaId: string
+    eventoId: string
+    horas: number
+    inicioPrevisto: string
+  }
+  /** #90: 24 h antes, para quem não respondeu. */
+  'notificacao.confirmacao-pendente': {
+    atleticaId: string
+    eventoId: string
+    inicioPrevisto: string
+  }
 }
 
 export type NomeFila = Extract<keyof FilasDominio, string>

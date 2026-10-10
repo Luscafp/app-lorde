@@ -37,9 +37,14 @@ export function truncar(texto: string, limite: number): string {
     .trimEnd()}…`
 }
 
+/** `"12/10"` no fuso padrão. */
+export function formatarDiaMes(instante: Instante): string {
+  return formatarData(instante).slice(0, 5)
+}
+
 /** `"12/10 19:00"` no fuso padrão, para títulos e corpos. */
 export function formatarDataCurta(instante: Instante): string {
-  return `${formatarData(instante).slice(0, 5)} ${formatarHora(instante)}`
+  return `${formatarDiaMes(instante)} ${formatarHora(instante)}`
 }
 
 export function montarMensagem(tokenPush: string, conteudo: ConteudoNotificacao): MensagemPush {

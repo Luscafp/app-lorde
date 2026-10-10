@@ -1,6 +1,8 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config'
 import { z } from 'zod'
 import { AMBIENTES, type Ambiente } from './src/config/ambiente.ts'
+import { CANAL_NOTIFICACAO_PADRAO } from './src/config/notificacoes.ts'
+import { COR_NEUTRA } from './src/config/tema.ts'
 
 /** Decisões da #97 num só lugar: nome, pacote (permanente após publicar) e projeto EAS. */
 const NOME_APP = 'Atlética Lorde'
@@ -14,6 +16,8 @@ const esquemaEnv = z
       error: 'EXPO_PUBLIC_AMBIENTE deve ser development | homologacao | producao',
     }),
     EXPO_PUBLIC_API_URL: z.url({ error: 'EXPO_PUBLIC_API_URL deve ser uma URL' }),
+    /** Variável de arquivo do EAS com o `google-services.json` (#96); ausente nos testes e na CI. */
+    GOOGLE_SERVICES_JSON: z.string().min(1).optional(),
   })
   .refine(
     (env) =>
@@ -44,7 +48,11 @@ function lerEnv() {
 }
 
 export default ({ config }: ConfigContext): ExpoConfig => {
-  const { EXPO_PUBLIC_AMBIENTE: ambiente, EXPO_PUBLIC_API_URL: apiUrl } = lerEnv()
+  const {
+    EXPO_PUBLIC_AMBIENTE: ambiente,
+    EXPO_PUBLIC_API_URL: apiUrl,
+    GOOGLE_SERVICES_JSON: googleServicesFile,
+  } = lerEnv()
   const { nome, pacote, sufixoIcone } = variante(ambiente)
 
   return {
@@ -64,6 +72,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       package: pacote,
+      ...(googleServicesFile && { googleServicesFile }),
       adaptiveIcon: {
         backgroundColor: '#E6F4FE',
         foregroundImage: `./assets/android-icon-foreground${sufixoIcone}.png`,
@@ -82,6 +91,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'expo-font',
       'expo-image',
       'expo-updates',
+      [
+        'expo-notifications',
+        {
+          icon: './assets/android-icon-monochrome.png',
+          // A cor da atlética só chega em runtime (`GET /atletica`); no build vale o fallback do tema.
+          color: COR_NEUTRA,
+          defaultChannel: CANAL_NOTIFICACAO_PADRAO,
+        },
+      ],
       // targetSdk/compileSdk ficam os do SDK Expo.
       ['expo-build-properties', { android: { minSdkVersion: 26 } }],
       [
