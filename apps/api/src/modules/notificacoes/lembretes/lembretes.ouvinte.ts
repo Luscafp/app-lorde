@@ -29,7 +29,7 @@ export class LembretesOuvinte {
     eventoIds,
     campos,
   }: EventosDominio['evento.alterado']): Promise<void> {
-    if (campos.every((campo) => campo === 'status')) return
+    if (campos.length > 0 && campos.every((campo) => campo === 'status')) return
     await this.reconciliar(atleticaId, { id: { in: eventoIds } })
   }
 

@@ -1,8 +1,8 @@
-import { rotaNotificacao } from '@atletica/shared'
+import { ANTECEDENCIA_PADRAO, rotaNotificacao } from '@atletica/shared'
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common'
 import type { Prisma } from '../../../generated/prisma/client'
 import { ContextoAtletica } from '../../../infra/contexto/contexto-atletica.service'
-import type { FilasDominio } from '../../../infra/fila/filas-dominio'
+import type { FilasDominio, NomeFila } from '../../../infra/fila/filas-dominio'
 import { FilaService } from '../../../infra/fila/fila.service'
 import { naoExcluido } from '../../../infra/prisma/nao-excluido'
 import { PrismaService } from '../../../infra/prisma/prisma.service'
@@ -10,7 +10,6 @@ import { DestinatariosService } from '../destinatarios.service'
 import { NotificacoesService } from '../notificacoes.service'
 import {
   ANTECEDENCIA_CONFIRMACAO_HORAS,
-  ANTECEDENCIA_PADRAO,
   chaveJob,
   CRON_RECONCILIACAO,
   FILA_CONFIRMACAO_PENDENTE,
@@ -124,7 +123,7 @@ export class LembretesService implements OnModuleInit {
     { eventoId, horas, inicioPrevisto }: PayloadLembrete,
     agora = new Date(),
   ): Promise<void> {
-    const evento = await this.eventoVigente(FILA_LEMBRETE, eventoId, inicioPrevisto, agora)
+    const evento = await this.eventoVigente(FILA_LEMBRETE, { eventoId, inicioPrevisto }, agora)
     if (!evento) return
     const elenco = await this.destinatarios.elencoDoTime(evento.timeId)
     const confirmados = await this.prisma.db.participacao.findMany({
@@ -140,7 +139,7 @@ export class LembretesService implements OnModuleInit {
       evento,
       confirmados.map(({ usuarioId }) => usuarioId),
       textoLembrete(evento, horas),
-      chaveJob('lembrete', eventoId, horas, evento.inicio),
+      chaveJob(FILA_LEMBRETE, eventoId, horas, evento.inicio),
       agora,
     )
   }
@@ -152,8 +151,7 @@ export class LembretesService implements OnModuleInit {
   ): Promise<void> {
     const evento = await this.eventoVigente(
       FILA_CONFIRMACAO_PENDENTE,
-      eventoId,
-      inicioPrevisto,
+      { eventoId, inicioPrevisto },
       agora,
     )
     if (!evento || !recebeConfirmacaoPendente(evento)) return
@@ -167,16 +165,15 @@ export class LembretesService implements OnModuleInit {
       evento,
       elenco.filter((usuarioId) => !responderam.has(usuarioId)),
       textoConfirmacaoPendente(evento),
-      chaveJob('confirmacao-pendente', eventoId, ANTECEDENCIA_CONFIRMACAO_HORAS, evento.inicio),
+      chaveJob(FILA_CONFIRMACAO_PENDENTE, eventoId, ANTECEDENCIA_CONFIRMACAO_HORAS, evento.inicio),
       agora,
     )
   }
 
   /** `null` quando o job ficou obsoleto (épico #36 §3.5 item 12). */
   private async eventoVigente(
-    fila: string,
-    eventoId: string,
-    inicioPrevisto: string,
+    fila: NomeFila,
+    { eventoId, inicioPrevisto }: Pick<PayloadConfirmacao, 'eventoId' | 'inicioPrevisto'>,
     agora: Date,
   ): Promise<EventoVigente | null> {
     const evento = await this.prisma.db.evento.findUnique({

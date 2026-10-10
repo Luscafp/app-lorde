@@ -45,6 +45,14 @@ describe('LembretesOuvinte', () => {
     expect(reconciliarEventos).not.toHaveBeenCalled()
   })
 
+  it('alteração sem campos informados reconcilia', async () => {
+    const { ouvinte, reconciliarEventos } = preparar()
+
+    await ouvinte.aoAlterarEvento({ ...BASE, eventoIds: ['e1'], campos: [] })
+
+    expect(reconciliarEventos).toHaveBeenCalledWith('atl-1', { id: { in: ['e1'] } })
+  })
+
   it('falha vai ao Sentry e não propaga', async () => {
     const { ouvinte, reconciliarEventos } = preparar()
     reconciliarEventos.mockRejectedValue(new Error('banco fora'))

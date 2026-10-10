@@ -48,7 +48,7 @@ describe('planejarJobs', () => {
   it('singletonKey "<tipo>:<eventoId>:<h>:<inicioISO>"', () => {
     const [primeiro] = planejarJobs(evento(30), AGORA)
     expect(primeiro?.singletonKey).toBe(`lembrete:${ID}:1:${daquiA(30).toISOString()}`)
-    expect(chaveJob('confirmacao-pendente', ID, 24, daquiA(30))).toBe(
+    expect(chaveJob(FILA_CONFIRMACAO_PENDENTE, ID, 24, daquiA(30))).toBe(
       `confirmacao-pendente:${ID}:24:${daquiA(30).toISOString()}`,
     )
   })
