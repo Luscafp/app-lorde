@@ -40,6 +40,9 @@ updates:
       # pg-boss 12 é ESM-only (mesmo motivo do NestJS 12): a major vem num PR próprio.
       - dependency-name: 'pg-boss'
         update-types: ['version-update:semver-major']
+      # expo-server-sdk 6 é ESM-only (mesmo motivo): fica na 5.x até a migração.
+      - dependency-name: 'expo-server-sdk'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
     directories: ['/', '/.github/actions/*']

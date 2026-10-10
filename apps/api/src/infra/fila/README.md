@@ -1,6 +1,6 @@
 # Fila (`infra/fila`, pg-boss)
 
-Dono: #86 (convenções §11.6). Consumidores: #87 (envio de notificações) e #90 (lembretes).
+Dono: #86 (convenções §11.6). Consumidores: #87 (`notificacao.enviar-lote`, `notificacao.recibos`, `dispositivos.limpeza`) e #90 (lembretes).
 
 ## Versão fixada: `pg-boss@11.1.2`
 

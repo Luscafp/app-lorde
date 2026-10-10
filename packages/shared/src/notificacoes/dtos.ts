@@ -24,3 +24,11 @@ export const preferenciasSchema = z
   .strict()
 
 export type Preferencias = z.infer<typeof preferenciasSchema>
+
+/** Resposta de `POST /me/dispositivos`. */
+export const dispositivoRegistradoSchema = z.object({
+  id: z.uuid(),
+  ultimoUsoEm: z.iso.datetime(),
+})
+
+export type DispositivoRegistrado = z.infer<typeof dispositivoRegistradoSchema>

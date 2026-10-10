@@ -26,6 +26,7 @@ Validadas por `src/config/env.schema.ts` (Zod): a API não sobe com variável fa
 | `SENTRY_DSN`                | não                          | DSN do Sentry da API; ausente ou vazia = Sentry desligado (veja [Observabilidade](#observabilidade))                       |
 | `SENTRY_TRACES_SAMPLE_RATE` | não (`0.1`)                  | Fração de traces de 0 a 1: `0.1` em produção, `1.0` em homologação                                                         |
 | `FILA_WORKERS_ATIVOS`       | não (`true`)                 | `false` desliga workers e crons; pg-boss só conecta no 1º envio (veja [Fila](#fila-srcinfrafila))                          |
+| `EXPO_ACCESS_TOKEN`         | com `APP_ENV=producao`       | Token do Expo Push Service (veja [Notificações push](#notificações-push)); nos testes o envio usa o `FakeExpoPush`         |
 | `GIT_COMMIT_SHA`            | não                          | Commit do build, injetado no `docker build` (veja [Docker](#docker)). Ausente = `RAILWAY_GIT_COMMIT_SHA` ou `desconhecido` |
 
 ## Testes
@@ -693,6 +694,29 @@ Chamada da diretoria (RF33, RN31, UC18). `registrarPresencasSchema` e `ListaPres
 - **Elenco do evento:** `MembroTime` com `entradaEm <= inicio` e `saidaEm` nulo ou posterior ao início; contas excluídas saem como "Usuário excluído" e podem ser marcadas. Sem chamada, `presente` vem de `confirmado = true`.
 - **Gravação:** `SELECT ... FOR UPDATE` do evento; `createMany` (`skipDuplicates`) para quem não tem linha e dois `updateMany` (presentes/ausentes) com `presencaRegistradaEm`/`presencaRegistradaPorId`, sem tocar em `confirmado`/`respondidoEm`. A mesma lista já registrada não grava nada.
 - **Auditoria:** `PRESENCAS_REGISTRADAS` (entidade `Participacao`, `entidadeId` = evento) com `{ antes: { presentes }, depois: { presentes } }`. Sem evento de domínio.
+
+## Notificações push (`src/modules/notificacoes`)
+
+`NotificacoesModule` (#87) reúne dispositivos, envio e as preferências (#37). Schemas, DTO e `rotaNotificacao()` em `@atletica/shared` (`notificacoes/`).
+
+| Rota                          | Papel mínimo         | Resposta                                                                                                    |
+| ----------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `POST /me/dispositivos`       | qualquer autenticado | `200 { id, ultimoUsoEm }`; upsert por `tokenPush` (token de outra conta passa para a atual), grava a sessão |
+| `DELETE /me/dispositivos/:id` | qualquer autenticado | `204`; de outro usuário ou inexistente → `404 NOT_FOUND`                                                    |
+
+**Contrato exportado** (para #89, #90 e #38):
+
+```ts
+notificacoes.notificar({ atleticaId, categoria, usuarioIds, titulo, corpo, url, chave, ttl? }) // { destinatarios }
+notificacoes.contarElegiveis({ atleticaId, categoria, usuarioIds }) // number, mesmo filtro
+destinatarios.elencoDoTime(timeId) / diretoria(atleticaId) / todosDaAtletica(atleticaId) // string[]
+```
+
+- **Elegível:** `Usuario.ativo`, não excluído, `VinculoAtletica.ativo` na atlética, ao menos um `DispositivoPush`, `pushAtivo` e a coluna da categoria (`COLUNA_PREFERENCIA` em `categorias.ts`); sem `PreferenciaNotificacao` valem os padrões. `CARGO` ignora as preferências (RN35). Quem chama remove o `autorId` antes.
+- **Mensagem:** uma por aparelho, título ≤ 65 e corpo ≤ 180 caracteres (`truncar`), `data = { url, tipo: categoria, id: chave }`, canal `padrao`. Datas curtas com `formatarDataCurta` (`dd/mm HH:mm`, `FUSO_PADRAO`). `url` sempre via `rotaNotificacao()`.
+- **Filas:** `notificacao.enviar-lote` (até 100 mensagens, `singletonKey = <chave>:<n>`, política `exclusive`, retry 3 com backoff só em rede (`fetch failed`)/5xx/429); tickets `ok` → `notificacao.recibos` 15 min depois. `DeviceNotRegistered` (ticket ou recibo) apaga o dispositivo; `MessageRateExceeded` gera aviso; os demais códigos vão ao Sentry só com o código (a mensagem do Expo cita o token). Perdas aceitas: se agendar os recibos falhar após o envio, eles não são consultados (repetir reenviaria o lote); ticket ainda sem recibo na consulta é ignorado. `dispositivos.limpeza` (cron 04:00) apaga aparelhos sem uso há mais de 90 dias.
+- **Logout:** o ouvinte de `usuario.sessaoEncerrada` apaga os aparelhos das `sessaoIds`; com `CONTA_EXCLUIDA`, todos os do usuário.
+- **Expo:** `ClienteExpoPush` com `SdkExpoPush` (`expo-server-sdk@5.0.0`; a v6 é ESM-only, mesmo motivo do pg-boss) e `EXPO_ACCESS_TOKEN`. `MensagemPush` (`infra/fila/filas-dominio.ts`) mantém os campos em inglês da API do Expo, exceção à convenção de idioma (§2). Com `NODE_ENV=test` o cliente é o `FakeExpoPush` (`fakeExpo(app)` em `test/fabricas/notificacoes.ts`): `enviadas()`, `requisicoes()`, `simularIndisponibilidade()`, `simularErroTicket(token, erro)`, `simularErroRecibo(token, erro)`.
 
 ## Senhas (`src/infra/senha`)
 

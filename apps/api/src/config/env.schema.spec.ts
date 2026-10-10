@@ -20,6 +20,7 @@ const producao = {
   APP_ENV: 'producao',
   EMAIL_PROVIDER: 'resend',
   RESEND_API_KEY: 're_chave',
+  EXPO_ACCESS_TOKEN: 'expo-token',
 }
 
 describe('validarEnv', () => {
@@ -211,6 +212,21 @@ describe('validarEnv', () => {
       expect(workers('true').FILA_WORKERS_ATIVOS).toBe(true)
       expect(workers('false').FILA_WORKERS_ATIVOS).toBe(false)
       expect(() => workers('0')).toThrow(/FILA_WORKERS_ATIVOS/)
+    })
+  })
+
+  describe('push (#87)', () => {
+    it('EXPO_ACCESS_TOKEN é opcional fora de produção e vazia conta como ausente', () => {
+      expect(validarEnv(valida).EXPO_ACCESS_TOKEN).toBeUndefined()
+      expect(validarEnv({ ...valida, EXPO_ACCESS_TOKEN: '' }).EXPO_ACCESS_TOKEN).toBeUndefined()
+      const homologacao = { ...producao, APP_ENV: 'homologacao', EXPO_ACCESS_TOKEN: '' }
+      expect(validarEnv(homologacao).EXPO_ACCESS_TOKEN).toBeUndefined()
+    })
+
+    it('EXPO_ACCESS_TOKEN é obrigatória com APP_ENV=producao', () => {
+      expect(validarEnv(producao).EXPO_ACCESS_TOKEN).toBe('expo-token')
+      const { EXPO_ACCESS_TOKEN: _, ...semToken } = producao
+      expect(() => validarEnv(semToken)).toThrow(/EXPO_ACCESS_TOKEN/)
     })
   })
 })

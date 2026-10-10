@@ -1,5 +1,5 @@
 import { preferenciasSchema } from './dtos'
-import { atualizarPreferenciasSchema } from './schemas'
+import { atualizarPreferenciasSchema, registrarDispositivoSchema } from './schemas'
 
 const PADRAO = {
   pushAtivo: true,
@@ -43,6 +43,28 @@ describe('atualizarPreferenciasSchema', () => {
     ['nulo', { lembretes: null }, ['lembretes']],
   ])('rejeita %s', (_, corpo, caminho) => {
     const resultado = atualizarPreferenciasSchema.safeParse(corpo)
+    expect(resultado.success).toBe(false)
+    expect(resultado.error?.issues[0]?.path).toEqual(caminho)
+  })
+})
+
+describe('registrarDispositivoSchema', () => {
+  it.each(['ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]', 'ExpoPushToken[abc-123]'])(
+    'aceita %s',
+    (tokenPush) => {
+      const corpo = { tokenPush, plataforma: 'android' }
+      expect(registrarDispositivoSchema.parse(corpo)).toEqual(corpo)
+    },
+  )
+
+  it.each([
+    ['token fora do formato', { tokenPush: 'abc', plataforma: 'android' }, ['tokenPush']],
+    ['token vazio', { tokenPush: 'ExponentPushToken[]', plataforma: 'android' }, ['tokenPush']],
+    ['plataforma ios', { tokenPush: 'ExpoPushToken[a]', plataforma: 'ios' }, ['plataforma']],
+    ['sem plataforma', { tokenPush: 'ExpoPushToken[a]' }, ['plataforma']],
+    ['campo extra', { tokenPush: 'ExpoPushToken[a]', plataforma: 'android', usuarioId: 'x' }, []],
+  ])('rejeita %s', (_, corpo, caminho) => {
+    const resultado = registrarDispositivoSchema.safeParse(corpo)
     expect(resultado.success).toBe(false)
     expect(resultado.error?.issues[0]?.path).toEqual(caminho)
   })
