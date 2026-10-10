@@ -717,6 +717,20 @@ destinatarios.elencoDoTime(timeId) / diretoria(atleticaId) / todosDaAtletica(atl
 - **Filas:** `notificacao.enviar-lote` (até 100 mensagens, `singletonKey = <chave>:<n>`, política `exclusive`, retry 3 com backoff só em rede (`fetch failed`)/5xx/429); tickets `ok` → `notificacao.recibos` 15 min depois. `DeviceNotRegistered` (ticket ou recibo) apaga o dispositivo; `MessageRateExceeded` gera aviso; os demais códigos vão ao Sentry só com o código (a mensagem do Expo cita o token). Perdas aceitas: se agendar os recibos falhar após o envio, eles não são consultados (repetir reenviaria o lote); ticket ainda sem recibo na consulta é ignorado. `dispositivos.limpeza` (cron 04:00) apaga aparelhos sem uso há mais de 90 dias.
 - **Logout:** o ouvinte de `usuario.sessaoEncerrada` apaga os aparelhos das `sessaoIds`; com `CONTA_EXCLUIDA`, todos os do usuário.
 - **Expo:** `ClienteExpoPush` com `SdkExpoPush` (`expo-server-sdk@5.0.0`; a v6 é ESM-only, mesmo motivo do pg-boss) e `EXPO_ACCESS_TOKEN`. `MensagemPush` (`infra/fila/filas-dominio.ts`) mantém os campos em inglês da API do Expo, exceção à convenção de idioma (§2). Com `NODE_ENV=test` o cliente é o `FakeExpoPush` (`fakeExpo(app)` em `test/fabricas/notificacoes.ts`): `enviadas()`, `requisicoes()`, `simularIndisponibilidade()`, `simularErroTicket(token, erro)`, `simularErroRecibo(token, erro)`.
+- **Gatilhos imediatos (#89):** `GatilhosOuvinte` (`gatilhos/`) ouve os eventos de domínio e chama `GatilhosService.disparar(nome, payload)` dentro de `executarComAtletica`; falhas vão ao Sentry. Cada gatilho resolve os destinatários, remove o `autorId` (`semAutor`), lê os dados de exibição na execução e chama `notificar()` com `chave = <evento>:<uuid>`. Textos em `gatilhos/textos.ts` (sigla da atlética, ou o nome sem sigla).
+
+| Evento                       | Destinatários                | Categoria            | `data.url`                                      |
+| ---------------------------- | ---------------------------- | -------------------- | ----------------------------------------------- |
+| `evento.criado`              | elenco do `timeId`           | `NOVOS_EVENTOS`      | `/eventos/<eventoId>` (série: uma notificação)  |
+| `evento.alterado`            | elenco do `timeId`           | `ALTERACOES_EVENTOS` | `/eventos/<id>` (1 evento) ou `/times/<timeId>` |
+| `evento.cancelado`           | elenco do `timeId`           | `ALTERACOES_EVENTOS` | idem                                            |
+| `evento.resultadoRegistrado` | vínculos ativos              | `RESULTADOS`         | `/eventos/<eventoId>`                           |
+| `noticia.publicada`          | vínculos ativos              | `NOTICIAS`           | `/noticias/<noticiaId>`                         |
+| `solicitacao.criada`         | vínculos com papel ≥ DIRETOR | `SOLICITACOES`       | `/painel/solicitacoes`                          |
+| `solicitacao.avaliada`       | o solicitante                | `SOLICITACOES`       | `/times/<timeId>`                               |
+| `usuario.papelAlterado`      | o usuário afetado            | `CARGO`              | `/perfil`                                       |
+
+`evento.alterado` só notifica com `inicio` ou `local` em `campos` (`["status"]` não notifica — §11.10).
 
 ## Senhas (`src/infra/senha`)
 
