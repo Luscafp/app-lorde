@@ -9,10 +9,12 @@ import { ClienteExpoPush } from './envio/cliente-expo-push'
 import { EntregaPushService } from './envio/entrega-push.service'
 import { FakeExpoPush } from './envio/fake-expo-push'
 import { SdkExpoPush } from './envio/sdk-expo-push'
+import { LembretesOuvinte } from './lembretes/lembretes.ouvinte'
+import { LembretesService } from './lembretes/lembretes.service'
 import { NotificacoesService } from './notificacoes.service'
 import { PreferenciasModule } from './preferencias/preferencias.module'
 
-/** Dispositivos e envio push (#87); exporta o contrato usado por #89, #90 e #38. */
+/** Dispositivos e envio push (#87) e lembretes (#90); exporta o contrato usado por #89, #90 e #38. */
 @Module({
   imports: [PreferenciasModule],
   controllers: [DispositivosController],
@@ -29,6 +31,8 @@ import { PreferenciasModule } from './preferencias/preferencias.module'
     DispositivosOuvinte,
     DispositivosService,
     EntregaPushService,
+    LembretesOuvinte,
+    LembretesService,
     NotificacoesService,
   ],
   exports: [DestinatariosService, NotificacoesService],
