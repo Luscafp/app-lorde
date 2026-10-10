@@ -53,6 +53,17 @@ describe('NotificacoesService', () => {
     })
   })
 
+  it('listarElegiveis aplica o mesmo filtro e devolve os ids', async () => {
+    const { servico, usuario } = preparar()
+    usuario.findMany.mockResolvedValue([{ id: 'u1' }, { id: 'u2' }])
+
+    expect(await servico.listarElegiveis(ENTRADA)).toEqual(['u1', 'u2'])
+
+    await servico.contarElegiveis(ENTRADA)
+    const [{ where }] = usuario.count.mock.calls[0] as [{ where: object }]
+    expect(usuario.findMany).toHaveBeenCalledWith({ where, select: { id: true } })
+  })
+
   it('CARGO ignora pushAtivo e categorias (RN35)', async () => {
     const { servico, usuario } = preparar()
 
@@ -68,6 +79,7 @@ describe('NotificacoesService', () => {
 
     expect(await servico.notificar({ ...ENTRADA, usuarioIds: [] })).toEqual({ destinatarios: 0 })
     expect(await servico.contarElegiveis({ ...ENTRADA, usuarioIds: [] })).toBe(0)
+    expect(await servico.listarElegiveis({ ...ENTRADA, usuarioIds: [] })).toEqual([])
     expect(usuario.findMany).not.toHaveBeenCalled()
     expect(fila.enviar).not.toHaveBeenCalled()
   })

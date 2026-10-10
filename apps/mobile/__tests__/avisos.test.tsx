@@ -1,5 +1,10 @@
-import type { TimeDto } from '@atletica/shared'
-import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
+import type { ListaTimes, TimeDto } from '@atletica/shared'
+import {
+  onlineManager,
+  QueryClientProvider,
+  type InfiniteData,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import type { ReactElement } from 'react'
 import { Alert, type AlertButton } from 'react-native'
@@ -8,6 +13,7 @@ import { FormAviso, MENSAGEM_SEM_DESTINATARIOS } from '@/features/avisos'
 import * as apiAvisos from '@/features/avisos/api'
 import * as apiTimes from '@/features/times/api'
 import { ApiErro } from '@/infra/api/api-erro'
+import { chaves } from '@/infra/query/chaves'
 import { criarQueryClient } from '@/infra/query/query-client'
 import { useSessao } from '@/infra/sessao/store'
 import Painel from '../app/(app)/(abas)/painel/index'
@@ -32,6 +38,8 @@ const time = (id: string, nome: string): TimeDto => ({
   ativo: true,
   modalidade: { id: 'm1', nome: 'Futsal', icone: 'soccer' },
   atletica: { id: 'a1', nome: 'Atlética', sigla: 'ATL', propria: true },
+  capitao: null,
+  totalMembros: 8,
 })
 
 let cliente: QueryClient
@@ -147,6 +155,25 @@ describe('FormAviso', () => {
       titulo: TITULO,
       mensagem: MENSAGEM,
     })
+  })
+
+  it('Time sem o nome carregado: "membros do time" na confirmação', async () => {
+    await renderizar(<FormAviso />)
+    await preencher()
+    await fireEvent.press(screen.getByRole('tab', { name: 'Time' }))
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Futsal Masculino · Futsal' }))
+    await act(() =>
+      cliente.setQueriesData<InfiniteData<ListaTimes>>(
+        { queryKey: chaves.times.todos() },
+        (dados) => dados && { ...dados, pages: dados.pages.map((p) => ({ ...p, items: [] })) },
+      ),
+    )
+    await tocarEnviar()
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalled())
+
+    expect(jest.mocked(Alert.alert).mock.lastCall?.[1]).toBe(
+      'Enviar aviso para membros do time? Esta ação não pode ser desfeita.',
+    )
   })
 
   it('confirma, envia para todos, mostra o toast com N e limpa o formulário', async () => {

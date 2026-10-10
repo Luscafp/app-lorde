@@ -96,7 +96,6 @@ function SeletorTime({
   )
 }
 
-/** Imita a notificação do Android: título e o início da mensagem. */
 function PreviaNotificacao({ titulo, mensagem }: { titulo: string; mensagem: string }) {
   if (!titulo.trim() && !mensagem.trim()) return null
   return (
@@ -148,10 +147,8 @@ export function FormAviso() {
 
   const confirmarEnvio = form.handleSubmit((dados) => {
     const nomeTime = times?.find(({ id }) => id === dados.timeId)?.nome
-    const alvo =
-      dados.destino === DestinoAviso.TIME
-        ? `membros de ${nomeTime ?? 'o time'}`
-        : 'todos os usuários'
+    const membros = nomeTime ? `membros de ${nomeTime}` : 'membros do time'
+    const alvo = dados.destino === DestinoAviso.TIME ? membros : 'todos os usuários'
     confirmar({
       titulo: 'Enviar aviso',
       mensagem: `Enviar aviso para ${alvo}? Esta ação não pode ser desfeita.`,

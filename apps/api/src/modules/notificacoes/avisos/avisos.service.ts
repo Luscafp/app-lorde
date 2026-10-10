@@ -19,7 +19,8 @@ import {
 import type { UsuarioNaAtletica } from '../../auth/tipos'
 import { DestinatariosService } from '../destinatarios.service'
 import { NotificacoesService } from '../notificacoes.service'
-import { erroTimeInvalidoAviso, erroTimeNaoEncontrado } from './erros'
+import { erroTimeNaoEncontrado } from '../../times/erros'
+import { erroTimeInvalidoAviso } from './erros'
 
 export const LIMITE_AVISOS: LimiteTentativas = { maximo: 10, janelaMs: 60 * 60_000 }
 
@@ -60,8 +61,12 @@ export class AvisosService {
       `${atleticaId}:${remetente.id}`,
       LIMITE_AVISOS,
     )
-    const filtro = { atleticaId, categoria: CATEGORIA, usuarioIds } as const
-    const destinatarios = await this.notificacoes.contarElegiveis(filtro)
+    const elegiveis = await this.notificacoes.listarElegiveis({
+      atleticaId,
+      categoria: CATEGORIA,
+      usuarioIds,
+    })
+    const destinatarios = elegiveis.length
     const avisoId = randomUUID()
     const { titulo, mensagem, destino } = aviso
 
@@ -74,7 +79,9 @@ export class AvisosService {
       }),
     )
     await this.notificacoes.notificar({
-      ...filtro,
+      atleticaId,
+      categoria: CATEGORIA,
+      usuarioIds: elegiveis,
       titulo,
       corpo: mensagem,
       url: rotaNotificacao(timeId ? { tela: 'time', id: timeId } : { tela: 'inicio' }),

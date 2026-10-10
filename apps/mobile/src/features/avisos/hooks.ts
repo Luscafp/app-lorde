@@ -5,7 +5,7 @@ import { chaves } from '@/infra/query/chaves'
 import { useAcaoOnline } from '@/infra/query/use-acao-online'
 import { buscarAlcanceAviso, enviarAviso } from './api'
 
-export const ERROS_DO_FORMULARIO = ['VALIDATION_ERROR', 'NOT_FOUND', 'TIME_INVALIDO_AVISO']
+const ERROS_DO_FORMULARIO = ['VALIDATION_ERROR', 'NOT_FOUND', 'TIME_INVALIDO_AVISO']
 
 /** Prévia de alcance; não persistida (muda com preferências e aparelhos). `null` não consulta. */
 export function useAlcanceAviso(consulta: AlcanceAvisoQuery | null) {

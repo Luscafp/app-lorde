@@ -10,6 +10,7 @@ import * as rotaAgenda from '../app/(app)/(abas)/agenda/_layout'
 import Agenda from '../app/(app)/(abas)/agenda/index'
 import Inicio from '../app/(app)/(abas)/index'
 import LayoutPainel from '../app/(app)/(abas)/painel/_layout'
+import NovoAviso from '../app/(app)/(abas)/painel/avisos/novo'
 import Painel from '../app/(app)/(abas)/painel/index'
 import LayoutPerfil from '../app/(app)/(abas)/perfil/_layout'
 import Perfil from '../app/(app)/(abas)/perfil/index'
@@ -55,6 +56,7 @@ const rotas = {
   '(app)/(abas)/perfil/index': Perfil,
   '(app)/(abas)/painel/_layout': LayoutPainel,
   '(app)/(abas)/painel/index': Painel,
+  '(app)/(abas)/painel/avisos/novo': NovoAviso,
 }
 
 const itensSeguros = (SecureStore as unknown as { __itens: Map<string, string> }).__itens
@@ -238,6 +240,13 @@ describe('navegação', () => {
     await comSessaoSalva('ATLETA')
     const caminho = await abrir('/painel')
     expect(caminho()).toBe('/')
+  })
+
+  it('deep link /painel/avisos/novo de ATLETA redireciona ao Início (#38)', async () => {
+    await comSessaoSalva('ATLETA')
+    const caminho = await abrir('/painel/avisos/novo')
+    expect(caminho()).toBe('/')
+    expect(screen.queryByRole('link', { name: 'Enviar aviso' })).toBeNull()
   })
 
   it('deep link /painel de DIRETOR abre o Painel', async () => {

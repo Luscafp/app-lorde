@@ -18,12 +18,12 @@ const PARA_TIME: EnviarAviso = { destino: 'TIME', timeId: TIME, ...TEXTO }
 
 interface Cenario {
   time?: { atleticaId: string; ativo: boolean } | null
-  elegiveis?: number
+  elegiveis?: string[]
 }
 
 function criarServico({
   time = { atleticaId: ATLETICA, ativo: true },
-  elegiveis = 2,
+  elegiveis = ['u1', 'u2'],
 }: Cenario = {}) {
   const ordem: string[] = []
   const tx = {}
@@ -36,10 +36,11 @@ function criarServico({
     elencoDoTime: jest.fn().mockResolvedValue(['u1', 'u2']),
   }
   const notificacoes = {
-    contarElegiveis: jest.fn().mockResolvedValue(elegiveis),
+    contarElegiveis: jest.fn().mockResolvedValue(elegiveis.length),
+    listarElegiveis: jest.fn().mockResolvedValue(elegiveis),
     notificar: jest.fn(() => {
       ordem.push('notificar')
-      return Promise.resolve({ destinatarios: elegiveis })
+      return Promise.resolve({ destinatarios: elegiveis.length })
     }),
   }
   const servico = new AvisosService(
@@ -69,17 +70,28 @@ describe('AvisosService', () => {
       const { servico, destinatarios, notificacoes } = criarServico()
       await servico.enviar(DIRETOR, PARA_TODOS)
       expect(destinatarios.todosDaAtletica).toHaveBeenCalledWith(ATLETICA)
-      expect(notificacoes.notificar).toHaveBeenCalledWith(
-        expect.objectContaining({ usuarioIds: ['u1', 'u2', 'u3'], categoria: 'AVISOS' }),
-      )
+      expect(notificacoes.listarElegiveis).toHaveBeenCalledWith({
+        atleticaId: ATLETICA,
+        categoria: 'AVISOS',
+        usuarioIds: ['u1', 'u2', 'u3'],
+      })
     })
 
     it('TIME: elenco atual do time', async () => {
       const { servico, destinatarios, notificacoes } = criarServico()
       await servico.enviar(DIRETOR, PARA_TIME)
       expect(destinatarios.elencoDoTime).toHaveBeenCalledWith(TIME)
-      expect(notificacoes.notificar).toHaveBeenCalledWith(
+      expect(notificacoes.listarElegiveis).toHaveBeenCalledWith(
         expect.objectContaining({ usuarioIds: ['u1', 'u2'] }),
+      )
+    })
+
+    it('enfileira a mesma lista de elegíveis que foi contada e auditada', async () => {
+      const { servico, notificacoes } = criarServico({ elegiveis: ['u2'] })
+      const { destinatarios } = await servico.enviar(DIRETOR, PARA_TODOS)
+      expect(destinatarios).toBe(1)
+      expect(notificacoes.notificar).toHaveBeenCalledWith(
+        expect.objectContaining({ usuarioIds: ['u2'], categoria: 'AVISOS' }),
       )
     })
 
@@ -100,7 +112,8 @@ describe('AvisosService', () => {
 
   describe('enviar', () => {
     it('audita antes de enfileirar, com a contagem de elegíveis', async () => {
-      const { servico, auditoria, ordem } = criarServico({ elegiveis: 7 })
+      const elegiveis = Array.from({ length: 7 }, (_, i) => `u${i}`)
+      const { servico, auditoria, ordem } = criarServico({ elegiveis })
       const resposta = await servico.enviar(DIRETOR, PARA_TIME)
 
       expect(ordem).toEqual(['auditoria', 'notificar'])
@@ -182,7 +195,8 @@ describe('AvisosService', () => {
   })
 
   it('alcance: mesma contagem de elegíveis, sem consumir o limite', async () => {
-    const { servico, limites, notificacoes } = criarServico({ elegiveis: 142 })
+    const elegiveis = Array.from({ length: 142 }, (_, i) => `u${i}`)
+    const { servico, limites, notificacoes } = criarServico({ elegiveis })
     expect(await servico.alcance(DIRETOR, { destino: 'TODOS' })).toEqual({ destinatarios: 142 })
     expect(notificacoes.contarElegiveis).toHaveBeenCalledWith({
       atleticaId: ATLETICA,

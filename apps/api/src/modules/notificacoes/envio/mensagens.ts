@@ -1,6 +1,7 @@
 import {
   formatarData,
   formatarHora,
+  MENSAGEM_AVISO_MAX,
   type CategoriaNotificacao,
   type Instante,
 } from '@atletica/shared'
@@ -10,6 +11,11 @@ import type { MensagemPush } from '../../../infra/fila/filas-dominio'
 export const TAMANHO_LOTE = 100
 export const LIMITE_TITULO = 65
 export const LIMITE_CORPO = 180
+
+/** O aviso manual (#38) chega inteiro; o Android expande o texto. */
+function limiteCorpo(categoria: CategoriaNotificacao): number {
+  return categoria === 'AVISOS' ? MENSAGEM_AVISO_MAX : LIMITE_CORPO
+}
 
 export interface ConteudoNotificacao {
   categoria: CategoriaNotificacao
@@ -40,7 +46,7 @@ export function montarMensagem(tokenPush: string, conteudo: ConteudoNotificacao)
   return {
     to: tokenPush,
     title: truncar(conteudo.titulo, LIMITE_TITULO),
-    body: truncar(conteudo.corpo, LIMITE_CORPO),
+    body: truncar(conteudo.corpo, limiteCorpo(conteudo.categoria)),
     data: { url: conteudo.url, tipo: conteudo.categoria, id: conteudo.chave },
     channelId: 'padrao',
     sound: 'default',
