@@ -1,10 +1,5 @@
-import type { ListaTimes, TimeDto } from '@atletica/shared'
-import {
-  onlineManager,
-  QueryClientProvider,
-  type InfiniteData,
-  type QueryClient,
-} from '@tanstack/react-query'
+import type { TimeDto } from '@atletica/shared'
+import { onlineManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import type { ReactElement } from 'react'
 import { Alert, type AlertButton } from 'react-native'
@@ -162,12 +157,9 @@ describe('FormAviso', () => {
     await preencher()
     await fireEvent.press(screen.getByRole('tab', { name: 'Time' }))
     await fireEvent.press(await screen.findByRole('radio', { name: 'Futsal Masculino · Futsal' }))
-    await act(() =>
-      cliente.setQueriesData<InfiniteData<ListaTimes>>(
-        { queryKey: chaves.times.todos() },
-        (dados) => dados && { ...dados, pages: dados.pages.map((p) => ({ ...p, items: [] })) },
-      ),
-    )
+    apiTime.listarTimes.mockResolvedValue({ items: [], page: 1, limit: 20, total: 0 })
+    await act(() => cliente.refetchQueries({ queryKey: chaves.times.todos() }))
+    expect(await screen.findByText('A atlética não tem times ativos.')).toBeOnTheScreen()
     await tocarEnviar()
     await waitFor(() => expect(Alert.alert).toHaveBeenCalled())
 
