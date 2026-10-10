@@ -83,7 +83,12 @@ const EXEMPLO_DETALHE: UsuarioDetalhe = {
       capitao: false,
     },
   ],
-  estatisticas: null,
+  estatisticas: {
+    jogosParticipados: 4,
+    treinosPresentes: 12,
+    eventosComChamada: 20,
+    taxaPresenca: 80,
+  },
   permissoes: {
     podeAlterarSituacao: true,
     motivoBloqueio: null,
@@ -155,7 +160,8 @@ export class UsuariosController {
   @ApiOperation({
     summary: 'Perfil, times e permissões do solicitante sobre o usuário',
     description:
-      '`situacao` = `EXCLUIDO` para conta excluída (dados anonimizados, sem times e sem ações).',
+      '`situacao` = `EXCLUIDO` para conta excluída (dados anonimizados, sem times e sem ações). ' +
+      '`estatisticas`: as mesmas de `GET /me/estatisticas`, calculadas para o usuário consultado.',
   })
   @ApiOkResponse({ type: UsuarioDetalheDto, example: EXEMPLO_DETALHE })
   @ApiBadRequestResponse({ description: '`VALIDATION_ERROR`: id não é UUID.' })

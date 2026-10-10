@@ -9,6 +9,7 @@ import { SecaoMeusProximosEventos } from '@/features/participacoes'
 import { BotaoSairDoTime } from '@/features/times'
 import { SeloEmailVerificado } from '@/features/verificacao-email'
 import { useMe } from './consultas'
+import { SecaoEstatisticas } from './secao-estatisticas'
 
 export const MENSAGEM_SEM_TIMES = 'Você ainda não faz parte de nenhum time.'
 
@@ -105,13 +106,13 @@ function Conteudo({
           />
         )}
       </View>
+      <SecaoEstatisticas />
       <MeusTimes times={perfil.times} {...navegacao} />
       <SecaoMeusProximosEventos aoAbrirEvento={navegacao.aoAbrirEvento} />
     </ScrollView>
   )
 }
 
-/** Estatísticas (#85) entram como seção desta tela. */
 export function TelaPerfil(navegacao: Navegacao) {
   const consulta = useMe()
 

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { Papel } from '../enums/papel'
+import { estatisticasAtletaSchema } from '../participacoes/dtos'
 import { respostaPaginadaSchema } from '../utils/paginacao'
 import { SITUACOES_FILTRO, SituacaoUsuario } from './schemas'
 
@@ -45,8 +46,7 @@ export const usuarioDetalheSchema = z
     situacao: z.enum(SituacaoUsuario),
     criadoEm: z.iso.datetime(),
     times: z.array(timeDoUsuarioSchema),
-    /** Preenchido pela #35 (R2). */
-    estatisticas: z.null(),
+    estatisticas: estatisticasAtletaSchema.nullable(),
     permissoes: permissoesUsuarioSchema,
   })
   .strict()

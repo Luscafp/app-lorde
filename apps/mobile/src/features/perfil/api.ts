@@ -1,8 +1,10 @@
 import {
+  estatisticasAtletaSchema,
   fotoAtualizadaSchema,
   perfilSchema,
   type AlterarSenha,
   type AtualizarPerfil,
+  type EstatisticasAtleta,
   type ExcluirConta,
   type FotoAtualizada,
   type Perfil,
@@ -11,6 +13,10 @@ import { api } from '@/infra/api/cliente'
 
 export async function buscarPerfil(sinal?: AbortSignal): Promise<Perfil> {
   return perfilSchema.parse(await api.get('/me', { sinal }))
+}
+
+export async function buscarEstatisticas(sinal?: AbortSignal): Promise<EstatisticasAtleta> {
+  return estatisticasAtletaSchema.parse(await api.get('/me/estatisticas', { sinal }))
 }
 
 export async function atualizarPerfil(dados: AtualizarPerfil): Promise<Perfil> {

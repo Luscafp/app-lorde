@@ -4,6 +4,7 @@ import { ScrollView, View } from 'react-native'
 import { TelaDados } from '@/components/estado'
 import { Botao, Cartao, confirmar, Selo, Texto } from '@/components/ui'
 import { paleta } from '@/features/atletica'
+import { BlocoEstatisticas, CartaoEstatisticas } from '@/features/perfil'
 import { AlterarCargo } from './alterar-cargo'
 import { Avatar } from './componentes'
 import { useAlterarSituacao, useUsuario } from './consultas'
@@ -80,6 +81,12 @@ function Conteudo({ usuario }: { usuario: UsuarioDetalhe }) {
             ))
           )}
         </View>
+      )}
+
+      {usuario.estatisticas && (
+        <BlocoEstatisticas>
+          <CartaoEstatisticas estatisticas={usuario.estatisticas} />
+        </BlocoEstatisticas>
       )}
 
       <Acoes usuario={usuario} />

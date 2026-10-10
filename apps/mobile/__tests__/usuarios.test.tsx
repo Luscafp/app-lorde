@@ -8,6 +8,7 @@ import { criarQueryClient } from '@/infra/query/query-client'
 import { alterarSituacao, buscarUsuario, listarUsuarios } from '@/features/usuarios/api'
 import { juntarPaginas } from '@/infra/query/juntar-paginas'
 import { DetalheUsuario, ListaUsuarios as TelaLista } from '@/features/usuarios'
+import { ESTATISTICAS_SEM_CHAMADA } from '../test-utils/estatisticas'
 
 jest.mock('@/components/ui/toast', () => ({
   toast: { sucesso: jest.fn(), erro: jest.fn(), info: jest.fn() },
@@ -178,6 +179,26 @@ describe('Detalhe do usuário', () => {
     expect(screen.getByText('Membro desde 01/08/2026')).toBeOnTheScreen()
     expect(screen.getByText('Futsal Masculino')).toBeOnTheScreen()
     expect(screen.getByText('Capitão')).toBeOnTheScreen()
+  })
+
+  it('estatísticas do usuário no mesmo cartão do Perfil (critério 14)', async () => {
+    jest
+      .mocked(buscarUsuario)
+      .mockResolvedValue(detalhe({ estatisticas: ESTATISTICAS_SEM_CHAMADA }))
+    await renderizar(<DetalheUsuario id={ID} />)
+
+    expect(await screen.findByText('Estatísticas')).toBeOnTheScreen()
+    expect(screen.getByLabelText('Taxa de presença: —')).toBeOnTheScreen()
+    expect(screen.getByText('Ainda não há presenças registradas')).toBeOnTheScreen()
+  })
+
+  it('estatisticas null: seção oculta', async () => {
+    jest.mocked(buscarUsuario).mockResolvedValue(detalhe({ estatisticas: null }))
+    await renderizar(<DetalheUsuario id={ID} />)
+
+    expect(await screen.findByRole('header', { name: 'José Lima' })).toBeOnTheScreen()
+    expect(screen.queryByText('Estatísticas')).toBeNull()
+    expect(screen.queryByTestId('cartao-estatisticas')).toBeNull()
   })
 
   it('sem permissão: botão desabilitado com o motivo (critério 9)', async () => {

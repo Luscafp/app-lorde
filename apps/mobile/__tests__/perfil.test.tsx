@@ -6,7 +6,9 @@ import { toast } from '@/components/ui/toast'
 import {
   AlterarSenha,
   EditarPerfil,
+  MENSAGEM_ERRO_ESTATISTICAS,
   MENSAGEM_PERFIL_ATUALIZADO,
+  MENSAGEM_SEM_PRESENCAS,
   MENSAGEM_SEM_TIMES,
   MENSAGEM_SENHA_ALTERADA,
   TelaPerfil,
@@ -20,6 +22,7 @@ import { chaves } from '@/infra/query/chaves'
 import { criarQueryClient } from '@/infra/query/query-client'
 import { MENSAGEM_ACAO_OFFLINE } from '@/infra/query/use-acao-online'
 import { useSessao } from '@/infra/sessao/store'
+import { ESTATISTICAS_SEM_CHAMADA } from '../test-utils/estatisticas'
 
 jest.mock('@/components/ui/toast', () => ({
   toast: { sucesso: jest.fn(), erro: jest.fn(), info: jest.fn() },
@@ -108,6 +111,7 @@ beforeEach(() => {
   jest.clearAllMocks()
   jest.mocked(useUploadImagem).mockReturnValue(upload())
   listarEventos.mockResolvedValue({ items: [], page: 1, limit: 5, total: 0 })
+  api.buscarEstatisticas.mockResolvedValue(ESTATISTICAS_SEM_CHAMADA)
   useSessao.setState({
     status: 'autenticado',
     usuario: {
@@ -267,6 +271,45 @@ function eventoConfirmado(id: string, inicio: string, local: string): EventoResu
     minhaParticipacao: { confirmado: true, respondidoEm: '2026-10-01T12:00:00.000Z' },
   }
 }
+
+describe('Estatísticas (#85)', () => {
+  const secao = () => within(screen.getByTestId('secao-estatisticas'))
+
+  it('jogos, treinos e taxa de presença', async () => {
+    api.buscarPerfil.mockResolvedValue(perfil())
+    api.buscarEstatisticas.mockResolvedValue({
+      jogosParticipados: 2,
+      treinosPresentes: 5,
+      eventosComChamada: 10,
+      taxaPresenca: 70,
+    })
+    await renderizar(<TelaPerfil {...navegacao()} />)
+
+    expect(await screen.findByLabelText('Jogos participados: 2')).toBeOnTheScreen()
+    expect(secao().getByLabelText('Treinos presentes: 5')).toBeOnTheScreen()
+    expect(secao().getByLabelText('Taxa de presença: 70%')).toBeOnTheScreen()
+    expect(secao().queryByText(MENSAGEM_SEM_PRESENCAS)).toBeNull()
+  })
+
+  it('sem chamada: taxa "—" com a legenda (critério 12)', async () => {
+    api.buscarPerfil.mockResolvedValue(perfil())
+    await renderizar(<TelaPerfil {...navegacao()} />)
+
+    expect(await screen.findByLabelText('Taxa de presença: —')).toBeOnTheScreen()
+    expect(secao().getByLabelText('Jogos participados: 0')).toBeOnTheScreen()
+    expect(secao().getByText(MENSAGEM_SEM_PRESENCAS)).toBeOnTheScreen()
+  })
+
+  it('erro: estado próprio da seção, sem afetar o restante do Perfil', async () => {
+    api.buscarPerfil.mockResolvedValue(perfil())
+    api.buscarEstatisticas.mockRejectedValue(new Error('falhou'))
+    await renderizar(<TelaPerfil {...navegacao()} />)
+
+    expect(await screen.findByText(MENSAGEM_ERRO_ESTATISTICAS)).toBeOnTheScreen()
+    expect(screen.getByText('Ana Souza')).toBeOnTheScreen()
+    expect(cliente.getQueryState(chaves.me.estatisticas())?.status).toBe('error')
+  })
+})
 
 describe('Meus próximos eventos (#24)', () => {
   const PRIMEIRO = '1a1a1a1a-0000-4000-8000-000000000001'
