@@ -22,6 +22,7 @@ import {
   sair,
   TEMPO_LIMITE_LOGOUT_MS,
 } from '@/features/auth'
+import { CHAVE_DISPOSITIVO_ID } from '@/features/notificacoes/registro-push'
 import { api } from '@/infra/api/cliente'
 import { chaves } from '@/infra/query/chaves'
 import { queryClient } from '@/infra/query/query-client'
@@ -82,6 +83,8 @@ const sessao: RespostaSessao = {
     atleticaId: atletica.id,
   },
 }
+
+const ID_DISPOSITIVO = '3f0c6a9e-2b7d-4c1a-9e8f-5d4c3b2a1f0e'
 
 type Resposta = { status: number; corpo?: unknown }
 type Responder = (init?: RequestInit) => Promise<Response>
@@ -193,6 +196,37 @@ describe('BotaoSair', () => {
     expect(queryClient.getQueryData(chaves.eventos.todos())).toBeUndefined()
     expect(await listarLogoutPendente()).toEqual([])
     expect(toast.sucesso).toHaveBeenCalledWith(MENSAGEM_SESSAO_ENCERRADA)
+  })
+
+  it('online: remove o aparelho com o dispositivoId guardado antes de revogar a sessão', async () => {
+    itensSeguros.set(CHAVE_DISPOSITIVO_ID, ID_DISPOSITIVO)
+    respostas.set(`/me/dispositivos/${ID_DISPOSITIVO}`, com({ status: 204 }))
+    respostas.set('/auth/logout', com({ status: 204 }))
+    await abrirPerfil()
+
+    await confirmarSaida()
+
+    expect(await screen.findByRole('header', { name: 'Atlética Teste' })).toBeOnTheScreen()
+    const chamadas = fetchMock.mock.calls.map(([url, init]) => `${init?.method} ${url}`)
+    const remocao = chamadas.findIndex(
+      (chamada) =>
+        chamada.startsWith('DELETE ') && chamada.endsWith(`/me/dispositivos/${ID_DISPOSITIVO}`),
+    )
+    expect(remocao).toBeGreaterThanOrEqual(0)
+    expect(remocao).toBeLessThan(chamadas.findIndex((chamada) => chamada.endsWith('/auth/logout')))
+    expect(itensSeguros.has(CHAVE_DISPOSITIVO_ID)).toBe(false)
+  })
+
+  it('offline: não chama DELETE /me/dispositivos e segue o logout pendente', async () => {
+    itensSeguros.set(CHAVE_DISPOSITIVO_ID, ID_DISPOSITIVO)
+    await abrirPerfil()
+    await ficarOnline(false)
+
+    await confirmarSaida()
+
+    expect(await screen.findByRole('header', { name: 'Atlética Teste' })).toBeOnTheScreen()
+    expect(fetchMock.mock.calls.some(([url]) => url.includes('/me/dispositivos'))).toBe(false)
+    expect(await listarLogoutPendente()).toEqual(['refresh'])
   })
 
   it('offline: sai sem chamar a API, grava o pendente e o envia quando a conexão volta', async () => {

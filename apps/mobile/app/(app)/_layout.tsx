@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router'
 import { paleta } from '@/features/atletica'
+import { useOferecerAtivacao } from '@/features/notificacoes'
 
 export const unstable_settings = { initialRouteName: '(abas)' }
 
@@ -12,6 +13,8 @@ const comCabecalho = {
 
 /** Abas e, acima delas, as telas de detalhe (eventos, notícias...). */
 export default function LayoutApp() {
+  useOferecerAtivacao()
+
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(abas)" />
@@ -21,6 +24,10 @@ export default function LayoutApp() {
       <Stack.Screen
         name="verificar-email"
         options={{ ...comCabecalho, title: 'Verificar e-mail', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="ativar-notificacoes"
+        options={{ presentation: 'modal', contentStyle: { backgroundColor: paleta.fundo } }}
       />
     </Stack>
   )

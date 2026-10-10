@@ -11,7 +11,9 @@ import Toast from 'react-native-toast-message'
 import { LimiteErro } from '@/components/estado'
 import { toastConfig } from '@/components/ui'
 import { carregarAtletica, paleta, ProvedorTema } from '@/features/atletica'
+import { features } from '@/config/features'
 import { acompanharLogoutPendente } from '@/features/auth'
+import { DeepLinkNotificacao, iniciarNotificacoes } from '@/features/notificacoes'
 import { opcoesPersistencia } from '@/infra/query/persistencia'
 import { queryClient } from '@/infra/query/query-client'
 import { configurarRede } from '@/infra/rede/online'
@@ -29,6 +31,7 @@ iniciarSpanAbertura()
 void SplashScreen.preventAutoHideAsync()
 configurarRede()
 acompanharLogoutPendente()
+iniciarNotificacoes()
 
 /** Deep link protegido aberto sem sessão: depois do login, vai ao destino original. */
 function useIrAoDestinoAposLogin() {
@@ -50,17 +53,22 @@ function Navegacao() {
   useIrAoDestinoAposLogin()
 
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: paleta.fundo } }}>
-      <Stack.Protected guard={autenticado}>
-        <Stack.Screen name="(app)" />
-      </Stack.Protected>
-      <Stack.Protected guard={!autenticado}>
-        <Stack.Screen name="(publico)" />
-      </Stack.Protected>
-      <Stack.Screen name="termos" />
-      <Stack.Screen name="privacidade" />
-      <Stack.Screen name="+not-found" />
-    </Stack>
+    <>
+      <Stack
+        screenOptions={{ headerShown: false, contentStyle: { backgroundColor: paleta.fundo } }}
+      >
+        <Stack.Protected guard={autenticado}>
+          <Stack.Screen name="(app)" />
+        </Stack.Protected>
+        <Stack.Protected guard={!autenticado}>
+          <Stack.Screen name="(publico)" />
+        </Stack.Protected>
+        <Stack.Screen name="termos" />
+        <Stack.Screen name="privacidade" />
+        <Stack.Screen name="+not-found" />
+      </Stack>
+      {features.notificacoes && <DeepLinkNotificacao />}
+    </>
   )
 }
 

@@ -1,5 +1,5 @@
-import { TelaPreferenciasNotificacao } from '@/features/notificacoes'
+import { fontePermissao, TelaPreferenciasNotificacao } from '@/features/notificacoes'
 
 export default function Notificacoes() {
-  return <TelaPreferenciasNotificacao />
+  return <TelaPreferenciasNotificacao permissao={fontePermissao} />
 }
