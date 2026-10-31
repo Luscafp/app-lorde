@@ -29,6 +29,15 @@
         "EXPO_PUBLIC_SENTRY_DSN": ""
       }
     },
+    "apresentacao": {
+      "extends": "preview",
+      "channel": "apresentacao",
+      "env": {
+        "EXPO_PUBLIC_AMBIENTE": "homologacao",
+        "EXPO_PUBLIC_API_URL": "https://atletica-lorde-api.onrender.com/api/v1",
+        "EXPO_PUBLIC_SENTRY_DSN": ""
+      }
+    },
     "production": {
       "distribution": "store",
       "channel": "producao",
