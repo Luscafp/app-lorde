@@ -62,7 +62,7 @@ export function TelaDados<T>({
   }
 
   return (
-    <View className="flex-1">
+    <View className="flex-auto">
       {!conectado && faixaOffline && <FaixaOffline atualizadoEm={consulta.dataUpdatedAt} />}
       {vazio?.(data) ? <EstadoVazio mensagem={mensagemVazio} acao={acaoVazio} /> : children(data)}
     </View>
