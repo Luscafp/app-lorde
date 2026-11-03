@@ -29,6 +29,9 @@ export const MODALIDADES_BASICAS = [
   { nome: 'E-sports', icone: 'gamepad-variant' },
 ] as const
 
+// Banco remoto (Neon, Railway) soma latência a cada query; o padrão de 5 s não basta para a demo.
+const TRANSACAO_SEED = { maxWait: 10_000, timeout: 120_000 }
+
 export interface ResumoSeed {
   atleticaId: string
   adminCriado: boolean
@@ -61,7 +64,7 @@ export async function executarSeed(
           demo: senhaDemoHash !== undefined,
         }
       })
-    })
+    }, TRANSACAO_SEED)
   } finally {
     await semEscopo.$disconnect()
   }

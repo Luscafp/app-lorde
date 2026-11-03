@@ -95,7 +95,10 @@ describe('registro do dispositivo', () => {
 
     await registrarSeConcedida()
 
-    expect(Notifications.getExpoPushTokenAsync).toHaveBeenCalledWith({ projectId: ID_PROJETO })
+    expect(Notifications.getExpoPushTokenAsync).toHaveBeenCalledWith({
+      projectId: ID_PROJETO,
+      devicePushToken: { type: 'android', data: 'fcm-teste' },
+    })
     expect(post).toHaveBeenCalledWith(...corpoRegistrado())
     expect(itensSeguros.get(CHAVE_DISPOSITIVO_ID)).toBe(DISPOSITIVO.id)
   })
@@ -207,6 +210,17 @@ describe('acompanharRegistroPush', () => {
 
     await esperarRegistros(2)
     expect(post).toHaveBeenLastCalledWith(...corpoRegistrado('ExponentPushToken[novo]'))
+  })
+
+  it('buscar o token não re-registra: o Android avisa o ouvinte a cada busca', async () => {
+    concederPermissao()
+    definirSessao('autenticado')
+
+    pararAcompanhamento = acompanharRegistroPush()
+    await esperarRegistros(1)
+    await new Promise((resolver) => setTimeout(resolver, 50))
+
+    expect(post).toHaveBeenCalledTimes(1)
   })
 
   it('token novo sem sessão não chama a API', async () => {

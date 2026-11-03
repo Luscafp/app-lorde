@@ -49,7 +49,12 @@ describe('eas.json', () => {
     )
     expect(resolvido.env?.EXPO_PUBLIC_AMBIENTE).toBe(ambiente)
     expect(resolvido.env).toHaveProperty('EXPO_PUBLIC_API_URL')
-    expect(resolvido.env).toHaveProperty('EXPO_PUBLIC_SENTRY_DSN')
+  })
+
+  it('sem variável vazia (o EAS CLI recusa o arquivo)', () => {
+    for (const perfil of Object.values(eas.build)) {
+      for (const valor of Object.values(perfil.env ?? {})) expect(valor).not.toBe('')
+    }
   })
 
   it('dev client só no perfil development', () => {

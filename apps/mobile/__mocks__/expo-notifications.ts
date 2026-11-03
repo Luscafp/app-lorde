@@ -32,9 +32,21 @@ export function permissao(
 
 export const getPermissionsAsync = jest.fn(() => Promise.resolve(permissao('denied')))
 export const requestPermissionsAsync = jest.fn(() => Promise.resolve(permissao('denied')))
-export const getExpoPushTokenAsync = jest.fn(() =>
-  Promise.resolve({ type: 'expo', data: 'ExponentPushToken[token-teste]' }),
-)
+let tokenDispositivo = 'fcm-teste'
+
+function avisarOuvintesToken(): void {
+  for (const ouvinte of ouvintesToken) ouvinte({ type: 'android', data: tokenDispositivo })
+}
+
+/** Como no Android: cada busca também avisa os ouvintes, mesmo sem o token mudar. */
+export const getDevicePushTokenAsync = jest.fn(() => {
+  setTimeout(avisarOuvintesToken, 0)
+  return Promise.resolve({ type: 'android', data: tokenDispositivo })
+})
+export const getExpoPushTokenAsync = jest.fn(async (opcoes: { devicePushToken?: unknown } = {}) => {
+  if (!opcoes.devicePushToken) await getDevicePushTokenAsync()
+  return { type: 'expo', data: 'ExponentPushToken[token-teste]' }
+})
 export const setNotificationHandler = jest.fn()
 export const setNotificationChannelAsync = jest.fn(() => Promise.resolve(null))
 export const clearLastNotificationResponse = jest.fn(() => {
@@ -75,10 +87,12 @@ export function __tocarNotificacao(valor: NotificationResponse): void {
 }
 
 export function __trocarToken(data: string): void {
-  for (const ouvinte of ouvintesToken) ouvinte({ type: 'android', data })
+  tokenDispositivo = data
+  avisarOuvintesToken()
 }
 
 export function __reiniciar(): void {
+  tokenDispositivo = 'fcm-teste'
   ultimaResposta = null
   ouvintesResposta.clear()
   ouvintesToken.clear()

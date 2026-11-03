@@ -13,8 +13,7 @@
       },
       "env": {
         "EXPO_PUBLIC_AMBIENTE": "development",
-        "EXPO_PUBLIC_API_URL": "http://localhost:3000/api/v1",
-        "EXPO_PUBLIC_SENTRY_DSN": ""
+        "EXPO_PUBLIC_API_URL": "http://localhost:3000/api/v1"
       }
     },
     "preview": {
@@ -25,8 +24,15 @@
       },
       "env": {
         "EXPO_PUBLIC_AMBIENTE": "homologacao",
-        "EXPO_PUBLIC_API_URL": "https://api-homologacao.preencher.invalid/api/v1",
-        "EXPO_PUBLIC_SENTRY_DSN": ""
+        "EXPO_PUBLIC_API_URL": "https://api-homologacao.preencher.invalid/api/v1"
+      }
+    },
+    "apresentacao": {
+      "extends": "preview",
+      "channel": "apresentacao",
+      "env": {
+        "EXPO_PUBLIC_AMBIENTE": "homologacao",
+        "EXPO_PUBLIC_API_URL": "https://atletica-lorde-api.onrender.com/api/v1"
       }
     },
     "production": {
@@ -38,8 +44,7 @@
       },
       "env": {
         "EXPO_PUBLIC_AMBIENTE": "producao",
-        "EXPO_PUBLIC_API_URL": "https://api.preencher.invalid/api/v1",
-        "EXPO_PUBLIC_SENTRY_DSN": ""
+        "EXPO_PUBLIC_API_URL": "https://api.preencher.invalid/api/v1"
       }
     },
     "production-apk": {

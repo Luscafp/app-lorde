@@ -43,19 +43,36 @@ export async function estadoPermissao(): Promise<EstadoPermissao> {
   return { permissao: permissaoDe(status), registrado: dispositivoId !== null }
 }
 
-async function registrar(): Promise<void> {
-  const { data: tokenPush } = await Notifications.getExpoPushTokenAsync({ projectId: idProjeto() })
+/** Último token do aparelho usado no registro; o Android avisa o ouvinte a cada busca. */
+let tokenAparelho: string | null = null
+let registroEmAndamento: Promise<void> = Promise.resolve()
+
+async function registrar(aparelho?: Notifications.DevicePushToken): Promise<void> {
+  const devicePushToken = aparelho ?? (await Notifications.getDevicePushTokenAsync())
+  tokenAparelho = String(devicePushToken.data)
+  const { data: tokenPush } = await Notifications.getExpoPushTokenAsync({
+    projectId: idProjeto(),
+    devicePushToken,
+  })
   const { id } = await registrarDispositivo({ tokenPush, plataforma: 'android' })
   await SecureStore.setItemAsync(CHAVE_DISPOSITIVO_ID, id)
 }
 
 /** Falhas são silenciosas; a próxima abertura tenta de novo (épico #36 §6). */
-export async function registrarSeConcedida(): Promise<void> {
-  try {
-    if ((await Notifications.getPermissionsAsync()).granted) await registrar()
-  } catch (erro) {
-    reportarErro(erro)
-  }
+export function registrarSeConcedida(aparelho?: Notifications.DevicePushToken): Promise<void> {
+  registroEmAndamento = registroEmAndamento.then(async () => {
+    try {
+      if ((await Notifications.getPermissionsAsync()).granted) await registrar(aparelho)
+    } catch (erro) {
+      reportarErro(erro)
+    }
+  })
+  return registroEmAndamento
+}
+
+async function aoMudarToken(aparelho: Notifications.DevicePushToken): Promise<void> {
+  await registroEmAndamento
+  if (String(aparelho.data) !== tokenAparelho) await registrarSeConcedida(aparelho)
 }
 
 export async function solicitarPermissaoERegistrar(): Promise<void> {
@@ -111,8 +128,8 @@ export function acompanharRegistroPush(): () => void {
       void registrarSeConcedida()
     }
   })
-  const token = Notifications.addPushTokenListener(() => {
-    if (autenticado()) void registrarSeConcedida()
+  const token = Notifications.addPushTokenListener((aparelho) => {
+    if (autenticado()) void aoMudarToken(aparelho)
   })
   return () => {
     sessao()

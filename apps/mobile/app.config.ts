@@ -8,7 +8,7 @@ import { COR_NEUTRA } from './src/config/tema.ts'
 const NOME_APP = 'Atlética Lorde'
 const IDENTIFICADOR_ANDROID = 'br.com.atleticalorde.app'
 /** Gerado pelo `eas init` na #95. */
-const ID_PROJETO_EAS = '00000000-0000-0000-0000-000000000000'
+const ID_PROJETO_EAS = '5183de52-e51d-433d-81c8-65db7ccae955'
 
 const esquemaEnv = z
   .object({
