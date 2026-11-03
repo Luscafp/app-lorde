@@ -30,3 +30,6 @@ Thumbs.db
 
 # Prisma (client gerado por `prisma generate`)
 apps/api/src/generated/
+
+# Credenciais do Firebase (build local de notificações)
+google-services.json
