@@ -14,7 +14,7 @@ Hoje a organização da atlética é feita por grupos de WhatsApp; o objetivo do
 - **Stack:** Expo/TypeScript no app · Node.js + NestJS + Prisma na API · PostgreSQL · Cloudflare R2 (imagens) · Expo Push/FCM (notificações)
 - **Níveis de acesso:** Atleta < Diretoria < Presidência (Presidente e Vice, mesmas permissões) < Administrador
 - **Multi-atlética:** hoje só a Lorde usa o app, mas o código deve nascer preparado para outras atléticas (`atleticaId` nas tabelas, papel por atlética, nada da Lorde fixo no código) — ver seção 8.4 do documento
-- **Documentação completa:** ver `/docs` (Documento de Requisitos v1.2, diagramas de classes, casos de uso e arquitetura)
+- **Documentação completa:** ver `/docs` (Documento de Requisitos v1.3, diagramas de classes, casos de uso e arquitetura)
 
 ## 🎯 Funcionalidades
 
@@ -40,11 +40,13 @@ Hoje a organização da atlética é feita por grupos de WhatsApp; o objetivo do
 
 **Diretoria**
 
-- Eventos (jogo ou treino, avulso ou recorrente), status, resultados, presenças, times/adversários, modalidades, solicitações, notícias, banners e avisos
+- Eventos (jogo ou treino, avulso ou recorrente), status, resultados, presenças, times/adversários, modalidades, solicitações, notícias, banners e avisos, com exclusão de registros
+- Entrada direta em qualquer time, sem solicitação (também Presidência e Administrador)
 
 **Administração**
 
-- Presidência: gerenciar usuários e auditoria · Administrador: conceder cargos da diretoria e da presidência
+- Presidência: conceder cargos de Diretor, Vice-presidente e Presidente, remover usuários da atlética e dos times e consultar a auditoria
+- Administrador: único que concede o cargo de Administrador e desativa contas; a conta é cadastrada pelo desenvolvedor ou por outro Administrador
 
 ## 🛠️ Desenvolvimento
 
