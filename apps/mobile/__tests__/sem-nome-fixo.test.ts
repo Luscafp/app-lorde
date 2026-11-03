@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 // Critério 15 do épico #6. app.config.ts: nome na loja, decisão D4 da #97 (fica com a #82).
-// eas.json: URL da API de cada ambiente.
+// eas.json: URL da API de cada ambiente. google-services.json: credencial local, fora do git.
 const IGNORADOS = new Set([
   'node_modules',
   '__tests__',
@@ -13,6 +13,7 @@ const IGNORADOS = new Set([
   'ios',
   'app.config.ts',
   'eas.json',
+  'google-services.json',
 ])
 const raiz = path.resolve(__dirname, '..')
 

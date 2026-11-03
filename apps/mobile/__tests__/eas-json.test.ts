@@ -52,8 +52,8 @@ describe('eas.json', () => {
   })
 
   it('sem variável vazia (o EAS CLI recusa o arquivo)', () => {
-    for (const nome of Object.keys(eas.build)) {
-      for (const valor of Object.values(eas.build[nome].env ?? {})) expect(valor).not.toBe('')
+    for (const perfil of Object.values(eas.build)) {
+      for (const valor of Object.values(perfil.env ?? {})) expect(valor).not.toBe('')
     }
   })
 
